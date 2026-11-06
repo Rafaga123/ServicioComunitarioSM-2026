@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from app.models import db
 from app.models.session import create_db_tables
+from app.routers import auth
 from fastapi import FastAPI
 
 
@@ -14,6 +15,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="API Servicio Comunitario", lifespan=lifespan)
+
+app.include_router(auth.router)
 
 
 @app.get("/")

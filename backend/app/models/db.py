@@ -30,7 +30,6 @@ class Usuarios(EsquemaBase, table=True):
     default=en.RolesUsuario.secretaria
   )  # ENUM: ADMINISTRADOR, COORDINADOR, SECRETARIA
 
-
 # Tabla Intermedia entre Estudiantes y Representantes
 class EstudiantesRepresentantes(EsquemaBase, table=True):
   __tablename__ = "estudiantes_representantes"
