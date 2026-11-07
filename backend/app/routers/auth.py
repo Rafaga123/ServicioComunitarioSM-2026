@@ -17,8 +17,8 @@ router = APIRouter(prefix="/auth", tags=["Validaciones"])
 def registrar_usuario(
   usuario_in: CrearUsuario, session: Session = Depends(get_session)
 ):
-  # Verificar si el usuairo ya existe
-  statement = select(Usuarios).where(Usuarios.name == usuario_in.name)
+  # Verificar si el usuario ya existe
+  statement = select(Usuarios).where(Usuarios.nombre == usuario_in.nombre)
 
   usuario_existe = session.exec(statement).first()
 
@@ -30,10 +30,10 @@ def registrar_usuario(
     )
 
   # Se hashea la contraseña enviada por el usuario
-  hash_password = obtener_hash_clave(usuario_in.password)
+  hash_clave = obtener_hash_clave(usuario_in.clave)
 
   nuevo_usuario = Usuarios(
-    name=usuario_in.name, password=hash_password, rol=usuario_in.rol
+    nombre=usuario_in.nombre, clave=hash_clave, rol=usuario_in.rol
   )
 
   # Insertar nuevo usuario a la Base de Datos
@@ -44,7 +44,7 @@ def registrar_usuario(
   # Refrescar al usuario nuevo extrayendolo de la Base de Datos
   session.refresh(nuevo_usuario)
 
-  # Retornar el Usuario en base al esquema realizado en schemes.py
+  # Retornar el Usuario en base al esquema realizado en schemas.py
   return nuevo_usuario
 
 
@@ -54,18 +54,18 @@ def iniciar_sesion(
   form_data: OAuth2PasswordRequestForm = Depends(),
   session: Session = Depends(get_session),
 ):
-  statement = select(Usuarios).where(Usuarios.name == form_data.username)
+  statement = select(Usuarios).where(Usuarios.nombre == form_data.username)
   usuario_db = session.exec(statement).first()
 
-  if not usuario_db or not verificar_clave(form_data.password, usuario_db.password):
+  if not usuario_db or not verificar_clave(form_data.password, usuario_db.clave):
     raise HTTPException(
       status_code=status.HTTP_401_UNAUTHORIZED,
       detail="Usuario o contraseña incorrectos",
-      headers={"WWW-Authenticate-Berear": "Berear"},
+      headers={"WWW-Authenticate": "Bearer"},
     )
 
   datos_token = {"sub": str(usuario_db.id), "rol": usuario_db.rol.value}
 
   token_jwt = crear_token_acceso(datos_token)
 
-  return {"access_token": token_jwt, "token_type": "berear"}
+  return {"access_token": token_jwt, "token_type": "bearer"}

@@ -7,12 +7,12 @@ import app.models.enums as en
 
 # Clase Padre con los atributos base de cada tabla
 class EsquemaBase(SQLModel):
-  create_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-  update_at: datetime = Field(
+  fecha_creacion: datetime = Field(default_factory=lambda: datetime.now(UTC))
+  fecha_actualizacion: datetime = Field(
     default_factory=lambda: datetime.now(UTC),
     sa_column_kwargs={"onupdate": lambda: datetime.now(UTC)},
   )
-  delete_at: datetime | None = Field(default=None)
+  fecha_eliminacion: datetime | None = Field(default=None)
 
 
 # ====
@@ -24,11 +24,12 @@ class EsquemaBase(SQLModel):
 class Usuarios(EsquemaBase, table=True):
   __tablename__ = "usuarios"
   id: int | None = Field(default=None, primary_key=True)
-  name: str = Field(index=True)
-  password: str
+  nombre: str = Field(index=True)
+  clave: str
   rol: en.RolesUsuario = Field(
     default=en.RolesUsuario.secretaria
   )  # ENUM: ADMINISTRADOR, COORDINADOR, SECRETARIA
+
 
 # Tabla Intermedia entre Estudiantes y Representantes
 class EstudiantesRepresentantes(EsquemaBase, table=True):
@@ -51,12 +52,12 @@ class Estudiantes(EsquemaBase, table=True):
 
   cedula_estudiantil: str
 
-  first_name: str = Field(index=True)
-  second_name: str = Field(index=True)
-  first_lastname: str = Field(index=True)
-  second_lastname: str = Field(index=True)
+  primer_nombre: str = Field(index=True)
+  segundo_nombre: str = Field(index=True)
+  primer_apellido: str = Field(index=True)
+  segundo_apellido: str = Field(index=True)
 
-  date_of_birth: datetime
+  fecha_nacimiento: datetime
 
   representantes: list["Representantes"] = Relationship(
     link_model=EstudiantesRepresentantes
@@ -68,10 +69,10 @@ class Representantes(EsquemaBase, table=True):
   __tablename__ = "representantes"
   id: int | None = Field(default=None, primary_key=True)
 
-  name: str = Field(index=True)
-  lastname: str = Field(index=True)
+  nombre: str = Field(index=True)
+  apellido: str = Field(index=True)
   # cedula: str
-  phone_number: str
+  telefono: str
 
   estudiantes: list["Estudiantes"] = Relationship(link_model=EstudiantesRepresentantes)
 
@@ -83,8 +84,8 @@ class Reportes(EsquemaBase, table=True):
   id_estudiante: int | None = Field(default=None, foreign_key="estudiantes.id")
   id_docente: int | None = Field(default=None, foreign_key="docentes.id")
 
-  incidental: str
-  articule: int
+  incidencia: str
+  articulo: int
   reglamento: en.Reglamentos  # ENUM
 
   defensa: str  # Defensa escrita del estudiante
@@ -140,7 +141,7 @@ class Asignaturas(EsquemaBase, table=True):
 
   id: int | None = Field(default=None, primary_key=True)
 
-  name: str
+  nombre: str
   docentes: list["Docentes"] = Relationship(link_model=AsignaturasDocentes)
 
 
@@ -150,8 +151,8 @@ class Docentes(EsquemaBase, table=True):
 
   id: int | None = Field(default=None, primary_key=True)
 
-  name: str
-  lastname: str
+  nombre: str
+  apellido: str
   cedula: str
 
   asignaturas: list["Asignaturas"] = Relationship(link_model=AsignaturasDocentes)

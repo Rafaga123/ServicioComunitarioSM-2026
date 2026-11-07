@@ -7,12 +7,12 @@ import app.models.enums as en
 # Esquemas para Usuarios
 # ====
 class CrearUsuario(SQLModel):
-  name: str
-  password: str
+  nombre: str
+  clave: str
   rol: en.RolesUsuario
 
 
 class PeticionUsuario(SQLModel):
   id: int | None
-  name: str
+  nombre: str
   rol: en.RolesUsuario
