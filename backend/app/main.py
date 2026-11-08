@@ -1,9 +1,11 @@
 from contextlib import asynccontextmanager
 
+from fastapi import FastAPI
+
+# ruff: noqa: F401 # Evita el error por importación sin uso para el Litner Ruff
 from app.models import db
 from app.models.session import create_db_tables
 from app.routers import auth
-from fastapi import FastAPI
 
 
 @asynccontextmanager
