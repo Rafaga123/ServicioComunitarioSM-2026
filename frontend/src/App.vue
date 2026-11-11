@@ -1,13 +1,7 @@
 <script setup>
-//import LoginView from './components/LoginView.vue'
-import UsuariosView from './components/UsuariosView.vue';
-import AuditoriaView from './components/AuditoriaView.vue';
+import ReportesView from './components/ReportesView.vue'
 </script>
 
 <template>
-  <!--<LoginView/>
-  <AuditoriaView/> -->
-  <UsuariosView/>
+  <ReportesView />
 </template>
-
-<style scoped></style>
