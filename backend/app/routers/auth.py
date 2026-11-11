@@ -4,7 +4,12 @@ from sqlmodel import Session, select
 from app.models.db import Usuarios
 from app.models.schemas import CrearUsuario, PeticionUsuario
 from app.models.session import get_session
-from app.utils.security import *
+from app.utils.security import (
+  obtener_hash_clave,
+  verificar_clave,
+  crear_token_acceso,
+  obtener_usuario_actual,
+)
 from fastapi import APIRouter, Depends, HTTPException, status
 
 router = APIRouter(prefix="/auth", tags=["Validaciones"])
@@ -69,3 +74,8 @@ def iniciar_sesion(
   token_jwt = crear_token_acceso(datos_token)
 
   return {"access_token": token_jwt, "token_type": "bearer"}
+
+
+@router.get("/me", response_model=PeticionUsuario)
+def perfil_usuario_actual(usuario_actual: Usuarios = Depends(obtener_usuario_actual)):
+  return usuario_actual

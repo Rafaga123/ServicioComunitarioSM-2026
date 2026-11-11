@@ -1,7 +1,7 @@
 import os
 
 from dotenv import load_dotenv
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine, text
 
 # Cargar variables de entorno del archivo .env
 load_dotenv()
@@ -19,6 +19,11 @@ engine = create_engine(sql_url, echo=True)
 
 
 def create_db_tables():
+  with engine.begin() as conn:
+    # Instalando las extensiones en lab base de datos
+    conn.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent;"))
+    conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
+
   SQLModel.metadata.create_all(engine)
 
 
