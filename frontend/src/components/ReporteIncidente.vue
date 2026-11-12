@@ -10,12 +10,16 @@ const formulario = reactive({
   curso: '',
   estudiante: '',
   fechaHora: fechaActual.toISOString().slice(0, 10),
+  hora: '',
+  docente: '',
   asignatura: '',
   tipoIncidente: '',
   tipoFalta: '',
   gravedad: '',
   descripcion: '',
-  acciones: '',
+  Defensa: '',
+  Leyes: '',
+  Articulo: '',
   archivos: [],
 })
 
@@ -100,8 +104,44 @@ function enviarFormulario(accion) {
         </label>
 
         <label class="field">
+          <span>Hora</span>
+          <input v-model="formulario.hora" type="time" name="hora" />
+        </label>
+
+        <label class="field">
+          <span>Docente</span>
+          <input
+            v-model="formulario.docente"
+            type="search"
+            name="docente"
+            list="docentes-disponibles"
+            autocomplete="off"
+          />
+          <datalist id="docentes-disponibles">
+            <option value="Prof. Vásquez" />
+          </datalist>
+        </label>
+
+        <label class="field">
           <span>Asignatura</span>
-          <input v-model="formulario.asignatura" type="text" name="asignatura" />
+          <!--<input v-model="formulario.asignatura" type="text" name="asignatura" />-->
+          <select v-model="formulario.asignatura" name="asignatura">
+            <option value="" disabled>Seleccionar</option>
+            <option value="Matemáticas">Matemáticas</option>
+            <option value="Ingles">Inglés y otras lenguas</option>
+            <option value="Historia">Geografia,Historia</option>
+            <option value="participación en grupos">Participación en grupos</option>
+            <option value="Ciencias Natu">Ciencias Naturales</option>
+            <option value="castellano">Castellano</option>
+            <option value="OYC">Orientación y convivencia</option>
+            <option value="AYP">Arte y patrimonio</option>
+            <option value="Edu fisica">Educación física</option>
+            <option value="Quimica">Química</option>
+            <option value="Biologia">Biología</option>
+            <option value="Fisica">Física</option>
+            <option value="FSN">Formación para la soberanía</option>
+            <option value="CT">Ciencias de la tierra</option>
+          </select>
         </label>
 
         <label class="field">
@@ -119,16 +159,15 @@ function enviarFormulario(accion) {
         </label>
       </div>
 
-      <fieldset class="severity-picker">
+      <fieldset class="radio-picker severity-picker">
         <legend class="sr-only">Gravedad del incidente</legend>
         <label
           v-for="nivel in [
             { valor: 'leve', texto: 'Leve' },
             { valor: 'grave', texto: 'Grave' },
-            
           ]"
           :key="nivel.valor"
-          class="severity-option"
+          class="radio-option severity-option"
           :class="[`severity-${nivel.valor}`, { selected: formulario.gravedad === nivel.valor }]"
         >
           <input v-model="formulario.gravedad" type="radio" name="gravedad" :value="nivel.valor" />
@@ -150,9 +189,27 @@ function enviarFormulario(accion) {
         ></textarea>
       </label>
 
+      <label class="field">
+        <span>Artículo</span>
+        <input v-model="formulario.Articulo" type="text" name="Articulo" />
+      </label>
+
+      <fieldset class="radio-picker law-picker">
+        <legend>Marco legal</legend>
+        <label
+          v-for="ley in ['LOPNNA', 'LOE', 'CBV', 'NC']"
+          :key="ley"
+          class="radio-option"
+          :class="{ selected: formulario.Leyes === ley }"
+        >
+          <input v-model="formulario.Leyes" type="radio" name="Leyes" :value="ley" />
+          <span>{{ ley }}</span>
+        </label>
+      </fieldset>
+
       <label class="field actions-field">
-        <span>Acciones tomadas por el docente</span>
-        <input v-model="formulario.acciones" type="text" name="acciones" />
+        <span>Art.88, LOPNNA: Derecho a la Defensa</span>
+        <input v-model="formulario.Defensa" type="text" name="Defensa" />
       </label>
 
       <div
@@ -205,270 +262,6 @@ function enviarFormulario(accion) {
 </template>
 
 <style scoped>
-.incident-form {
-  display: grid;
-  gap: 14px;
-  width: 100%;
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 16px;
-  color: #242a35;
-  font-family: Arial, sans-serif;
-}
+@import './css/reportesincidencia.css';
 
-.form-section {
-  padding: 14px 16px 16px;
-  border: 1px solid #c8cbd1;
-  border-radius: 9px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
-}
-
-.form-section h2 {
-  margin: 0 0 10px;
-  font-size: 17px;
-  font-weight: 700;
-}
-
-.student-fields,
-.incident-fields {
-  display: grid;
-  gap: 12px 14px;
-}
-
-.student-fields {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.incident-fields {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.field {
-  display: grid;
-  min-width: 0;
-  gap: 4px;
-  color: #414752;
-  font-size: 12px;
-}
-
-.field input,
-.field select,
-.field textarea {
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 40px;
-  padding: 8px 10px;
-  border: 1px solid #aeb2b8;
-  border-radius: 6px;
-  background: #fff;
-  color: #242a35;
-  font: inherit;
-  font-size: 14px;
-}
-
-.field textarea {
-  min-height: 100px;
-  resize: vertical;
-}
-
-.field input:focus,
-.field select:focus,
-.field textarea:focus,
-.file-drop:focus-visible {
-  outline: 2px solid #3454c5;
-  outline-offset: 1px;
-}
-
-.student-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 11px;
-}
-
-.student-avatar {
-  display: grid;
-  width: 46px;
-  height: 46px;
-  flex: 0 0 46px;
-  place-items: center;
-  border-radius: 50%;
-  background: #e0e4ec;
-  color: #46516a;
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.student-card-title,
-.student-card-notice {
-  margin: 0;
-  font-size: 12px;
-}
-
-.student-card-notice {
-  color: #777d87;
-}
-
-.severity-picker {
-  display: flex;
-  gap: 12px;
-  margin: 10px 0 0;
-  padding: 0;
-  border: 0;
-}
-
-.severity-option {
-  padding: 4px 10px;
-  border: 2px solid transparent;
-  border-radius: 999px;
-  cursor: pointer;
-  font-size: 12px;
-  line-height: 1;
-}
-
-.severity-option input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
-
-.severity-option:focus-within {
-  outline: 2px solid #3454c5;
-  outline-offset: 2px;
-}
-
-.severity-option.selected {
-  border-color: currentColor;
-}
-
-.severity-leve {
-  background: #d9f1e2;
-  color: #285d3b;
-}
-
-.severity-grave {
-  background: #faedc8;
-  color: #72520b;
-}
-
-.actions-field {
-  margin-top: 10px;
-}
-
-.file-drop {
-  display: grid;
-  min-height: 56px;
-  margin-top: 10px;
-  padding: 8px;
-  place-items: center;
-  border-radius: 6px;
-  background: #e0e4ec;
-  color: #414752;
-  cursor: pointer;
-  text-align: center;
-  font-size: 13px;
-}
-
-.file-drop.is-dragging {
-  outline: 2px dashed #3454c5;
-  background: #eef1fa;
-}
-
-.file-input,
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  clip-path: inset(50%);
-}
-
-.file-list {
-  display: grid;
-  gap: 6px;
-  margin: 10px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.file-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  overflow-wrap: anywhere;
-  font-size: 12px;
-}
-
-.remove-file {
-  flex: 0 0 auto;
-  border: 0;
-  background: none;
-  color: #3454c5;
-  cursor: pointer;
-  font: inherit;
-  text-decoration: underline;
-}
-
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding-top: 1px;
-}
-
-.button {
-  min-height: 42px;
-  padding: 0 16px;
-  border: 1px solid #777d87;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.button-secondary {
-  background: #fff;
-  color: #242a35;
-}
-
-.button-secondary:hover {
-  background: #f4f5f7;
-}
-
-.button-primary {
-  border-color: #304bbc;
-  background: #304bbc;
-  color: #fff;
-}
-
-.button-primary:hover {
-  background: #253d9f;
-}
-
-@media (max-width: 760px) {
-  .incident-fields {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 520px) {
-  .incident-form {
-    padding: 10px;
-  }
-
-  .student-fields,
-  .incident-fields {
-    grid-template-columns: 1fr;
-  }
-
-  .form-actions {
-    display: grid;
-    grid-template-columns: 1fr;
-  }
-}
 </style>
