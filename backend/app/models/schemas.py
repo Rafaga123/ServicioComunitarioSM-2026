@@ -61,3 +61,48 @@ class ActualizarEstudiante(SQLModel):
   segundo_apellido: str | None = None
 
   fecha_nacimiento: datetime | None = None
+
+# ====
+# Esquema para pases
+# ====
+
+class CrearPase(SQLModel):
+  id_estudiante: int 
+  id_docente: int | None = None
+  id_asignatura: int | None = None
+  tipo: en.TipoPase = en.TipoPase.entrada
+  motivo: str
+  fecha: datetime
+  autorizador: str
+
+
+class PeticionPase(SQLModel):
+  id: int | None
+  id_estudiante: int | None
+  id_docente: int | None
+  id_asignatura: int | None
+  tipo: en.TipoPase
+  motivo: str
+  fecha: datetime
+  autorizador: str
+
+
+class ActualizacionPase(SQLModel):
+  id_docente: int | None = None
+  id_asignatura: int | None = None
+  tipo: en.TipoPase | None = None
+  motivo: str | None = None
+  fecha: datetime | None = None
+  autorizador: str | None = None
+
+# ====
+# Esquema para Auditoria
+# ====
+
+class PeticionAuditoria(SQLModel):
+  id: int | None 
+  usuario_id: int | None
+  modulo_afectado: str
+  accion: str
+  descripcion: str
+  fecha_creacion: datetime

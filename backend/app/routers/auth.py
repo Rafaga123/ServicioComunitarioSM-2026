@@ -1,3 +1,4 @@
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 
@@ -5,12 +6,11 @@ from app.models.db import Usuarios
 from app.models.schemas import CrearUsuario, PeticionUsuario
 from app.models.session import get_session
 from app.utils.security import (
-  obtener_hash_clave,
-  verificar_clave,
   crear_token_acceso,
+  obtener_hash_clave,
   obtener_usuario_actual,
+  verificar_clave,
 )
-from fastapi import APIRouter, Depends, HTTPException, status
 
 router = APIRouter(prefix="/auth", tags=["Validaciones"])
 

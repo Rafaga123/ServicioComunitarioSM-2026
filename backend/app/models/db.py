@@ -104,6 +104,7 @@ class Pases(EsquemaBase, table=True):
 
   id_estudiante: int | None = Field(default=None, foreign_key="estudiantes.id")
   id_docente: int | None = Field(default=None, foreign_key="docentes.id")
+  id_asignatura: int | None = Field(default=None, foreign_key="asignaturas.id")
   tipo: en.TipoPase = Field(default=en.TipoPase.entrada)  # ENUM: TIPO DE PASE DADO
 
   motivo: str

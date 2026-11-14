@@ -187,4 +187,3 @@ def eliminar_estudiante(
   session.commit()
 
   # Un status 204 significa que la operación fue un éxito pero no hay contenido que devolver
-  return None
