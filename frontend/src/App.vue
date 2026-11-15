@@ -1,7 +1,7 @@
 <script setup>
-import ReportesView from './components/ReportesView.vue'
+import LoginView from './components/LoginView.vue'
 </script>
 
 <template>
-  <ReportesView />
+  <LoginView />
 </template>
