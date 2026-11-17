@@ -1,6 +1,12 @@
 from fastapi import APIRouter, Depends, status
 from sqlmodel import Session, select
 
+from app.core.paginacion import (
+  Paginacion,
+  RespuestaPaginada,
+  construir_pagina,
+  paginar,
+)
 from app.models.db import Grados, Usuarios
 from app.models.schemas import CrearGrado, PeticionGrado
 from app.models.session import get_session
@@ -23,11 +29,15 @@ def registrar_grado(
   return nuevo_grado
 
 
-@router.get("/", response_model=list[PeticionGrado])
+@router.get("/", response_model=RespuestaPaginada[PeticionGrado])
 def listar_grados(
+  paginacion: Paginacion = Depends(),
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
   # Traemos todos los grados activos
-  statement = select(Grados).where(Grados.fecha_eliminacion == None)
-  return session.exec(statement).all()
+  consulta = select(Grados).where(Grados.fecha_eliminacion == None)
+
+  items, total = paginar(session, consulta, paginacion)
+
+  return construir_pagina(items, total, paginacion)

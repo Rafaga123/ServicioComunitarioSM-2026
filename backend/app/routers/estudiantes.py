@@ -4,6 +4,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlmodel import Session, select
 
+from app.core.paginacion import (
+  Paginacion,
+  PaginacionBusqueda,
+  RespuestaPaginada,
+  construir_pagina,
+  paginar,
+)
 from app.models.db import Estudiantes, Usuarios
 from app.models.schemas import ActualizarEstudiante, CrearEstudiante, PeticionEstudiante
 from app.models.session import get_session
@@ -49,58 +56,52 @@ def registrar_estudiante(
 
 
 # Pedir un listado de Estudiantes
-@router.get("/", response_model=list[PeticionEstudiante])
+@router.get("/", response_model=RespuestaPaginada[PeticionEstudiante])
 def listar_estudiantes(
-  offset: int = 0,  # Desde qué registro empezar
-  limit: int = 15,  # Cuántos registros traer máximo
+  paginacion: Paginacion = Depends(),
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
-  statement = (
-    select(Estudiantes)
-    .where(  # Solo traer los registros de estudiantes que no esten eliminados
-      Estudiantes.fecha_eliminacion == None
-    )
-    .offset(offset)
-    .limit(limit)
+  consulta = select(Estudiantes).where(
+    # Solo traer los registros de estudiantes que no esten eliminados
+    Estudiantes.fecha_eliminacion == None
   )
 
-  estudiantes_db = session.exec(statement).all()
+  items, total = paginar(session, consulta, paginacion)
 
-  return estudiantes_db
+  return construir_pagina(items, total, paginacion)
 
 
 # Buscar Estudiantes listado
-@router.get("/buscar/", response_model=list[PeticionEstudiante])
+@router.get("/buscar/", response_model=RespuestaPaginada[PeticionEstudiante])
 def buscar_estudiantes(
   termino: str,  # Lo que el usuario escribe en el buscador (cédula, nombre, etc.)
+  paginacion: PaginacionBusqueda = Depends(),
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
   termino_limpio = f"%{termino}"
 
-  statement = (
-    select(Estudiantes)
-    .where(
-      (Estudiantes.fecha_eliminacion == None)
-      & (
-        (Estudiantes.cedula_estudiantil.contains(termino))
-        | (
-          func.unaccent(Estudiantes.primer_nombre.ilike(func.unaccent(termino_limpio)))
+  consulta = select(Estudiantes).where(
+    (Estudiantes.fecha_eliminacion == None)
+    & (
+      (Estudiantes.cedula_estudiantil.contains(termino))
+      | (
+        func.unaccent(
+          Estudiantes.primer_nombre.ilike(func.unaccent(termino_limpio))
         )
-        | (
-          func.unaccent(
-            Estudiantes.primer_apellido.ilike(func.unaccent(termino_limpio))
-          )
+      )
+      | (
+        func.unaccent(
+          Estudiantes.primer_apellido.ilike(func.unaccent(termino_limpio))
         )
       )
     )
-    .limit(10)
-  )  # Limitamos a 10 para respuestas ultrarrápidas
+  )
 
-  resultados = session.exec(statement).all()
+  items, total = paginar(session, consulta, paginacion)
 
-  return resultados
+  return construir_pagina(items, total, paginacion)
 
 
 # Solicitar a un Estudiante especifico por ID

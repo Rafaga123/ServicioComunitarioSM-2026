@@ -136,6 +136,7 @@ class CreacionAuditoria(SQLModel):
 class PeticionAuditoria(SQLModel):
   id: int | None
   usuario_id: int | None
+  usuario: str | None = None
   modulo: str
   accion: str
   descripcion: str

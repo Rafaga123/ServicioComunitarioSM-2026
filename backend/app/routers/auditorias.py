@@ -6,6 +6,12 @@ from sqlalchemy import func
 from sqlmodel import Session, col, select
 
 #imports de la app
+from app.core.paginacion import (
+  Paginacion,
+  RespuestaPaginada,
+  construir_pagina,
+  paginar,
+)
 from app.models.db import Auditorias, Usuarios
 from app.models.enums import RolesUsuario
 from app.models.schemas import PeticionAuditoria
@@ -16,14 +22,13 @@ router = APIRouter(prefix="/auditorias", tags=["Auditorías"])
 
 
 # Funcion para listar las auditorias
-@router.get("/", response_model=list[PeticionAuditoria])
+@router.get("/", response_model=RespuestaPaginada[PeticionAuditoria])
 def listar_auditorias(
   usuario: str | None = None,
   modulo: str | None = None,
   accion: str | None = None,
   fecha: date | None = None,
-  offset: int = 0,
-  limit: int = 20,
+  paginacion: Paginacion = Depends(),
   sesion: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
@@ -57,17 +62,17 @@ def listar_auditorias(
     
     
   #ordenamos de mayor a menor (la mas reciente, a la mas antigua)
-  consulta = (
-    consulta.order_by(col(Auditorias.fecha_creacion).desc())
-    .offset(offset)
-    .limit(limit)
-  )
-  
-  # retornamos todas las auditorias
-  return [
+  consulta = consulta.order_by(col(Auditorias.fecha_creacion).desc())
+
+  # paginamos y mapeamos cada fila (auditoria + nombre de usuario)
+  filas, total = paginar(sesion, consulta, paginacion)
+
+  items = [
     PeticionAuditoria(**auditoria.model_dump(), usuario=nombre_usuario)
-    for auditoria, nombre_usuario in sesion.exec(consulta).all()
+    for auditoria, nombre_usuario in filas
   ]
+
+  return construir_pagina(items, total, paginacion)
 
 
 

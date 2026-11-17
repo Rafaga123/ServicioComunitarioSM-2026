@@ -3,6 +3,12 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
+from app.core.paginacion import (
+  Paginacion,
+  RespuestaPaginada,
+  construir_pagina,
+  paginar,
+)
 from app.models.db import Estudiantes, Representantes, Usuarios
 from app.models.schemas import CrearRepresentante, PeticionRepresentante
 from app.models.session import get_session
@@ -30,21 +36,18 @@ def registrar_representante(
 
 
 # 2. Listar Representantes
-@router.get("/", response_model=list[PeticionRepresentante])
+@router.get("/", response_model=RespuestaPaginada[PeticionRepresentante])
 def listar_representantes(
-  offset: int = 0,
-  limit: int = 15,
+  paginacion: Paginacion = Depends(),
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
   # Traemos solo los que no están eliminados lógicamente
-  statement = (
-    select(Representantes)
-    .where(Representantes.fecha_eliminacion == None)
-    .offset(offset)
-    .limit(limit)
-  )
-  return session.exec(statement).all()
+  consulta = select(Representantes).where(Representantes.fecha_eliminacion == None)
+
+  items, total = paginar(session, consulta, paginacion)
+
+  return construir_pagina(items, total, paginacion)
 
 
 # 3. EL ENDPOINT MÁGICO: Vincular Representante con Estudiante
