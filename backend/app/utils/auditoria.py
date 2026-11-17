@@ -5,14 +5,14 @@ from app.models.db import Auditorias
 
 def registrar_auditoria(
   session: Session,
-  usuario_id: int | None,
-  modulo_afectado: str,
+  usuario_id: int,
+  modulo: str,
   accion: str,
   descripcion: str,
 ) -> None:
   nueva_auditoria = Auditorias(
-    usuario_id = usuario_id,
-    modulo_afectado=modulo_afectado,
+    usuario_id=usuario_id,
+    modulo=modulo,
     accion=accion,
     descripcion=descripcion,
   )

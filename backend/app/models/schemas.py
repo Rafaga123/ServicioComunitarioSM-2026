@@ -62,12 +62,14 @@ class ActualizarEstudiante(SQLModel):
 
   fecha_nacimiento: datetime | None = None
 
+
 # ====
 # Esquema para pases
 # ====
 
+
 class CrearPase(SQLModel):
-  id_estudiante: int 
+  id_estudiante: int
   id_docente: int | None = None
   id_asignatura: int | None = None
   tipo: en.TipoPase = en.TipoPase.entrada
@@ -95,14 +97,16 @@ class ActualizacionPase(SQLModel):
   fecha: datetime | None = None
   autorizador: str | None = None
 
+
 # ====
 # Esquema para Auditoria
 # ====
 
+
 class PeticionAuditoria(SQLModel):
-  id: int | None 
-  usuario_id: int | None
-  modulo_afectado: str
-  accion: str
-  descripcion: str
+  id: int
   fecha_creacion: datetime
+  usuario: str
+  accion: str
+  modulo: str
+  descripcion: str

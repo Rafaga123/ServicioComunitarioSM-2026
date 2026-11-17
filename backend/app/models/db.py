@@ -163,7 +163,7 @@ class Docentes(EsquemaBase, table=True):
 class Auditorias(EsquemaBase, table=True):
   __tablename__ = "auditorias"
   id: int | None = Field(default=None, primary_key=True)
-  usuario_id: int | None = Field(default=None)
-  modulo_afectado: str
+  usuario_id: int = Field(foreign_key="usuarios.id")
+  modulo: str
   accion: str
   descripcion: str
