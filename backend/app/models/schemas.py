@@ -64,6 +64,28 @@ class ActualizarEstudiante(SQLModel):
 
 
 # ====
+# Esquemas para Representantes
+# ====
+class CrearRepresentante(SQLModel):
+  nombre: str
+  apellido: str
+  telefono: str
+
+
+class ActualizarRepresentante(SQLModel):
+  nombre: str | None = None
+  apellido: str | None = None
+  telefono: str | None = None
+
+
+class PeticionRepresentante(SQLModel):
+  id: int
+  nombre: str
+  apellido: str
+  telefono: str
+
+
+# ====
 # Esquema para pases
 # ====
 
@@ -103,10 +125,32 @@ class ActualizacionPase(SQLModel):
 # ====
 
 
-class PeticionAuditoria(SQLModel):
-  id: int
-  fecha_creacion: datetime
-  usuario: str
+class CreacionAuditoria(SQLModel):
+  usuario_id: int | None
+  modulo_afectado: str
   accion: str
-  modulo: str
   descripcion: str
+  fecha_creacion: datetime
+
+
+class PeticionAuditoria(SQLModel):
+  id: int | None
+  usuario_id: int | None
+  modulo: str
+  accion: str
+  descripcion: str
+  fecha_creacion: datetime
+
+
+# ====
+# Esquemas para Grados
+# ====
+class CrearGrado(SQLModel):
+  grado: str
+  seccion: str
+
+
+class PeticionGrado(SQLModel):
+  id: int
+  grado: str
+  seccion: str
