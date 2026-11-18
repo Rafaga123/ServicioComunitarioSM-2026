@@ -9,6 +9,7 @@ from sqlmodel import Session
 
 from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, SECRET_KEY
 from app.models.db import Usuarios
+from app.models.enums import RolesUsuario
 from app.models.session import get_session
 
 
@@ -67,17 +68,33 @@ def obtener_usuario_actual(
   try:
     payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
 
-    usuario_id: str = payload.get("sub")
+    usuario_id = payload.get("sub")
 
     if usuario_id is None:
       raise excepcion_credenciales
 
-  except InvalidTokenError:
+    usuario = session.get(Usuarios, int(usuario_id))
+
+  except (InvalidTokenError, TypeError, ValueError):
     raise excepcion_credenciales
 
-  usuario = session.get(Usuarios, int(usuario_id))
-
-  if usuario is None:
+  if usuario is None or usuario.fecha_eliminacion is not None:
     raise excepcion_credenciales
 
   return usuario
+
+
+# Dependencia reutilizable para restringir endpoints según el rol del usuario
+def requerir_roles(*roles: RolesUsuario):
+  def dependencia(
+    usuario_actual: Usuarios = Depends(obtener_usuario_actual),
+  ) -> Usuarios:
+    if usuario_actual.rol not in roles:
+      raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="No tienes permisos para realizar esta acción",
+      )
+
+    return usuario_actual
+
+  return dependencia
