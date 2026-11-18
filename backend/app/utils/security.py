@@ -7,12 +7,9 @@ from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
 from sqlmodel import Session
 
+from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, SECRET_KEY
 from app.models.db import Usuarios
 from app.models.session import get_session
-
-SECRET_KEY = "ELONEPICEESCLAVE"  # Cambiar luego, lol
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 360  # 6 horas
 
 
 # Obtiene el texto simple de la clave y lo encripta en hash
