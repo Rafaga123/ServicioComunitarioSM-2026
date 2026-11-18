@@ -1,0 +1,11 @@
+indent-width = 2
+
+[lint]
+# Habilita la regla "I" (isort) para que Ruff siempre ordene las importaciones igual
+extend-select = ["I"]
+
+# Ignora B008 (Do not perform function call in argument defaults)
+ignore = ["B008"]
+
+[format]
+indent-style = "space"

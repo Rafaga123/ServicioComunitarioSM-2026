@@ -10,7 +10,10 @@ class RolesUsuario(str, Enum):
 
 # Enum para los tipos de reglamento
 class Reglamentos(str, Enum):
-  si = ""
+  lopnna = "LOPNNA" # Ley Orgánica para la protección de niños, niñas y adolescentes
+  loe = "LOE"       # Ley Orgánica de Educación
+  cbv = "CBV"       # Constitución de la República Bolivariana de Venezuela
+  nc = "NC"         # Nuestra Carta
 
 
 # Enum para la gravedad de un reporte
@@ -21,10 +24,13 @@ class NivelGravedad(str, Enum):
 
 # Enum para la categoría de los reportes
 class CategoriaReportes(str, Enum):
-  si = ""
+  conducta = "CONDUCTUAL"
+  academico = "ACADEMICO"
 
 
 # Enum para tipo de pase
 class TipoPase(str, Enum):
   salida = "SALIDA"
   entrada = "ENTRADA"
+  
+
