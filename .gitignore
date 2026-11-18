@@ -38,6 +38,7 @@ node_modules/
 dist/
 dist-ssr/
 *.local
+.eslintcache
 
 # Logs de paquetes
 npm-debug.log*

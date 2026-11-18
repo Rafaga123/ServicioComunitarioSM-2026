@@ -3,6 +3,9 @@ import { ref } from 'vue'
 // Las imágenes se importan para que Vite resuelva bien la ruta (src/assets/)
 import fondo from '../assets/fachada.jpg'
 import logo from '../assets/logo santa marta.png'
+import { useRoute, useRouter } from 'vue-router'
+const router = useRouter()
+const route = useRoute()
 
 // 1. Declaración del estado reactivo del componente
 const username = ref('')
@@ -11,12 +14,45 @@ const password = ref('')
 // Variable para controlar la visibilidad de la contraseña
 const showPassword = ref(false)
 
+// Estado del envío: feedback visual mientras se autentica
+const loading = ref(false)
+const error = ref('')
+
 // 2. Función que intercepta el envío del formulario
-const handleLogin = () => {
-  console.log('Datos listos para enviar a FastAPI:', {
-    usuario: username.value,
-    clave: password.value,
-  })
+const handleLogin = async () => {
+  error.value = ''
+  loading.value = true
+
+  try{
+    const formData = new URLSearchParams()
+    formData.append('username', username.value)   // FastAPI busca estrictamente 'username'
+    formData.append('password', password.value)
+
+    const response = await fetch('http://localhost:8000/auth/login',{
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData
+    })
+
+    if(!response.ok){
+      throw new Error('Credenciales incorrectas o error en el servidor')
+    }
+
+    const data = await response.json()
+    localStorage.setItem('token', data.access_token)
+
+    // Si el guard nos mandó aquí desde otra ruta, volvemos allí
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : null
+    router.push(redirect || { name: 'dashboard' })
+
+  }catch(err){
+    error.value = err.message || 'No se pudo iniciar sesión'
+    console.error('Error de autenticacion: ', err.message)
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -28,7 +64,7 @@ const handleLogin = () => {
     <!-- Capa oscura azulada para que la tarjeta y el texto resalten -->
     <div
       aria-hidden="true"
-      class="absolute inset-0 bg-gradient-to-b from-[#0b1633]/80 via-[#13264d]/60 to-[#13264d]/70"
+      class="absolute inset-0 bg-linear-to-b from-[#0b1633]/80 via-[#13264d]/60 to-[#13264d]/70"
     ></div>
 
     <!-- Logo + nombre (esquina superior izquierda) -->
@@ -51,12 +87,12 @@ const handleLogin = () => {
       class="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 pb-10 pt-28"
     >
       <section
-        class="relative w-full max-w-[420px] overflow-hidden rounded-3xl bg-white px-7 py-10 shadow-[0_30px_80px_rgba(8,21,65,0.5)] ring-1 ring-white/40 sm:px-10"
+        class="relative w-full max-w-105 overflow-hidden rounded-3xl bg-white px-7 py-10 shadow-[0_30px_80px_rgba(8,21,65,0.5)] ring-1 ring-white/40 sm:px-10"
       >
         <!-- Franja de color con la paleta -->
         <div
           aria-hidden="true"
-          class="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-[#ccd5ae] via-[#91a5c9] to-[#b4d0f8]"
+          class="absolute inset-x-0 top-0 h-1.5 bg-linear-to-r from-[#ccd5ae] via-[#91a5c9] to-[#b4d0f8]"
         ></div>
 
         <form @submit.prevent="handleLogin" class="flex flex-col gap-5">
@@ -64,6 +100,15 @@ const handleLogin = () => {
             <h1 class="text-[28px] font-bold text-[#1b2a47]">Iniciar sesión</h1>
             <p class="mt-1 text-[15px] text-[#4a5876]">Ingresa con tu usuario asignado</p>
           </div>
+
+          <!-- Error de autenticación -->
+          <p
+            v-if="error"
+            role="alert"
+            class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+          >
+            {{ error }}
+          </p>
 
           <!-- Usuario -->
           <div class="flex flex-col gap-1.5">
@@ -171,9 +216,10 @@ const handleLogin = () => {
 
           <button
             type="submit"
-            class="mt-1 h-[52px] rounded-xl bg-[#2c4a7a] text-[17px] font-bold text-white shadow-[0_8px_20px_rgba(44,74,122,0.35)] transition hover:bg-[#233d68] active:scale-[0.99] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-[#91a5c9]"
+            :disabled="loading"
+            class="mt-1 h-13 rounded-xl bg-[#2c4a7a] text-[17px] font-bold text-white shadow-[0_8px_20px_rgba(44,74,122,0.35)] transition hover:bg-[#233d68] active:scale-[0.99] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-[#91a5c9] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Ingresar
+            {{ loading ? 'Ingresando…' : 'Ingresar' }}
           </button>
 
           <p class="text-center text-[13.5px] leading-relaxed text-[#4a5876]">
