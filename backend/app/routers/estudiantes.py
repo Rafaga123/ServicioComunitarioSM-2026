@@ -10,8 +10,10 @@ from app.core.paginacion import (
   paginar,
 )
 from app.models.db import Estudiantes, Usuarios
+from app.models.enums import ModuloAuditoria
 from app.models.schemas import ActualizarEstudiante, CrearEstudiante, PeticionEstudiante
 from app.models.session import get_session
+from app.utils.auditoria import registrar_auditoria
 from app.utils.security import obtener_usuario_actual
 from app.utils.soft_delete import marcar_eliminado
 
@@ -48,6 +50,20 @@ def registrar_estudiante(
   )
 
   session.add(nuevo_estudiante)
+  session.flush()
+
+  registrar_auditoria(
+    session,
+    usuario_actual.id,
+    ModuloAuditoria.estudiantes,
+    "CREAR",
+    (
+      f"Se registró al estudiante '{nuevo_estudiante.primer_nombre} "
+      f"{nuevo_estudiante.primer_apellido}' con cédula "
+      f"{nuevo_estudiante.cedula_estudiantil}."
+    ),
+  )
+
   session.commit()
   session.refresh(nuevo_estudiante)
 
@@ -154,11 +170,28 @@ def actualizar_estudiante(
   # Extraemos solo los campos que el frontend realmente envió (ignora los nulos)
   datos_actualizar = estudiante_in.model_dump(exclude_unset=True)
 
+  if not datos_actualizar:
+    return estudiante_db
+
   # Aplicamos los cambios al objeto de la base de datos
   for key, value in datos_actualizar.items():
     setattr(estudiante_db, key, value)
 
   session.add(estudiante_db)
+  session.flush()
+
+  registrar_auditoria(
+    session,
+    usuario_actual.id,
+    ModuloAuditoria.estudiantes,
+    "ACTUALIZAR",
+    (
+      f"Se actualizaron los datos del estudiante "
+      f"'{estudiante_db.primer_nombre} {estudiante_db.primer_apellido}' "
+      f"con cédula {estudiante_db.cedula_estudiantil}."
+    ),
+  )
+
   session.commit()
   session.refresh(estudiante_db)
 
