@@ -1,7 +1,6 @@
 from datetime import time
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
 from app.models.db import Estudiantes, Horarios

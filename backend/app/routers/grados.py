@@ -5,6 +5,7 @@ from app.core.paginacion import (
   Paginacion,
   RespuestaPaginada,
   construir_pagina,
+  filtro_activos,
   paginar,
 )
 from app.models.db import Grados, Usuarios
@@ -36,7 +37,7 @@ def listar_grados(
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
   # Traemos todos los grados activos
-  consulta = select(Grados).where(Grados.fecha_eliminacion == None)
+  consulta = filtro_activos(select(Grados), Grados)
 
   items, total = paginar(session, consulta, paginacion)
 

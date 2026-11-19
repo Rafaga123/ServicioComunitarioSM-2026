@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.core.paginacion import (
@@ -7,6 +6,8 @@ from app.core.paginacion import (
   PaginacionBusqueda,
   RespuestaPaginada,
   construir_pagina,
+  filtro_activos,
+  filtro_texto,
   paginar,
 )
 from app.models.db import Estudiantes, Usuarios
@@ -77,10 +78,7 @@ def listar_estudiantes(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
-  consulta = select(Estudiantes).where(
-    # Solo traer los registros de estudiantes que no esten eliminados
-    Estudiantes.fecha_eliminacion == None
-  )
+  consulta = filtro_activos(select(Estudiantes), Estudiantes)
 
   items, total = paginar(session, consulta, paginacion)
 
@@ -95,23 +93,13 @@ def buscar_estudiantes(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
-  termino_limpio = f"%{termino}"
-
-  consulta = select(Estudiantes).where(
-    (Estudiantes.fecha_eliminacion == None)
-    & (
-      (Estudiantes.cedula_estudiantil.contains(termino))
-      | (
-        func.unaccent(
-          Estudiantes.primer_nombre.ilike(func.unaccent(termino_limpio))
-        )
-      )
-      | (
-        func.unaccent(
-          Estudiantes.primer_apellido.ilike(func.unaccent(termino_limpio))
-        )
-      )
-    )
+  consulta = filtro_activos(select(Estudiantes), Estudiantes)
+  consulta = filtro_texto(
+    consulta,
+    termino,
+    Estudiantes.cedula_estudiantil,
+    Estudiantes.primer_nombre,
+    Estudiantes.primer_apellido,
   )
 
   items, total = paginar(session, consulta, paginacion)

@@ -1,5 +1,3 @@
-from datetime import UTC, datetime
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
@@ -7,6 +5,7 @@ from app.core.paginacion import (
   Paginacion,
   RespuestaPaginada,
   construir_pagina,
+  filtro_activos,
   paginar,
 )
 from app.models.db import Estudiantes, Representantes, Usuarios
@@ -43,7 +42,7 @@ def listar_representantes(
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
   # Traemos solo los que no están eliminados lógicamente
-  consulta = select(Representantes).where(Representantes.fecha_eliminacion == None)
+  consulta = filtro_activos(select(Representantes), Representantes)
 
   items, total = paginar(session, consulta, paginacion)
 
