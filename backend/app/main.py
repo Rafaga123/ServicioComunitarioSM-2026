@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # ruff: noqa: F401 # Evita el error por importación sin uso para el Litner Ruff
 from app.models import db
 from app.models.session import create_db_tables
-from app.routers import auditorias, auth, estudiantes
+from app.routers import auditorias, auth, estudiantes, grados, representantes
 from app.utils.ip import obtener_ip_local
 
 
@@ -29,6 +29,8 @@ app = FastAPI(title="API Servicio Comunitario", lifespan=lifespan, version="v1.0
 app.include_router(auth.router)
 app.include_router(estudiantes.router)
 app.include_router(auditorias.router)
+app.include_router(grados.router)
+app.include_router(representantes.router)
 
 app.add_middleware(
   CORSMiddleware,

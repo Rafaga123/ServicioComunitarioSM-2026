@@ -50,7 +50,7 @@ def listar_representantes(
   return construir_pagina(items, total, paginacion)
 
 
-# 3. EL ENDPOINT MÁGICO: Vincular Representante con Estudiante
+# 3. Vincular Representante con Estudiante
 @router.post(
   "/{representante_id}/vincular_estudiante/{estudiante_id}",
   status_code=status.HTTP_200_OK,
