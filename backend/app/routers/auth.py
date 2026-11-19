@@ -3,9 +3,10 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 
 from app.models.db import Usuarios
-from app.models.enums import RolesUsuario
+from app.models.enums import ModuloAuditoria, RolesUsuario
 from app.models.schemas import CrearUsuario, PeticionUsuario
 from app.models.session import get_session
+from app.utils.auditoria import registrar_auditoria
 from app.utils.security import (
   crear_token_acceso,
   obtener_hash_clave,
@@ -49,6 +50,15 @@ def registrar_usuario(
 
   # Insertar nuevo usuario a la Base de Datos
   session.add(nuevo_usuario)
+  session.flush()
+
+  registrar_auditoria(
+    session,
+    usuario_actual.id,
+    ModuloAuditoria.usuarios,
+    "CREAR",
+    f"Alta del usuario '{nuevo_usuario.nombre}' con rol {nuevo_usuario.rol.value}",
+  )
 
   session.commit()  # Confirmar la consulta
 
