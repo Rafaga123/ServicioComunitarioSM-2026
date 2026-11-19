@@ -9,9 +9,10 @@ from app.core.paginacion import (
   paginar,
 )
 from app.models.db import Grados, Usuarios
+from app.models.enums import RolesUsuario
 from app.models.schemas import CrearGrado, PeticionGrado
 from app.models.session import get_session
-from app.utils.security import obtener_usuario_actual
+from app.utils.security import obtener_usuario_actual, requerir_roles
 
 router = APIRouter(prefix="/grados", tags=["Catálogos: Grados"])
 
@@ -20,7 +21,7 @@ router = APIRouter(prefix="/grados", tags=["Catálogos: Grados"])
 def registrar_grado(
   grado_in: CrearGrado,
   session: Session = Depends(get_session),
-  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
+  usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
   nuevo_grado = Grados(grado=grado_in.grado, seccion=grado_in.seccion)
   session.add(nuevo_grado)

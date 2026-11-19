@@ -3,9 +3,10 @@ from datetime import time
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
-from app.models.db import Estudiantes, Horarios
+from app.models.db import Estudiantes, Horarios, Usuarios
 from app.models.schemas import PeticionBloque
 from app.models.session import get_session
+from app.utils.security import obtener_usuario_actual
 
 router = APIRouter(prefix="/horarios", tags=["Horarios"])
 
@@ -14,7 +15,8 @@ def solicitar_asignatura(
     id_estudiante: int,
     dia_semana: int,
     hora: time,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
     estudiante = session.get(Estudiantes, id_estudiante)
     if not estudiante:

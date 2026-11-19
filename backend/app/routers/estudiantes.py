@@ -11,11 +11,11 @@ from app.core.paginacion import (
   paginar,
 )
 from app.models.db import Estudiantes, Usuarios
-from app.models.enums import ModuloAuditoria
+from app.models.enums import ModuloAuditoria, RolesUsuario
 from app.models.schemas import ActualizarEstudiante, CrearEstudiante, PeticionEstudiante
 from app.models.session import get_session
 from app.utils.auditoria import registrar_auditoria
-from app.utils.security import obtener_usuario_actual
+from app.utils.security import obtener_usuario_actual, requerir_roles
 from app.utils.soft_delete import marcar_eliminado
 
 router = APIRouter(prefix="/estudiantes", tags=["Estudiantes"])
@@ -28,7 +28,7 @@ router = APIRouter(prefix="/estudiantes", tags=["Estudiantes"])
 def registrar_estudiante(
   estudiante_in: CrearEstudiante,
   session: Session = Depends(get_session),
-  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
+  usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
   statement = select(Estudiantes).where(
     Estudiantes.cedula_estudiantil == estudiante_in.cedula_estudiantil
@@ -132,7 +132,7 @@ def actualizar_estudiante(
   estudiante_id: int,
   estudiante_in: ActualizarEstudiante,
   session: Session = Depends(get_session),
-  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
+  usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
   estudiante_db = session.get(Estudiantes, estudiante_id)
 
@@ -191,7 +191,7 @@ def actualizar_estudiante(
 def eliminar_estudiante(
   estudiante_id: int,
   session: Session = Depends(get_session),
-  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
+  usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ) -> None:
   estudiante_db = session.get(Estudiantes, estudiante_id)
 
