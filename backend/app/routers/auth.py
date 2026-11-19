@@ -3,12 +3,14 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 
 from app.models.db import Usuarios
+from app.models.enums import RolesUsuario
 from app.models.schemas import CrearUsuario, PeticionUsuario
 from app.models.session import get_session
 from app.utils.security import (
   crear_token_acceso,
   obtener_hash_clave,
   obtener_usuario_actual,
+  requerir_roles,
   verificar_clave,
 )
 
@@ -20,7 +22,9 @@ router = APIRouter(prefix="/auth", tags=["Validaciones"])
   "/registro", response_model=PeticionUsuario, status_code=status.HTTP_201_CREATED
 )
 def registrar_usuario(
-  usuario_in: CrearUsuario, session: Session = Depends(get_session)
+  usuario_in: CrearUsuario,
+  session: Session = Depends(get_session),
+  usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
   # Verificar si el usuario ya existe
   statement = select(Usuarios).where(Usuarios.nombre == usuario_in.nombre)
@@ -38,7 +42,9 @@ def registrar_usuario(
   hash_clave = obtener_hash_clave(usuario_in.clave)
 
   nuevo_usuario = Usuarios(
-    nombre=usuario_in.nombre, clave=hash_clave, rol=usuario_in.rol
+    nombre=usuario_in.nombre,
+    clave=hash_clave,
+    rol=RolesUsuario(usuario_in.rol.value),
   )
 
   # Insertar nuevo usuario a la Base de Datos
@@ -62,7 +68,11 @@ def iniciar_sesion(
   statement = select(Usuarios).where(Usuarios.nombre == form_data.username)
   usuario_db = session.exec(statement).first()
 
-  if not usuario_db or not verificar_clave(form_data.password, usuario_db.clave):
+  if (
+    not usuario_db
+    or usuario_db.fecha_eliminacion is not None
+    or not verificar_clave(form_data.password, usuario_db.clave)
+  ):
     raise HTTPException(
       status_code=status.HTTP_401_UNAUTHORIZED,
       detail="Usuario o contraseña incorrectos",

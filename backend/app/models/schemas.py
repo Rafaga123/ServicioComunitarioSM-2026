@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlmodel import SQLModel
+from sqlmodel import Field, SQLModel
 
 import app.models.enums as en
 
@@ -10,8 +10,8 @@ import app.models.enums as en
 # ====
 class CrearUsuario(SQLModel):
   nombre: str
-  clave: str
-  rol: en.RolesUsuario
+  clave: str = Field(min_length=8, max_length=72)
+  rol: en.RolesAsignables
 
 
 class PeticionUsuario(SQLModel):

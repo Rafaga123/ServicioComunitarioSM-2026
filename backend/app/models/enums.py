@@ -8,6 +8,12 @@ class RolesUsuario(str, Enum):
   secretaria = "SECRETARIA"
 
 
+# Roles que el administrador puede asignar desde la API
+class RolesAsignables(str, Enum):
+  coordinador = "COORDINADOR"
+  secretaria = "SECRETARIA"
+
+
 # Enum para los tipos de reglamento
 class Reglamentos(str, Enum):
   lopnna = "LOPNNA" # Ley Orgánica para la protección de niños, niñas y adolescentes
