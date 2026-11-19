@@ -57,7 +57,7 @@ def registrar_usuario(
     usuario_actual.id,
     ModuloAuditoria.usuarios,
     "CREAR",
-    f"Alta del usuario '{nuevo_usuario.nombre}' con rol {nuevo_usuario.rol.value}",
+    f"Se creó la cuenta del usuario '{nuevo_usuario.nombre}' con el rol {nuevo_usuario.rol.value}.",
   )
 
   session.commit()  # Confirmar la consulta
