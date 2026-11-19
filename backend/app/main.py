@@ -7,8 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.models import db
 from app.models.session import create_db_tables
 from app.routers import (
+  asignaturas,
   auditorias,
   auth,
+  docentes,
   estudiantes,
   grados,
   horarios,
@@ -41,6 +43,8 @@ api_router.include_router(estudiantes.router)
 api_router.include_router(auditorias.router)
 api_router.include_router(grados.router)
 api_router.include_router(representantes.router)
+api_router.include_router(docentes.router)
+api_router.include_router(asignaturas.router)
 api_router.include_router(horarios.router)
 api_router.include_router(usuarios.router)
 

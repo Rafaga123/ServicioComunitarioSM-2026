@@ -168,9 +168,13 @@ class Horarios(EsquemaBase, table=True):
   id_grado: int = Field(foreign_key="grados.id")
   id_asignatura: int = Field(foreign_key="asignaturas.id")
   id_docente: int = Field(foreign_key="docentes.id")
+  # Año lectivo al que pertenece el bloque; evita mezclar horarios
+  # de distintos períodos en una misma consulta.
+  periodo_lectivo: int = Field(index=True)
   dia_semana: int
   hora: time
 
+  grado: Grados = Relationship()
   asignatura: Asignaturas = Relationship(back_populates="horarios")
   docente: Docentes = Relationship(back_populates="horarios")
 

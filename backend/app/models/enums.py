@@ -19,6 +19,9 @@ class ModuloAuditoria(str, Enum):
   estudiantes = "ESTUDIANTES"
   grados = "GRADOS"
   representantes = "REPRESENTANTES"
+  docentes = "DOCENTES"
+  asignaturas = "ASIGNATURAS"
+  horarios = "HORARIOS"
   auditorias = "AUDITORIAS"
 
 

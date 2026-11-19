@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 
 from sqlmodel import Field, SQLModel
 
@@ -158,11 +158,83 @@ class PeticionGrado(SQLModel):
   grado: str
   seccion: str
 
+
+# ====
+# Esquemas para Docentes y Asignaturas
+# ====
+class CrearDocente(SQLModel):
+  nombre: str
+  apellido: str
+  cedula: str
+
+
+class ActualizarDocente(SQLModel):
+  nombre: str | None = None
+  apellido: str | None = None
+  cedula: str | None = None
+
+
+class PeticionDocente(SQLModel):
+  id: int
+  nombre: str
+  apellido: str
+  cedula: str
+
+
+class CrearAsignatura(SQLModel):
+  nombre: str
+
+
+class ActualizarAsignatura(SQLModel):
+  nombre: str | None = None
+
+
+class PeticionAsignatura(SQLModel):
+  id: int
+  nombre: str
+
+
 # ====
 # Esquemas para Horarios
 # ====
+class CrearHorario(SQLModel):
+  id_grado: int
+  id_asignatura: int
+  id_docente: int
+  periodo_lectivo: int = Field(ge=2000)
+  dia_semana: int = Field(ge=1, le=5)
+  hora: time
 
-class PeticionBloque(SQLModel):
+
+class ActualizarHorario(SQLModel):
+  id_grado: int | None = None
+  id_asignatura: int | None = None
+  id_docente: int | None = None
+  periodo_lectivo: int | None = Field(default=None, ge=2000)
+  dia_semana: int | None = Field(default=None, ge=1, le=5)
+  hora: time | None = None
+
+
+class PeticionHorario(SQLModel):
   id: int
+  id_grado: int
+  id_asignatura: int
+  id_docente: int
+  periodo_lectivo: int
+  dia_semana: int
+  hora: time
+  grado: str
+  seccion: str
   asignatura: str
   docente: str
+
+
+class PeticionBloque(SQLModel):
+  # La consulta devuelve una respuesta parcial para que el frontend pueda
+  # mostrar y completar el bloque aunque todavía no exista un horario.
+  encontrado: bool
+  id_horario: int | None = None
+  id_asignatura: int | None = None
+  id_docente: int | None = None
+  asignatura: str | None = None
+  docente: str | None = None
