@@ -20,6 +20,16 @@ class PeticionUsuario(SQLModel):
   rol: en.RolesUsuario
 
 
+class ActualizarUsuario(SQLModel):
+  nombre: str | None = Field(default=None, min_length=1)
+  rol: en.RolesAsignables | None = None
+
+
+class CambiarClave(SQLModel):
+  clave_actual: str
+  clave_nueva: str = Field(min_length=8, max_length=72)
+
+
 # ====
 # Esquemas para Estudiantes
 # ====
