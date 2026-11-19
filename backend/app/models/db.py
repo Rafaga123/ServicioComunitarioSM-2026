@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
 
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -144,6 +144,7 @@ class Asignaturas(EsquemaBase, table=True):
 
   nombre: str
   docentes: list["Docentes"] = Relationship(link_model=AsignaturasDocentes)
+  horarios: list["Horarios"] = Relationship(back_populates="asignatura")
 
 
 # Tabla de Docentes
@@ -157,7 +158,21 @@ class Docentes(EsquemaBase, table=True):
   cedula: str
 
   asignaturas: list["Asignaturas"] = Relationship(link_model=AsignaturasDocentes)
+  horarios: list["Horarios"] = Relationship(back_populates="docente")
 
+
+# Tabla de Horarios
+class Horarios(EsquemaBase, table=True):
+  __tablename__ = "horarios"
+  id: int | None = Field(default=None, primary_key=True)
+  id_grado: int = Field(foreign_key="grados.id")
+  id_asignatura: int = Field(foreign_key="asignaturas.id")
+  id_docente: int = Field(foreign_key="docentes.id")
+  dia_semana: int
+  hora: time
+
+  asignatura: Asignaturas = Relationship(back_populates="horarios")
+  docente: Docentes = Relationship(back_populates="horarios")
 
 # Tabla de Auditorias
 class Auditorias(EsquemaBase, table=True):

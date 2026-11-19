@@ -155,3 +155,12 @@ class PeticionGrado(SQLModel):
   id: int
   grado: str
   seccion: str
+
+# ====
+# Esquemas para Horarios
+# ====
+
+class PeticionBloque(SQLModel):
+  id: int
+  asignatura: str
+  docente: str
