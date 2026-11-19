@@ -1,5 +1,3 @@
-from datetime import UTC, datetime
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlmodel import Session, select
@@ -15,6 +13,7 @@ from app.models.db import Estudiantes, Usuarios
 from app.models.schemas import ActualizarEstudiante, CrearEstudiante, PeticionEstudiante
 from app.models.session import get_session
 from app.utils.security import obtener_usuario_actual
+from app.utils.soft_delete import marcar_eliminado
 
 router = APIRouter(prefix="/estudiantes", tags=["Estudiantes"])
 
@@ -182,9 +181,8 @@ def eliminar_estudiante(
 
   # SOFT DELETE: No borramos la fila, solo le ponemos fecha de eliminación.
   # Así preservamos el historial para auditorías y reportes antiguos.
-  estudiante_db.fecha_eliminacion = datetime.now(UTC)
+  marcar_eliminado(session, estudiante_db)
 
-  session.add(estudiante_db)
   session.commit()
 
   # Un status 204 significa que la operación fue un éxito pero no hay contenido que devolver
