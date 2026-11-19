@@ -1,20 +1,19 @@
-from fastapi import Depends
 from sqlmodel import Session
 
 from app.models.db import Auditorias
-from app.models.session import get_session
+from app.models.enums import ModuloAuditoria
 
 
 def registrar_auditoria(
+  session: Session,
   usuario_id: int,
-  modulo: str,
+  modulo: ModuloAuditoria,
   accion: str,
   descripcion: str,
-  session: Session = Depends(get_session),
 ) -> None:
   nueva_auditoria = Auditorias(
     usuario_id=usuario_id,
-    modulo=modulo,
+    modulo=modulo.value,
     accion=accion,
     descripcion=descripcion,
   )

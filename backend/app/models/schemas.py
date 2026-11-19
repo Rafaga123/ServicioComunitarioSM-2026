@@ -125,14 +125,6 @@ class ActualizacionPase(SQLModel):
 # ====
 
 
-class CreacionAuditoria(SQLModel):
-  usuario_id: int | None
-  modulo_afectado: str
-  accion: str
-  descripcion: str
-  fecha_creacion: datetime
-
-
 class PeticionAuditoria(SQLModel):
   id: int | None
   usuario_id: int | None

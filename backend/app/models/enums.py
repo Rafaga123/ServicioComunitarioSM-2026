@@ -14,6 +14,14 @@ class RolesAsignables(str, Enum):
   secretaria = "SECRETARIA"
 
 
+class ModuloAuditoria(str, Enum):
+  usuarios = "USUARIOS"
+  estudiantes = "ESTUDIANTES"
+  grados = "GRADOS"
+  representantes = "REPRESENTANTES"
+  auditorias = "AUDITORIAS"
+
+
 # Enum para los tipos de reglamento
 class Reglamentos(str, Enum):
   lopnna = "LOPNNA" # Ley Orgánica para la protección de niños, niñas y adolescentes
