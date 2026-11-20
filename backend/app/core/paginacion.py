@@ -2,6 +2,7 @@ from typing import Generic, TypeVar
 
 from fastapi import Query
 from pydantic import BaseModel
+from sqlalchemy import or_
 from sqlmodel import Session, func, select
 
 T = TypeVar("T")
@@ -31,6 +32,24 @@ class RespuestaPaginada(BaseModel, Generic[T]):
   offset: int
   # Tamaño de página que se aplicó
   size: int
+
+
+def filtro_activos(consulta, modelo):
+  return consulta.where(modelo.fecha_eliminacion.is_(None))
+
+
+def filtro_texto(consulta, termino: str, *campos):
+  termino = termino.strip()
+
+  if not termino or not campos:
+    return consulta
+
+  patron = f"%{termino}%"
+  condiciones = [
+    func.unaccent(campo).ilike(func.unaccent(patron)) for campo in campos
+  ]
+
+  return consulta.where(or_(*condiciones))
 
 
 # Ejecuta una consulta paginada y devuelve (items de la página, total de registros).

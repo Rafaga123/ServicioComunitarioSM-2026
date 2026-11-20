@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import datetime, time
 
-from sqlmodel import SQLModel
+from sqlmodel import Field, SQLModel
 
 import app.models.enums as en
 
@@ -10,14 +10,24 @@ import app.models.enums as en
 # ====
 class CrearUsuario(SQLModel):
   nombre: str
-  clave: str
-  rol: en.RolesUsuario
+  clave: str = Field(min_length=8, max_length=72)
+  rol: en.RolesAsignables
 
 
 class PeticionUsuario(SQLModel):
   id: int | None
   nombre: str
   rol: en.RolesUsuario
+
+
+class ActualizarUsuario(SQLModel):
+  nombre: str | None = Field(default=None, min_length=1)
+  rol: en.RolesAsignables | None = None
+
+
+class CambiarClave(SQLModel):
+  clave_actual: str
+  clave_nueva: str = Field(min_length=8, max_length=72)
 
 
 # ====
@@ -67,21 +77,31 @@ class ActualizarEstudiante(SQLModel):
 # Esquemas para Representantes
 # ====
 class CrearRepresentante(SQLModel):
-  nombre: str
-  apellido: str
+  primer_nombre: str
+  segundo_nombre: str = ""
+  primer_apellido: str
+  segundo_apellido: str = ""
+
   telefono: str
 
 
 class ActualizarRepresentante(SQLModel):
-  nombre: str | None = None
-  apellido: str | None = None
+  primer_nombre: str
+  segundo_nombre: str = ""
+  primer_apellido: str
+  segundo_apellido: str = ""
+
   telefono: str | None = None
 
 
 class PeticionRepresentante(SQLModel):
   id: int
-  nombre: str
-  apellido: str
+
+  primer_nombre: str
+  segundo_nombre: str = ""
+  primer_apellido: str
+  segundo_apellido: str = ""
+
   telefono: str
 
 
@@ -125,14 +145,6 @@ class ActualizacionPase(SQLModel):
 # ====
 
 
-class CreacionAuditoria(SQLModel):
-  usuario_id: int | None
-  modulo_afectado: str
-  accion: str
-  descripcion: str
-  fecha_creacion: datetime
-
-
 class PeticionAuditoria(SQLModel):
   id: int | None
   usuario_id: int | None
@@ -155,3 +167,92 @@ class PeticionGrado(SQLModel):
   id: int
   grado: str
   seccion: str
+
+
+# ====
+# Esquemas para Docentes y Asignaturas
+# ====
+class CrearDocente(SQLModel):
+  primer_nombre: str
+  segundo_nombre: str = ""
+  primer_apellido: str
+  segundo_apellido: str = ""
+
+  cedula: str
+
+
+class ActualizarDocente(SQLModel):
+  primer_nombre: str
+  segundo_nombre: str = ""
+  primer_apellido: str
+  segundo_apellido: str = ""
+
+  cedula: str | None = None
+
+
+class PeticionDocente(SQLModel):
+  id: int
+  primer_nombre: str
+  segundo_nombre: str = ""
+  primer_apellido: str
+  segundo_apellido: str = ""
+  cedula: str
+
+
+class CrearAsignatura(SQLModel):
+  nombre: str
+
+
+class ActualizarAsignatura(SQLModel):
+  nombre: str | None = None
+
+
+class PeticionAsignatura(SQLModel):
+  id: int
+  nombre: str
+
+
+# ====
+# Esquemas para Horarios
+# ====
+class CrearHorario(SQLModel):
+  id_grado: int
+  id_asignatura: int
+  id_docente: int
+  periodo_lectivo: int = Field(ge=2000)
+  dia_semana: int = Field(ge=1, le=5)
+  hora: time
+
+
+class ActualizarHorario(SQLModel):
+  id_grado: int | None = None
+  id_asignatura: int | None = None
+  id_docente: int | None = None
+  periodo_lectivo: int | None = Field(default=None, ge=2000)
+  dia_semana: int | None = Field(default=None, ge=1, le=5)
+  hora: time | None = None
+
+
+class PeticionHorario(SQLModel):
+  id: int
+  id_grado: int
+  id_asignatura: int
+  id_docente: int
+  periodo_lectivo: int
+  dia_semana: int
+  hora: time
+  grado: str
+  seccion: str
+  asignatura: str
+  docente: str
+
+
+class PeticionBloque(SQLModel):
+  # La consulta devuelve una respuesta parcial para que el frontend pueda
+  # mostrar y completar el bloque aunque todavía no exista un horario.
+  encontrado: bool
+  id_horario: int | None = None
+  id_asignatura: int | None = None
+  id_docente: int | None = None
+  asignatura: str | None = None
+  docente: str | None = None

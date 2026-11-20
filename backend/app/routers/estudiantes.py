@@ -1,7 +1,4 @@
-from datetime import UTC, datetime
-
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.core.paginacion import (
@@ -9,12 +6,17 @@ from app.core.paginacion import (
   PaginacionBusqueda,
   RespuestaPaginada,
   construir_pagina,
+  filtro_activos,
+  filtro_texto,
   paginar,
 )
 from app.models.db import Estudiantes, Usuarios
+from app.models.enums import ModuloAuditoria, RolesUsuario
 from app.models.schemas import ActualizarEstudiante, CrearEstudiante, PeticionEstudiante
 from app.models.session import get_session
-from app.utils.security import obtener_usuario_actual
+from app.utils.auditoria import registrar_auditoria
+from app.utils.security import obtener_usuario_actual, requerir_roles
+from app.utils.soft_delete import marcar_eliminado
 
 router = APIRouter(prefix="/estudiantes", tags=["Estudiantes"])
 
@@ -26,7 +28,7 @@ router = APIRouter(prefix="/estudiantes", tags=["Estudiantes"])
 def registrar_estudiante(
   estudiante_in: CrearEstudiante,
   session: Session = Depends(get_session),
-  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
+  usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
   statement = select(Estudiantes).where(
     Estudiantes.cedula_estudiantil == estudiante_in.cedula_estudiantil
@@ -49,6 +51,20 @@ def registrar_estudiante(
   )
 
   session.add(nuevo_estudiante)
+  session.flush()
+
+  registrar_auditoria(
+    session,
+    usuario_actual.id,
+    ModuloAuditoria.estudiantes,
+    "CREAR",
+    (
+      f"Se registró al estudiante '{nuevo_estudiante.primer_nombre} "
+      f"{nuevo_estudiante.primer_apellido}' con cédula "
+      f"{nuevo_estudiante.cedula_estudiantil}."
+    ),
+  )
+
   session.commit()
   session.refresh(nuevo_estudiante)
 
@@ -62,10 +78,7 @@ def listar_estudiantes(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
-  consulta = select(Estudiantes).where(
-    # Solo traer los registros de estudiantes que no esten eliminados
-    Estudiantes.fecha_eliminacion == None
-  )
+  consulta = filtro_activos(select(Estudiantes), Estudiantes)
 
   items, total = paginar(session, consulta, paginacion)
 
@@ -80,23 +93,13 @@ def buscar_estudiantes(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
-  termino_limpio = f"%{termino}"
-
-  consulta = select(Estudiantes).where(
-    (Estudiantes.fecha_eliminacion == None)
-    & (
-      (Estudiantes.cedula_estudiantil.contains(termino))
-      | (
-        func.unaccent(
-          Estudiantes.primer_nombre.ilike(func.unaccent(termino_limpio))
-        )
-      )
-      | (
-        func.unaccent(
-          Estudiantes.primer_apellido.ilike(func.unaccent(termino_limpio))
-        )
-      )
-    )
+  consulta = filtro_activos(select(Estudiantes), Estudiantes)
+  consulta = filtro_texto(
+    consulta,
+    termino,
+    Estudiantes.cedula_estudiantil,
+    Estudiantes.primer_nombre,
+    Estudiantes.primer_apellido,
   )
 
   items, total = paginar(session, consulta, paginacion)
@@ -129,7 +132,7 @@ def actualizar_estudiante(
   estudiante_id: int,
   estudiante_in: ActualizarEstudiante,
   session: Session = Depends(get_session),
-  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
+  usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
   estudiante_db = session.get(Estudiantes, estudiante_id)
 
@@ -155,11 +158,28 @@ def actualizar_estudiante(
   # Extraemos solo los campos que el frontend realmente envió (ignora los nulos)
   datos_actualizar = estudiante_in.model_dump(exclude_unset=True)
 
+  if not datos_actualizar:
+    return estudiante_db
+
   # Aplicamos los cambios al objeto de la base de datos
   for key, value in datos_actualizar.items():
     setattr(estudiante_db, key, value)
 
   session.add(estudiante_db)
+  session.flush()
+
+  registrar_auditoria(
+    session,
+    usuario_actual.id,
+    ModuloAuditoria.estudiantes,
+    "ACTUALIZAR",
+    (
+      f"Se actualizaron los datos del estudiante "
+      f"'{estudiante_db.primer_nombre} {estudiante_db.primer_apellido}' "
+      f"con cédula {estudiante_db.cedula_estudiantil}."
+    ),
+  )
+
   session.commit()
   session.refresh(estudiante_db)
 
@@ -171,7 +191,7 @@ def actualizar_estudiante(
 def eliminar_estudiante(
   estudiante_id: int,
   session: Session = Depends(get_session),
-  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
+  usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ) -> None:
   estudiante_db = session.get(Estudiantes, estudiante_id)
 
@@ -182,9 +202,8 @@ def eliminar_estudiante(
 
   # SOFT DELETE: No borramos la fila, solo le ponemos fecha de eliminación.
   # Así preservamos el historial para auditorías y reportes antiguos.
-  estudiante_db.fecha_eliminacion = datetime.now(UTC)
+  marcar_eliminado(session, estudiante_db)
 
-  session.add(estudiante_db)
   session.commit()
 
   # Un status 204 significa que la operación fue un éxito pero no hay contenido que devolver

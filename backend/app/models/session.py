@@ -1,20 +1,9 @@
-import os
-
-from dotenv import load_dotenv
 from sqlmodel import Session, SQLModel, create_engine, text
 
-# Cargar variables de entorno del archivo .env
-load_dotenv()
-
-DB_USER = os.getenv("POSTGRES_USER")
-DB_PASSWORD = os.getenv("POSTGRES_PASSWORD")
-DB_PORT = os.getenv("POSTGRES_PORT")
-DB_NAME = os.getenv("POSTGRES_DB")
-DEBUG = os.getenv("DEBUG", "False").lower() == "true"
-
+from app.core.config import DB_HOST, DB_NAME, DB_PASSWORD, DB_PORT, DB_USER, DEBUG
 
 # Construcción de la URL corregida para PostgreSQL
-sql_url = f"postgresql+psycopg://{DB_USER}:{DB_PASSWORD}@127.0.0.1:{DB_PORT}/{DB_NAME}"
+sql_url = f"postgresql+psycopg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 engine = create_engine(sql_url, echo=DEBUG)
 

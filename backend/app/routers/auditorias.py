@@ -16,7 +16,7 @@ from app.models.db import Auditorias, Usuarios
 from app.models.enums import RolesUsuario
 from app.models.schemas import PeticionAuditoria
 from app.models.session import get_session
-from app.utils.security import obtener_usuario_actual
+from app.utils.security import requerir_roles
 
 router = APIRouter(prefix="/auditorias", tags=["Auditorías"])
 
@@ -30,19 +30,8 @@ def listar_auditorias(
   fecha: date | None = None,
   paginacion: Paginacion = Depends(),
   sesion: Session = Depends(get_session),
-  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
+  usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
-
-  """
-  Este apartado es opcional, en dado caso se puede obviar la restricción a solo
-  administradores o coordinadores, o en dado caso, se pudiera quitar esta parte
-  """
-  if usuario_actual.rol == RolesUsuario.secretaria:
-    raise HTTPException(
-      status_code=status.HTTP_403_FORBIDDEN,
-      detail="No tienes permisos para consultar las auditorias",
-    )
- 
   # ====
   # Consulta el historial de auditorias del sistema con soporte de paginación 
   # Se hace un inner join para evitar consultas adicionales desde el frontend
@@ -81,16 +70,8 @@ def listar_auditorias(
 def obtener_auditoria(
   auditoria_id: int,
   sesion: Session = Depends(get_session),
-  usuario_actual: Usuarios = Depends(obtener_usuario_actual)
+  usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
-
-  if usuario_actual.rol == RolesUsuario.secretaria:
-    raise HTTPException(
-      status_code = status.HTTP_403_FORBIDDEN,
-      detail="No tienes permisos para consultar las auditorias.",
-    )
-  
-    
   auditoria = sesion.get(Auditorias, auditoria_id)
   
   

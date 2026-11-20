@@ -1,12 +1,22 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # ruff: noqa: F401 # Evita el error por importación sin uso para el Litner Ruff
 from app.models import db
 from app.models.session import create_db_tables
-from app.routers import auditorias, auth, estudiantes
+from app.routers import (
+  asignaturas,
+  auditorias,
+  auth,
+  docentes,
+  estudiantes,
+  grados,
+  horarios,
+  representantes,
+  usuarios,
+)
 from app.utils.ip import obtener_ip_local
 
 
@@ -26,9 +36,19 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="API Servicio Comunitario", lifespan=lifespan, version="v1.0")
 
-app.include_router(auth.router)
-app.include_router(estudiantes.router)
-app.include_router(auditorias.router)
+api_router = APIRouter(prefix="/api")
+
+api_router.include_router(auth.router)
+api_router.include_router(estudiantes.router)
+api_router.include_router(auditorias.router)
+api_router.include_router(grados.router)
+api_router.include_router(representantes.router)
+api_router.include_router(docentes.router)
+api_router.include_router(asignaturas.router)
+api_router.include_router(horarios.router)
+api_router.include_router(usuarios.router)
+
+app.include_router(api_router)
 
 app.add_middleware(
   CORSMiddleware,

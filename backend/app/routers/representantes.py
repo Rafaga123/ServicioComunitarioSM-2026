@@ -1,5 +1,3 @@
-from datetime import UTC, datetime
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
@@ -7,12 +5,14 @@ from app.core.paginacion import (
   Paginacion,
   RespuestaPaginada,
   construir_pagina,
+  filtro_activos,
   paginar,
 )
 from app.models.db import Estudiantes, Representantes, Usuarios
+from app.models.enums import RolesUsuario
 from app.models.schemas import CrearRepresentante, PeticionRepresentante
 from app.models.session import get_session
-from app.utils.security import obtener_usuario_actual
+from app.utils.security import obtener_usuario_actual, requerir_roles
 
 router = APIRouter(prefix="/representantes", tags=["Representantes"])
 
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/representantes", tags=["Representantes"])
 def registrar_representante(
   rep_in: CrearRepresentante,
   session: Session = Depends(get_session),
-  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
+  usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
   nuevo_rep = Representantes(
     nombre=rep_in.nombre, apellido=rep_in.apellido, telefono=rep_in.telefono
@@ -43,14 +43,14 @@ def listar_representantes(
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
   # Traemos solo los que no están eliminados lógicamente
-  consulta = select(Representantes).where(Representantes.fecha_eliminacion == None)
+  consulta = filtro_activos(select(Representantes), Representantes)
 
   items, total = paginar(session, consulta, paginacion)
 
   return construir_pagina(items, total, paginacion)
 
 
-# 3. EL ENDPOINT MÁGICO: Vincular Representante con Estudiante
+# 3. Vincular Representante con Estudiante
 @router.post(
   "/{representante_id}/vincular_estudiante/{estudiante_id}",
   status_code=status.HTTP_200_OK,
@@ -59,7 +59,7 @@ def vincular_estudiante_representante(
   representante_id: int,
   estudiante_id: int,
   session: Session = Depends(get_session),
-  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
+  usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
   # Buscamos a ambos en la base de datos
   representante = session.get(Representantes, representante_id)
