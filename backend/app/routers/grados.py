@@ -14,7 +14,7 @@ from app.models.schemas import CrearGrado, PeticionGrado
 from app.models.session import get_session
 from app.utils.security import obtener_usuario_actual, requerir_roles
 
-router = APIRouter(prefix="/grados", tags=["Catálogos: Grados"])
+router = APIRouter(prefix="/grados", tags=["Grados"])
 
 
 @router.post("/", response_model=PeticionGrado, status_code=status.HTTP_201_CREATED)

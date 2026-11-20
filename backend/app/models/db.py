@@ -153,8 +153,11 @@ class Docentes(EsquemaBase, table=True):
 
   id: int | None = Field(default=None, primary_key=True)
 
-  nombre: str
-  apellido: str
+  primer_nombre: str = Field(index=True)
+  segundo_nombre: str = Field(index=True)
+  primer_apellido: str = Field(index=True)
+  segundo_apellido: str = Field(index=True)
+
   cedula: str
 
   asignaturas: list["Asignaturas"] = Relationship(link_model=AsignaturasDocentes)
@@ -177,6 +180,7 @@ class Horarios(EsquemaBase, table=True):
   grado: Grados = Relationship()
   asignatura: Asignaturas = Relationship(back_populates="horarios")
   docente: Docentes = Relationship(back_populates="horarios")
+
 
 # Tabla de Auditorias
 class Auditorias(EsquemaBase, table=True):

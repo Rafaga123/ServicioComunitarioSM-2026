@@ -21,15 +21,11 @@ from app.utils.auditoria import registrar_auditoria
 from app.utils.security import obtener_usuario_actual, requerir_roles
 from app.utils.soft_delete import marcar_eliminado
 
-router = APIRouter(
-  prefix="/asignaturas", tags=["Catálogos: Asignaturas"]
-)
+router = APIRouter(prefix="/asignaturas", tags=["Asignaturas"])
 requerir_admin = requerir_roles(RolesUsuario.administrador)
 
 
-def _obtener_asignatura_activa(
-  session: Session, asignatura_id: int
-) -> Asignaturas:
+def _obtener_asignatura_activa(session: Session, asignatura_id: int) -> Asignaturas:
   asignatura = session.get(Asignaturas, asignatura_id)
 
   if not asignatura or asignatura.fecha_eliminacion is not None:
@@ -82,9 +78,7 @@ def registrar_asignatura(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
-  statement = select(Asignaturas).where(
-    Asignaturas.nombre == asignatura_in.nombre
-  )
+  statement = select(Asignaturas).where(Asignaturas.nombre == asignatura_in.nombre)
 
   if session.exec(statement).first():
     raise HTTPException(
@@ -119,16 +113,13 @@ def actualizar_asignatura(
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
   asignatura_db = _obtener_asignatura_activa(session, asignatura_id)
-  datos_actualizar = asignatura_in.model_dump(
-    exclude_unset=True, exclude_none=True
-  )
+  datos_actualizar = asignatura_in.model_dump(exclude_unset=True, exclude_none=True)
 
   if not datos_actualizar:
     return asignatura_db
 
   if (
-    "nombre" in datos_actualizar
-    and datos_actualizar["nombre"] != asignatura_db.nombre
+    "nombre" in datos_actualizar and datos_actualizar["nombre"] != asignatura_db.nombre
   ):
     statement = select(Asignaturas).where(
       Asignaturas.nombre == datos_actualizar["nombre"],
@@ -192,9 +183,7 @@ def eliminar_asignatura(
   session.commit()
 
 
-@router.get(
-  "/{asignatura_id}/docentes", response_model=list[PeticionDocente]
-)
+@router.get("/{asignatura_id}/docentes", response_model=list[PeticionDocente])
 def listar_docentes_asignatura(
   asignatura_id: int,
   session: Session = Depends(get_session),
@@ -203,9 +192,7 @@ def listar_docentes_asignatura(
   asignatura = _obtener_asignatura_activa(session, asignatura_id)
 
   return [
-    docente
-    for docente in asignatura.docentes
-    if docente.fecha_eliminacion is None
+    docente for docente in asignatura.docentes if docente.fecha_eliminacion is None
   ]
 
 

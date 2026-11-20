@@ -77,21 +77,31 @@ class ActualizarEstudiante(SQLModel):
 # Esquemas para Representantes
 # ====
 class CrearRepresentante(SQLModel):
-  nombre: str
-  apellido: str
+  primer_nombre: str
+  segundo_nombre: str = ""
+  primer_apellido: str
+  segundo_apellido: str = ""
+
   telefono: str
 
 
 class ActualizarRepresentante(SQLModel):
-  nombre: str | None = None
-  apellido: str | None = None
+  primer_nombre: str
+  segundo_nombre: str = ""
+  primer_apellido: str
+  segundo_apellido: str = ""
+
   telefono: str | None = None
 
 
 class PeticionRepresentante(SQLModel):
   id: int
-  nombre: str
-  apellido: str
+
+  primer_nombre: str
+  segundo_nombre: str = ""
+  primer_apellido: str
+  segundo_apellido: str = ""
+
   telefono: str
 
 
@@ -163,21 +173,29 @@ class PeticionGrado(SQLModel):
 # Esquemas para Docentes y Asignaturas
 # ====
 class CrearDocente(SQLModel):
-  nombre: str
-  apellido: str
+  primer_nombre: str
+  segundo_nombre: str = ""
+  primer_apellido: str
+  segundo_apellido: str = ""
+
   cedula: str
 
 
 class ActualizarDocente(SQLModel):
-  nombre: str | None = None
-  apellido: str | None = None
+  primer_nombre: str
+  segundo_nombre: str = ""
+  primer_apellido: str
+  segundo_apellido: str = ""
+
   cedula: str | None = None
 
 
 class PeticionDocente(SQLModel):
   id: int
-  nombre: str
-  apellido: str
+  primer_nombre: str
+  segundo_nombre: str = ""
+  primer_apellido: str
+  segundo_apellido: str = ""
   cedula: str
 
 

@@ -53,7 +53,7 @@ def crear_token_acceso(data: dict) -> str:
   return token_codificado
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
 def obtener_usuario_actual(

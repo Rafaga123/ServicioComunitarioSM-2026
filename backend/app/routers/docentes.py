@@ -16,7 +16,7 @@ from app.utils.auditoria import registrar_auditoria
 from app.utils.security import obtener_usuario_actual, requerir_roles
 from app.utils.soft_delete import marcar_eliminado
 
-router = APIRouter(prefix="/docentes", tags=["Catálogos: Docentes"])
+router = APIRouter(prefix="/docentes", tags=["Docentes"])
 requerir_admin = requerir_roles(RolesUsuario.administrador)
 
 
@@ -53,9 +53,7 @@ def obtener_docente(
   return _obtener_docente_activo(session, docente_id)
 
 
-@router.post(
-  "/", response_model=PeticionDocente, status_code=status.HTTP_201_CREATED
-)
+@router.post("/", response_model=PeticionDocente, status_code=status.HTTP_201_CREATED)
 def registrar_docente(
   docente_in: CrearDocente,
   session: Session = Depends(get_session),
@@ -110,10 +108,7 @@ def actualizar_docente(
   if not datos_actualizar:
     return docente_db
 
-  if (
-    "cedula" in datos_actualizar
-    and datos_actualizar["cedula"] != docente_db.cedula
-  ):
+  if "cedula" in datos_actualizar and datos_actualizar["cedula"] != docente_db.cedula:
     statement = select(Docentes).where(
       Docentes.cedula == datos_actualizar["cedula"],
       Docentes.id != docente_id,
