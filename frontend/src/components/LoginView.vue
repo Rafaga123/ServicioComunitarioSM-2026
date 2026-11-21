@@ -28,7 +28,8 @@ const handleLogin = async () => {
     formData.append('username', username.value)   // FastAPI busca estrictamente 'username'
     formData.append('password', password.value)
 
-    const response = await fetch('http://localhost:8000/auth/login',{
+    // Ruta relativa: en desarrollo la resuelve el proxy de vite.config.js
+    const response = await fetch('/api/auth/login',{
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -164,7 +165,7 @@ const handleLogin = async () => {
                 v-model="password"
                 id="clave"
                 :type="showPassword ? 'text' : 'password'"
-                placeholder="••••••••"
+                placeholder="Tu contraseña"
                 autocomplete="current-password"
                 required
                 class="h-12 w-full rounded-xl border border-[#c5cee0] bg-[#f5f8fd] pl-11 pr-12 text-base font-medium text-[#1b2a47] transition placeholder:text-[#5b6882] focus:border-[#2c4a7a] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#b4d0f8]/70"
