@@ -15,6 +15,7 @@ from app.models.enums import ModuloAuditoria, RolesUsuario
 from app.models.schemas import ActualizarEstudiante, CrearEstudiante, PeticionEstudiante
 from app.models.session import get_session
 from app.utils.auditoria import registrar_auditoria
+from app.utils.nombres import nombre_completo
 from app.utils.security import obtener_usuario_actual, requerir_roles
 from app.utils.soft_delete import marcar_eliminado
 
@@ -58,11 +59,8 @@ def registrar_estudiante(
     usuario_actual.id,
     ModuloAuditoria.estudiantes,
     "CREAR",
-    (
-      f"Se registró al estudiante '{nuevo_estudiante.primer_nombre} "
-      f"{nuevo_estudiante.primer_apellido}' con cédula "
-      f"{nuevo_estudiante.cedula_estudiantil}."
-    ),
+    f"Se registró al estudiante '{nombre_completo(nuevo_estudiante)}' "
+    f"con cédula {nuevo_estudiante.cedula_estudiantil}.",
   )
 
   session.commit()
@@ -173,11 +171,9 @@ def actualizar_estudiante(
     usuario_actual.id,
     ModuloAuditoria.estudiantes,
     "ACTUALIZAR",
-    (
-      f"Se actualizaron los datos del estudiante "
-      f"'{estudiante_db.primer_nombre} {estudiante_db.primer_apellido}' "
-      f"con cédula {estudiante_db.cedula_estudiantil}."
-    ),
+    f"Se actualizaron los datos del estudiante "
+    f"'{nombre_completo(estudiante_db)}' "
+    f"con cédula {estudiante_db.cedula_estudiantil}.",
   )
 
   session.commit()
@@ -203,6 +199,16 @@ def eliminar_estudiante(
   # SOFT DELETE: No borramos la fila, solo le ponemos fecha de eliminación.
   # Así preservamos el historial para auditorías y reportes antiguos.
   marcar_eliminado(session, estudiante_db)
+  session.flush()
+
+  registrar_auditoria(
+    session,
+    usuario_actual.id,
+    ModuloAuditoria.estudiantes,
+    "ELIMINAR",
+    f"Se dio de baja al estudiante '{nombre_completo(estudiante_db)}' "
+    f"con cédula {estudiante_db.cedula_estudiantil}.",
+  )
 
   session.commit()
 

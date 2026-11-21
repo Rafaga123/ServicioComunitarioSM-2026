@@ -163,6 +163,11 @@ class CrearGrado(SQLModel):
   seccion: str
 
 
+class ActualizarGrado(SQLModel):
+  grado: str | None = None
+  seccion: str | None = None
+
+
 class PeticionGrado(SQLModel):
   id: int
   grado: str
