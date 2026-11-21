@@ -18,6 +18,7 @@ from app.models.schemas import (
 )
 from app.models.session import get_session
 from app.utils.auditoria import registrar_auditoria
+from app.utils.nombres import nombre_completo
 from app.utils.security import obtener_usuario_actual, requerir_roles
 from app.utils.soft_delete import marcar_eliminado
 
@@ -224,7 +225,7 @@ def vincular_docente(
     ModuloAuditoria.asignaturas,
     "VINCULAR_DOCENTE",
     (
-      f"Se vinculó al docente '{docente.nombre} {docente.apellido}' "
+      f"Se vinculó al docente '{nombre_completo(docente)}' "
       f"con la asignatura '{asignatura.nombre}'."
     ),
   )
@@ -233,7 +234,7 @@ def vincular_docente(
 
   return {
     "mensaje": (
-      f"Docente '{docente.nombre} {docente.apellido}' vinculado "
+      f"Docente '{nombre_completo(docente)}' vinculado "
       f"a la asignatura '{asignatura.nombre}'"
     )
   }
@@ -269,7 +270,7 @@ def desvincular_docente(
     ModuloAuditoria.asignaturas,
     "DESVINCULAR_DOCENTE",
     (
-      f"Se desvinculó al docente '{docente.nombre} {docente.apellido}' "
+      f"Se desvinculó al docente '{nombre_completo(docente)}' "
       f"de la asignatura '{asignatura.nombre}'."
     ),
   )

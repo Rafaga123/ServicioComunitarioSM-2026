@@ -13,6 +13,7 @@ from app.models.enums import ModuloAuditoria, RolesUsuario
 from app.models.schemas import ActualizarDocente, CrearDocente, PeticionDocente
 from app.models.session import get_session
 from app.utils.auditoria import registrar_auditoria
+from app.utils.nombres import nombre_completo
 from app.utils.security import obtener_usuario_actual, requerir_roles
 from app.utils.soft_delete import marcar_eliminado
 
@@ -70,8 +71,10 @@ def registrar_docente(
     )
 
   nuevo_docente = Docentes(
-    nombre=docente_in.nombre,
-    apellido=docente_in.apellido,
+    primer_nombre=docente_in.primer_nombre,
+    segundo_nombre=docente_in.segundo_nombre,
+    primer_apellido=docente_in.primer_apellido,
+    segundo_apellido=docente_in.segundo_apellido,
     cedula=docente_in.cedula,
   )
 
@@ -83,10 +86,8 @@ def registrar_docente(
     usuario_actual.id,
     ModuloAuditoria.docentes,
     "CREAR",
-    (
-      f"Se registró al docente '{nuevo_docente.nombre} "
-      f"{nuevo_docente.apellido}' con cédula {nuevo_docente.cedula}."
-    ),
+    f"Se registró al docente '{nombre_completo(nuevo_docente)}' "
+    f"con cédula {nuevo_docente.cedula}.",
   )
 
   session.commit()
@@ -140,10 +141,8 @@ def actualizar_docente(
     usuario_actual.id,
     ModuloAuditoria.docentes,
     "ACTUALIZAR",
-    (
-      f"Se actualizaron los datos del docente '{docente_db.nombre} "
-      f"{docente_db.apellido}' con cédula {docente_db.cedula}."
-    ),
+    f"Se actualizaron los datos del docente '{nombre_completo(docente_db)}' "
+    f"con cédula {docente_db.cedula}.",
   )
 
   session.commit()
@@ -168,10 +167,8 @@ def eliminar_docente(
     usuario_actual.id,
     ModuloAuditoria.docentes,
     "ELIMINAR",
-    (
-      f"Se dio de baja al docente '{docente_db.nombre} "
-      f"{docente_db.apellido}' con cédula {docente_db.cedula}."
-    ),
+    f"Se dio de baja al docente '{nombre_completo(docente_db)}' "
+    f"con cédula {docente_db.cedula}.",
   )
 
   session.commit()

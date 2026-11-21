@@ -69,8 +69,11 @@ class Representantes(EsquemaBase, table=True):
   __tablename__ = "representantes"
   id: int | None = Field(default=None, primary_key=True)
 
-  nombre: str = Field(index=True)
-  apellido: str = Field(index=True)
+  primer_nombre: str = Field(index=True)
+  segundo_nombre: str = Field(index=True)
+  primer_apellido: str = Field(index=True)
+  segundo_apellido: str = Field(index=True)
+
   # cedula: str
   telefono: str
 

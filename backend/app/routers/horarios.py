@@ -27,6 +27,7 @@ from app.models.schemas import (
 )
 from app.models.session import get_session
 from app.utils.auditoria import registrar_auditoria
+from app.utils.nombres import nombre_completo
 from app.utils.security import obtener_usuario_actual, requerir_roles
 from app.utils.soft_delete import marcar_eliminado
 
@@ -98,7 +99,7 @@ def _descripcion_horario(
   return (
     f"para el grado {grado.grado} \"{grado.seccion}\" "
     f"con la asignatura '{asignatura.nombre}' y el docente "
-    f"'{docente.nombre} {docente.apellido}', el día {horario.dia_semana} "
+    f"'{nombre_completo(docente)}', el día {horario.dia_semana} "
     f"a las {horario.hora.strftime('%H:%M')} del período "
     f"{horario.periodo_lectivo}"
   )
@@ -121,7 +122,7 @@ def _a_peticion_horario(
     grado=grado.grado,
     seccion=grado.seccion,
     asignatura=asignatura.nombre,
-    docente=f"{docente.nombre} {docente.apellido}",
+    docente=nombre_completo(docente),
   )
 
 
@@ -167,7 +168,7 @@ def solicitar_asignatura(
     id_asignatura=horario.id_asignatura,
     id_docente=horario.id_docente,
     asignatura=horario.asignatura.nombre,
-    docente=f"{horario.docente.nombre} {horario.docente.apellido}",
+    docente=nombre_completo(horario.docente),
   )
 
 
