@@ -196,6 +196,27 @@ class Pases(EsquemaBase, table=True):
   autorizador: str
 
 
+# Tabla de Bloques Horarios (jornada institucional del liceo)
+class BloquesHorarios(EsquemaBase, table=True):
+  __tablename__ = "bloques_horarios"
+  __table_args__ = (
+    CheckConstraint("hora_fin > hora_inicio", name="ck_bloques_horarios_rango"),
+    CheckConstraint(
+      "(tipo = 'academico' AND numero BETWEEN 1 AND 8) OR "
+      "(tipo = 'receso' AND numero IS NULL)",
+      name="ck_bloques_horarios_tipo_numero",
+    ),
+  )
+
+  id: int | None = Field(default=None, primary_key=True)
+  orden: int
+  numero: int | None = Field(default=None)
+  nombre: str
+  tipo: en.TipoBloqueHorario
+  hora_inicio: time
+  hora_fin: time
+
+
 # Tabla de Horarios
 class Horarios(EsquemaBase, table=True):
   __tablename__ = "horarios"
