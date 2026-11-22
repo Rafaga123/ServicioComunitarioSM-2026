@@ -74,7 +74,6 @@ class Representantes(EsquemaBase, table=True):
   primer_apellido: str = Field(index=True)
   segundo_apellido: str = Field(index=True)
 
-  # cedula: str
   telefono: str
 
   estudiantes: list["Estudiantes"] = Relationship(link_model=EstudiantesRepresentantes)
