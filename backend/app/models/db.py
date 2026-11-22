@@ -32,6 +32,9 @@ class Usuarios(EsquemaBase, table=True):
   rol: en.RolesUsuario = Field(
     default=en.RolesUsuario.secretaria
   )  # ENUM: ADMINISTRADOR, COORDINADOR, SECRETARIA
+  # El administrador opera sin nivel (None); coordinador y secretaria
+  # siempre deben pertenecer a ESCUELA o LICEO.
+  nivel: en.NivelEducativo | None = Field(default=None)
 
 
 # Tabla Intermedia entre Estudiantes y Representantes
@@ -175,6 +178,7 @@ class Docentes(EsquemaBase, table=True):
   segundo_apellido: str = Field(index=True)
 
   cedula: str
+  nivel: en.NivelEducativo
 
   asignaturas: list["Asignaturas"] = Relationship(link_model=AsignaturasDocentes)
   horarios: list["Horarios"] = Relationship(back_populates="docente")
