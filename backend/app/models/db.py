@@ -70,19 +70,16 @@ class Grados(EsquemaBase, table=True):
   nivel: en.NivelEducativo
 
   secciones: list["Secciones"] = Relationship(back_populates="grado")
+  asignaturas: list["Asignaturas"] = Relationship(back_populates="grado")
 
 
 # Tabla intermedia de Asignaturas y Docentes
 class AsignaturasDocentes(EsquemaBase, table=True):
   __tablename__ = "asignaturas_docentes"
 
-  id_asignatura: int | None = Field(
-    default=None, foreign_key="asignaturas.id", primary_key=True
-  )
-
-  id_docente: int | None = Field(
-    default=None, foreign_key="docentes.id", primary_key=True
-  )
+  id: int | None = Field(default=None, primary_key=True)
+  id_asignatura: int = Field(foreign_key="asignaturas.id")
+  id_docente: int = Field(foreign_key="docentes.id")
 
 
 # Tabla de Asignaturas
@@ -90,9 +87,10 @@ class Asignaturas(EsquemaBase, table=True):
   __tablename__ = "asignaturas"
 
   id: int | None = Field(default=None, primary_key=True)
+  id_grado: int = Field(foreign_key="grados.id")
 
   nombre: str
-  docentes: list["Docentes"] = Relationship(link_model=AsignaturasDocentes)
+  grado: Grados = Relationship(back_populates="asignaturas")
   horarios: list["Horarios"] = Relationship(back_populates="asignatura")
 
 
@@ -110,7 +108,6 @@ class Docentes(EsquemaBase, table=True):
   cedula: str
   nivel: en.NivelEducativo
 
-  asignaturas: list["Asignaturas"] = Relationship(link_model=AsignaturasDocentes)
   horarios: list["Horarios"] = Relationship(back_populates="docente")
   secciones_titulares: list["Secciones"] = Relationship(
     back_populates="docente_titular"
