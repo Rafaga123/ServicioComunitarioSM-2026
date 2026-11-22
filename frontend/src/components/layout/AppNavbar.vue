@@ -33,7 +33,7 @@ const logout = () => {
       </button>
 
       <img
-        src="../assets/logo santa marta.png"
+        src="../../assets/logo santa marta.png"
         alt="Logo Santa Marta"
         class="h-9 w-9 object-contain drop-shadow-sm"
       />
