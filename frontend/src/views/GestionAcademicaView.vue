@@ -7,6 +7,35 @@ import {
   actualizarDocente,
   eliminarDocente,
 } from '../services/docentes'
+import RepresentantesTabla from '@/components/gestion-academica/RepresentantesTabla.vue'
+import EstudiantesTabla from '@/components/gestion-academica/EstudiantesTabla.vue'
+import AsignaturasTabla from '@/components/gestion-academica/AsignaturasTabla.vue'
+import DocentesTabla from '@/components/gestion-academica/DocentesTabla.vue'
+import HorariosTabla from '@/components/gestion-academica/HorariosTabla.vue'
+import {
+  anios,
+  secciones,
+  dias,
+  norm,
+  ordinal,
+  nomPersona,
+  nomEst,
+  nomDocente,
+  diaNombre,
+  gradoTexto,
+} from '@/components/gestion-academica/helpers'
+import {
+  card,
+  inp,
+  lbl,
+  btnP,
+  btnS,
+  tag,
+  nada,
+  aviso2,
+  btnPag,
+  sinRes,
+} from '@/components/gestion-academica/estilos'
 
 // Uso en el layout:  <GestionAcademicaView tab-inicial="estudiantes" />
 // Valores de tab-inicial: representantes | estudiantes | asignaturas | docentes | horarios
@@ -15,11 +44,7 @@ const props = defineProps({
 })
 
 // ───────────── Catálogos ─────────────
-const anios = [1, 2, 3, 4, 5] // Grados.grado (integer)
-const secciones = ['A', 'B', 'C', 'D'] // Grados.seccion
-const dias = [
-  { v: 1, l: 'Lunes' }, { v: 2, l: 'Martes' }, { v: 3, l: 'Miércoles' }, { v: 4, l: 'Jueves' }, { v: 5, l: 'Viernes' },
-] // Horarios.dia_semana (integer)
+// anios, secciones y dias viven en components/gestion-academica/helpers.js
 
 // Registros por página (el backend acepta size de 1 a 100)
 const POR_PAGINA = 10
@@ -145,18 +170,9 @@ onMounted(() => {
 // El resto de listas se cargará desde la API más adelante.
 
 // ───────────── Helpers ─────────────
-const norm = (s) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+// norm, ordinal, nomPersona, nomEst, nomDocente, diaNombre y gradoTexto
+// vienen de components/gestion-academica/helpers.js
 const porId = (lista, id) => datos[lista].find((x) => x.id === id)
-const ordinal = (n) => ['1er', '2do', '3er', '4to', '5to', '6to'][n - 1] ?? `${n}°`
-const nomPersona = (x) => `${x.nombre} ${x.apellido}`
-const nomEst = (e) => [e.primerNombre, e.segundoNombre, e.primerApellido, e.segundoApellido].filter(Boolean).join(' ')
-const nomDocente = (d) =>
-  [d.primerNombre, d.segundoNombre, d.primerApellido, d.segundoApellido].filter(Boolean).join(' ') || '—'
-const diaNombre = (v) => dias.find((d) => d.v === v)?.l ?? '—'
-const gradoTexto = (id) => {
-  const g = porId('grados', id)
-  return g ? `${ordinal(g.grado)} Año · Sección ${g.seccion}` : '—'
-}
 const buscarGrado = (grado, seccion) => datos.grados.find((g) => g.grado === grado && g.seccion === seccion)
 const obtenerGrado = (grado, seccion) => {
   let g = buscarGrado(grado, seccion)
@@ -174,7 +190,7 @@ const etiqueta = (t, x) =>
       : t === 'docentes'
         ? nomDocente(x)
         : t === 'horarios'
-          ? `${gradoTexto(x.gradoId)} · ${diaNombre(x.diaSemana)} ${x.hora.slice(0, 5)}`
+          ? `${gradoTexto(datos.grados, x.gradoId)} · ${diaNombre(x.diaSemana)} ${x.hora.slice(0, 5)}`
           : nomPersona(x)
 
 // ───────────── Búsqueda (un solo campo por pestaña) ─────────────
@@ -213,7 +229,7 @@ const listaHorarios = computed(() => {
   return datos.horarios
     .filter((h) => {
       const g = porId('grados', h.gradoId)
-      const texto = `${gradoTexto(h.gradoId)} ${g?.grado ?? ''}${g?.seccion ?? ''} ${diaNombre(h.diaSemana)} ${porId('asignaturas', h.asignaturaId)?.nombre ?? ''}`
+      const texto = `${gradoTexto(datos.grados, h.gradoId)} ${g?.grado ?? ''}${g?.seccion ?? ''} ${diaNombre(h.diaSemana)} ${porId('asignaturas', h.asignaturaId)?.nombre ?? ''}`
       return !q || norm(texto).includes(q)
     })
     .sort((a, b) => {
@@ -299,9 +315,6 @@ const botonesPagina = computed(() => {
   nums.forEach((n, i) => { if (i && n - nums[i - 1] > 1) out.push('…'); out.push(n) })
   return out
 })
-
-const estudiantesDe = (repId) => datos.estudiantes.filter((e) => (e.representanteIds ?? []).includes(repId))
-const docentesDe = (asigId) => datos.docentes.filter((d) => (d.asignaturaIds ?? []).includes(asigId))
 
 // ───────────── Panel lateral (crear / editar) ─────────────
 const panel = reactive({ abierto: false, modo: 'crear' })
@@ -475,19 +488,8 @@ const eliminar = (item) => {
 }
 
 // ───────────── Clases reutilizables ─────────────
-const card = 'rounded-2xl border border-[#d5dbe6] bg-white shadow-sm'
-const inp = 'h-11 w-full rounded-xl border border-[#b8c2d3] bg-white px-3 text-[15px] text-[#1b2a2f] placeholder:text-[#5b6a72] transition focus:border-[#233E47] focus:outline-none focus:ring-4 focus:ring-[#b4d0f8]/70'
-const lbl = 'text-sm font-semibold text-[#233E47]'
-const btnP = 'inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#233E47] px-5 text-[15px] font-bold text-white transition hover:bg-[#1a2f36] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#91a5c9]'
-const btnS = 'inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#233E47] bg-white px-5 text-[15px] font-bold text-[#233E47] transition hover:bg-[#eef3fb] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#91a5c9]'
-const btnMini = 'rounded-lg px-2.5 py-1.5 text-sm font-semibold text-[#233E47] hover:bg-[#eef3fb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#233E47]'
-const th = 'whitespace-nowrap bg-[#eef2f6] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[#4a5a63]'
-const td = 'border-t border-[#e3e8ee] px-3 py-3 text-sm align-middle'
-const tag = 'inline-block rounded-full bg-[#b4d0f8] px-2.5 py-0.5 text-xs font-semibold text-[#233E47]'
-const nada = 'text-sm italic text-[#5b6a72]'
-const aviso2 = 'mt-2 rounded-lg bg-[#fdebc0] px-3 py-2 text-sm text-[#6b4200]'
-const btnPag = 'inline-flex h-10 min-w-10 items-center justify-center rounded-lg border border-[#b8c2d3] bg-white px-3 text-sm font-semibold text-[#233E47] transition hover:bg-[#eef3fb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#233E47] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white'
-const sinRes = 'rounded-xl bg-[#f3f6f1] px-4 py-10 text-center text-sm text-[#4a5a63]'
+// card, inp, lbl, btnP, btnS, tag, nada, aviso2, btnPag y sinRes
+// viven en components/gestion-academica/estilos.js
 </script>
 
 <template>
@@ -554,129 +556,51 @@ const sinRes = 'rounded-xl bg-[#f3f6f1] px-4 py-10 text-center text-sm text-[#4a
 
         <template v-else-if="datos[tab].length">
 
-          <!-- ═════════ REPRESENTANTES ═════════ -->
-          <template v-if="tab === 'representantes'">
-            <p v-if="!listaRepresentantes.length" :class="sinRes">Ningún representante coincide con la búsqueda.</p>
-            <div v-else class="overflow-x-auto rounded-xl border border-[#e3e8ee]">
-              <table class="w-full border-collapse">
-                <thead><tr><th :class="th">Representante</th><th :class="th">Teléfono</th><th :class="th">Estudiantes a cargo</th><th :class="[th, 'text-right']">Acciones</th></tr></thead>
-                <tbody>
-                  <tr v-for="r in filasPagina" :key="r.id">
-                    <td :class="[td, 'font-semibold']">{{ nomPersona(r) }}</td>
-                    <td :class="[td, 'whitespace-nowrap']">{{ r.telefono }}</td>
-                    <td :class="td">
-                      <span v-if="!estudiantesDe(r.id).length" :class="nada">Sin estudiantes vinculados aún</span>
-                      <div v-else class="flex flex-wrap gap-1">
-                        <span v-for="e in estudiantesDe(r.id).slice(0, 3)" :key="e.id" :class="tag">{{ e.primerNombre }} {{ e.primerApellido }}</span>
-                        <span v-if="estudiantesDe(r.id).length > 3" :class="tag">+{{ estudiantesDe(r.id).length - 3 }}</span>
-                      </div>
-                    </td>
-                    <td :class="[td, 'whitespace-nowrap text-right']">
-                      <button type="button" :class="btnMini" :aria-label="'Editar ' + nomPersona(r)" @click="abrirEditar(r)">Editar</button>
-                      <button type="button" :class="[btnMini, '!text-[#8a1c14]']" :aria-label="'Eliminar ' + nomPersona(r)" @click="eliminar(r)">Eliminar</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </template>
+          <!-- Cada pestaña vive en su propio componente -->
+          <RepresentantesTabla
+            v-if="tab === 'representantes'"
+            :filas="filasPagina"
+            :estudiantes="datos.estudiantes"
+            @editar="abrirEditar"
+            @eliminar="eliminar"
+          />
 
-          <!-- ═════════ ESTUDIANTES ═════════ -->
-          <template v-else-if="tab === 'estudiantes'">
-            <p v-if="!listaEstudiantes.length" :class="sinRes">Ningún estudiante coincide con la búsqueda.</p>
-            <div v-else class="overflow-x-auto rounded-xl border border-[#e3e8ee]">
-              <table class="w-full border-collapse">
-                <thead><tr><th :class="th">Estudiante</th><th :class="th">Grado y sección</th><th :class="th">Representantes</th><th :class="[th, 'text-right']">Acciones</th></tr></thead>
-                <tbody>
-                  <tr v-for="e in filasPagina" :key="e.id">
-                    <td :class="[td, 'font-semibold']">{{ nomEst(e) }}</td>
-                    <td :class="[td, 'whitespace-nowrap']">{{ gradoTexto(e.gradoId) }}</td>
-                    <td :class="td">
-                      <span v-if="!e.representanteIds.length" :class="nada">Sin representante vinculado aún</span>
-                      <div v-else class="flex flex-wrap gap-1">
-                        <span v-for="id in e.representanteIds" :key="id" :class="tag">{{ porId('representantes', id) ? nomPersona(porId('representantes', id)) : '—' }}</span>
-                      </div>
-                    </td>
-                    <td :class="[td, 'whitespace-nowrap text-right']">
-                      <button type="button" :class="btnMini" :aria-label="'Editar ' + nomEst(e)" @click="abrirEditar(e)">Editar</button>
-                      <button type="button" :class="[btnMini, '!text-[#8a1c14]']" :aria-label="'Eliminar ' + nomEst(e)" @click="eliminar(e)">Eliminar</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </template>
+          <EstudiantesTabla
+            v-else-if="tab === 'estudiantes'"
+            :filas="filasPagina"
+            :representantes="datos.representantes"
+            :grados="datos.grados"
+            @editar="abrirEditar"
+            @eliminar="eliminar"
+          />
 
-          <!-- ═════════ ASIGNATURAS ═════════ -->
-          <template v-else-if="tab === 'asignaturas'">
-            <p v-if="!listaAsignaturas.length" :class="sinRes">Ninguna asignatura coincide con la búsqueda.</p>
-            <div v-else class="overflow-x-auto rounded-xl border border-[#e3e8ee]">
-              <table class="w-full border-collapse">
-                <thead><tr><th :class="th">Asignatura</th><th :class="th">Docentes</th><th :class="[th, 'text-right']">Acciones</th></tr></thead>
-                <tbody>
-                  <tr v-for="a in filasPagina" :key="a.id">
-                    <td :class="[td, 'font-semibold']">{{ a.nombre }}</td>
-                    <td :class="td">
-                      <span v-if="!docentesDe(a.id).length" :class="nada">Sin docente asignado aún</span>
-                      <div v-else class="flex flex-wrap gap-1"><span v-for="d in docentesDe(a.id)" :key="d.id" :class="tag">{{ nomDocente(d) }}</span></div>
-                    </td>
-                    <td :class="[td, 'whitespace-nowrap text-right']">
-                      <button type="button" :class="btnMini" :aria-label="'Editar ' + a.nombre" @click="abrirEditar(a)">Editar</button>
-                      <button type="button" :class="[btnMini, '!text-[#8a1c14]']" :aria-label="'Eliminar ' + a.nombre" @click="eliminar(a)">Eliminar</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </template>
+          <AsignaturasTabla
+            v-else-if="tab === 'asignaturas'"
+            :filas="filasPagina"
+            :docentes="datos.docentes"
+            @editar="abrirEditar"
+            @eliminar="eliminar"
+          />
 
-          <!-- ═════════ DOCENTES ═════════ -->
-          <template v-else-if="tab === 'docentes'">
-            <p v-if="buscandoDocentes && docentesApi.cargandoTodos" :class="sinRes">Buscando en todos los docentes…</p>
-            <p v-else-if="buscandoDocentes" :class="sinRes">No se pudo cargar la lista completa para filtrar.</p>
-            <p v-else-if="filtrandoDocentes && !filasPagina.length" :class="sinRes">Ningún docente coincide con el filtro.</p>
-            <div v-else class="overflow-x-auto rounded-xl border border-[#e3e8ee]">
-              <table class="w-full border-collapse">
-                <thead><tr><th :class="th">Docente</th><th :class="th">Cédula</th><th :class="[th, 'text-right']">Acciones</th></tr></thead>
-                <tbody>
-                  <tr v-for="d in filasPagina" :key="d.id">
-                    <td :class="[td, 'font-semibold']">{{ nomDocente(d) }}</td>
-                    <td :class="[td, 'whitespace-nowrap']">{{ d.cedula || '—' }}</td>
-                    <td :class="[td, 'whitespace-nowrap text-right']">
-                      <button type="button" :class="btnMini" :aria-label="'Editar ' + nomDocente(d)" @click="abrirEditar(d)">Editar</button>
-                      <button type="button" :class="[btnMini, '!text-[#8a1c14]']" :aria-label="'Eliminar ' + nomDocente(d)" @click="eliminar(d)">Eliminar</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </template>
+          <DocentesTabla
+            v-else-if="tab === 'docentes'"
+            :filas="filasPagina"
+            :buscando="buscandoDocentes"
+            :cargando="docentesApi.cargandoTodos"
+            :filtrando="filtrandoDocentes"
+            @editar="abrirEditar"
+            @eliminar="eliminar"
+          />
 
-          <!-- ═════════ HORARIOS ═════════ -->
-          <template v-else>
-            <p v-if="!listaHorarios.length" :class="sinRes">Ningún horario coincide con la búsqueda.</p>
-            <div v-else class="overflow-x-auto rounded-xl border border-[#e3e8ee]">
-              <table class="w-full border-collapse">
-                <thead><tr><th :class="th">Grado y sección</th><th :class="th">Día</th><th :class="th">Hora</th><th :class="th">Asignatura</th><th :class="th">Docentes</th><th :class="[th, 'text-right']">Acciones</th></tr></thead>
-                <tbody>
-                  <tr v-for="h in filasPagina" :key="h.id">
-                    <td :class="[td, 'whitespace-nowrap font-semibold']">{{ gradoTexto(h.gradoId) }}</td>
-                    <td :class="td">{{ diaNombre(h.diaSemana) }}</td>
-                    <td :class="[td, 'whitespace-nowrap']">{{ h.hora.slice(0, 5) }}</td>
-                    <td :class="td">{{ porId('asignaturas', h.asignaturaId)?.nombre ?? '—' }}</td>
-                    <td :class="td">
-                      <span v-if="!docentesDe(h.asignaturaId).length" :class="nada">Sin docente asignado aún</span>
-                      <div v-else class="flex flex-wrap gap-1"><span v-for="d in docentesDe(h.asignaturaId)" :key="d.id" :class="tag">{{ nomDocente(d) }}</span></div>
-                    </td>
-                    <td :class="[td, 'whitespace-nowrap text-right']">
-                      <button type="button" :class="btnMini" @click="abrirEditar(h)">Editar</button>
-                      <button type="button" :class="[btnMini, '!text-[#8a1c14]']" @click="eliminar(h)">Eliminar</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </template>
+          <HorariosTabla
+            v-else
+            :filas="filasPagina"
+            :asignaturas="datos.asignaturas"
+            :docentes="datos.docentes"
+            :grados="datos.grados"
+            @editar="abrirEditar"
+            @eliminar="eliminar"
+          />
 
           <!-- Paginación -->
           <nav v-if="totalFiltrado > 0" aria-label="Paginación" class="flex flex-wrap items-center justify-between gap-3">
