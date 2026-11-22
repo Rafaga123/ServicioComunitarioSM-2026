@@ -529,7 +529,7 @@ const sinRes = 'rounded-xl bg-[#f3f6f1] px-4 py-10 text-center text-sm text-[#4a
         </div>
 
         <!-- Resumen del filtro y del total (sólo docentes) -->
-        <p v-if="tab === 'docentes'" class="-mt-1 text-sm text-[#4a5a63]">
+        <p v-if="tab === 'docentes' && !(docentesApi.error && !docentesApi.cargado)" class="-mt-1 text-sm text-[#4a5a63]">
           <span v-if="buscandoDocentes">Buscando en todos los docentes…</span>
           <span v-else-if="filtrandoDocentes"><b class="text-[#233E47]">{{ totalFiltrado }}</b> coincidencia(s) de <b class="text-[#233E47]">{{ docentesApi.total }}</b> docente(s)</span>
           <span v-else><b class="text-[#233E47]">{{ docentesApi.total }}</b> docente(s) registrado(s)</span>

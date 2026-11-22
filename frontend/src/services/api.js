@@ -31,6 +31,11 @@ const extraerMensaje = (data, status) => {
   if (status === 401) return 'Tu sesión expiró. Inicia sesión nuevamente.'
   if (status === 403) return 'No tienes permisos para realizar esta acción.'
   if (status === 404) return 'El registro solicitado no existe.'
+  // 502/503/504 llegan del proxy de Vite cuando el backend está apagado o
+  // inaccesible; conviene un mensaje accionable en vez del número de error.
+  if (status === 502 || status === 503 || status === 504) {
+    return 'No se pudo conectar con el servidor. Verifica que la API esté encendida.'
+  }
   return `No se pudo completar la solicitud (error ${status}).`
 }
 

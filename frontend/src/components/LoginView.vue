@@ -38,7 +38,14 @@ const handleLogin = async () => {
     })
 
     if(!response.ok){
-      throw new Error('Credenciales incorrectas o error en el servidor')
+      // 502/503/504 los devuelve el proxy cuando el backend no responde.
+      throw new Error(
+        response.status === 401
+          ? 'Usuario o contraseña incorrectos.'
+          : response.status >= 500
+            ? 'No se pudo conectar con el servidor. Verifica que la API esté encendida.'
+            : 'No se pudo iniciar sesión. Intenta de nuevo.',
+      )
     }
 
     const data = await response.json()
@@ -49,7 +56,12 @@ const handleLogin = async () => {
     router.push(redirect || { name: 'dashboard' })
 
   }catch(err){
-    error.value = err.message || 'No se pudo iniciar sesión'
+    // Cuando el backend está apagado o el proxy no resuelve, fetch lanza un
+    // TypeError con un mensaje técnico en inglés; lo traducimos.
+    error.value =
+      err instanceof TypeError
+        ? 'No se pudo conectar con el servidor. Verifica que la API esté encendida.'
+        : err.message || 'No se pudo iniciar sesión'
     console.error('Error de autenticacion: ', err.message)
   } finally {
     loading.value = false
