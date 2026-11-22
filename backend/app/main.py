@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # ruff: noqa: F401 # Evita el error por importación sin uso para el Litner Ruff
 from app.models import db
-from app.models.session import create_db_tables
+from app.models.session import inicializar_base_datos
 from app.routers import (
   asignaturas,
   auditorias,
@@ -29,7 +29,8 @@ async def lifespan(app: FastAPI):
   print(f"📖 Documentación Swagger:  http://{ip_local}:8000/docs")
   print("=" * 50)
 
-  create_db_tables()
+  grados, bloques = inicializar_base_datos()
+  print(f"🌱 Semilla: {grados} grados y {bloques} bloques nuevos")
   yield
   print("🛑 API Apagada")
 

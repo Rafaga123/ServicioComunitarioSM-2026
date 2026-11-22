@@ -86,3 +86,15 @@ def sembrar_bloques(session: Session) -> int:
     creados += 1
 
   return creados
+
+
+def sembrar_datos(session: Session) -> tuple[int, int]:
+  """Ejecuta toda la semilla institucional y confirma la transacción.
+
+  Devuelve (grados creados, bloques creados) para poder informar
+  cuántos registros nuevos se insertaron en cada arranque.
+  """
+  grados = sembrar_grados(session)
+  bloques = sembrar_bloques(session)
+  session.commit()
+  return grados, bloques
