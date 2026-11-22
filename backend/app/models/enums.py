@@ -14,6 +14,18 @@ class RolesAsignables(str, Enum):
   secretaria = "SECRETARIA"
 
 
+# Nivel educativo al que pertenece un grado, docente o cuenta de usuario
+class NivelEducativo(str, Enum):
+  escuela = "ESCUELA"
+  liceo = "LICEO"
+
+
+# Tipo de tramo dentro de la jornada institucional del liceo
+class TipoBloqueHorario(str, Enum):
+  academico = "ACADEMICO"
+  receso = "RECESO"
+
+
 class ModuloAuditoria(str, Enum):
   usuarios = "USUARIOS"
   estudiantes = "ESTUDIANTES"
