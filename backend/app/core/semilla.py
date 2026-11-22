@@ -9,17 +9,17 @@ from app.models.enums import NivelEducativo, TipoBloqueHorario
 # Catálogo fijo: del 1 al 6 son grados de escuela y del 7 al 11
 # equivalen a primero a quinto año de liceo.
 GRADOS_BASE = (
-  (1, "1.º Grado", NivelEducativo.escuela),
-  (2, "2.º Grado", NivelEducativo.escuela),
-  (3, "3.º Grado", NivelEducativo.escuela),
-  (4, "4.º Grado", NivelEducativo.escuela),
-  (5, "5.º Grado", NivelEducativo.escuela),
-  (6, "6.º Grado", NivelEducativo.escuela),
-  (7, "1.º Año", NivelEducativo.liceo),
-  (8, "2.º Año", NivelEducativo.liceo),
-  (9, "3.º Año", NivelEducativo.liceo),
-  (10, "4.º Año", NivelEducativo.liceo),
-  (11, "5.º Año", NivelEducativo.liceo),
+  (1, "1er Grado", NivelEducativo.escuela),
+  (2, "2do Grado", NivelEducativo.escuela),
+  (3, "3er Grado", NivelEducativo.escuela),
+  (4, "4to Grado", NivelEducativo.escuela),
+  (5, "5to Grado", NivelEducativo.escuela),
+  (6, "6to Grado", NivelEducativo.escuela),
+  (7, "1er Año", NivelEducativo.liceo),
+  (8, "2do Año", NivelEducativo.liceo),
+  (9, "3er Año", NivelEducativo.liceo),
+  (10, "4to Año", NivelEducativo.liceo),
+  (11, "5to Año", NivelEducativo.liceo),
 )
 
 
