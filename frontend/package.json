@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:remoto": "vite --mode remoto",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "run-s \"lint:*\"",
