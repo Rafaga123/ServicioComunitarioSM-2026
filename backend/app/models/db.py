@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from datetime import UTC, datetime, time
 
+from sqlalchemy import CheckConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
 import app.models.enums as en
@@ -116,13 +119,24 @@ class Pases(EsquemaBase, table=True):
   autorizador: str
 
 
-# Tabla de Grados
+# Tabla de Grados (catálogo fijo del 1 al 11)
 class Grados(EsquemaBase, table=True):
   __tablename__ = "grados"
+  __table_args__ = (
+    CheckConstraint(
+      "(numero BETWEEN 1 AND 6 AND nivel = 'escuela') OR "
+      "(numero BETWEEN 7 AND 11 AND nivel = 'liceo')",
+      name="ck_grados_numero_nivel",
+    ),
+  )
+
   id: int | None = Field(default=None, primary_key=True)
 
-  seccion: str
-  grado: str
+  numero: int
+  nombre: str
+  nivel: en.NivelEducativo
+
+  secciones: list["Secciones"] = Relationship(back_populates="grado")
 
 
 # Tabla intermedia de Asignaturas y Docentes
@@ -164,6 +178,26 @@ class Docentes(EsquemaBase, table=True):
 
   asignaturas: list["Asignaturas"] = Relationship(link_model=AsignaturasDocentes)
   horarios: list["Horarios"] = Relationship(back_populates="docente")
+  secciones_titulares: list["Secciones"] = Relationship(
+    back_populates="docente_titular"
+  )
+
+
+# Tabla de Secciones (aulas activas de un grado)
+class Secciones(EsquemaBase, table=True):
+  __tablename__ = "secciones"
+  id: int | None = Field(default=None, primary_key=True)
+
+  id_grado: int = Field(foreign_key="grados.id")
+  letra: str
+  id_docente_titular: int | None = Field(
+    default=None, foreign_key="docentes.id"
+  )
+
+  grado: Grados = Relationship(back_populates="secciones")
+  docente_titular: Docentes | None = Relationship(
+    back_populates="secciones_titulares"
+  )
 
 
 # Tabla de Horarios
