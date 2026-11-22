@@ -130,6 +130,7 @@ class Secciones(EsquemaBase, table=True):
     back_populates="secciones_titulares"
   )
   estudiantes: list["Estudiantes"] = Relationship(back_populates="seccion")
+  horarios: list["Horarios"] = Relationship(back_populates="seccion")
 
 
 # Tabla de Estudiantes
@@ -216,21 +217,29 @@ class BloquesHorarios(EsquemaBase, table=True):
   hora_inicio: time
   hora_fin: time
 
+  horarios: list["Horarios"] = Relationship(back_populates="bloque")
+
 
 # Tabla de Horarios
 class Horarios(EsquemaBase, table=True):
   __tablename__ = "horarios"
+  __table_args__ = (
+    CheckConstraint("dia_semana BETWEEN 1 AND 5", name="ck_horarios_dia_semana"),
+    CheckConstraint("periodo_lectivo >= 2000", name="ck_horarios_periodo"),
+  )
+
   id: int | None = Field(default=None, primary_key=True)
-  id_grado: int = Field(foreign_key="grados.id")
+  id_seccion: int = Field(foreign_key="secciones.id")
+  id_bloque: int = Field(foreign_key="bloques_horarios.id")
   id_asignatura: int = Field(foreign_key="asignaturas.id")
   id_docente: int = Field(foreign_key="docentes.id")
   # Año lectivo al que pertenece el bloque; evita mezclar horarios
   # de distintos períodos en una misma consulta.
   periodo_lectivo: int = Field(index=True)
   dia_semana: int
-  hora: time
 
-  grado: Grados = Relationship()
+  seccion: Secciones = Relationship(back_populates="horarios")
+  bloque: BloquesHorarios = Relationship(back_populates="horarios")
   asignatura: Asignaturas = Relationship(back_populates="horarios")
   docente: Docentes = Relationship(back_populates="horarios")
 
