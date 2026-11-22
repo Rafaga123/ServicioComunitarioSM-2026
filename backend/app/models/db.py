@@ -34,6 +34,10 @@ class Usuarios(EsquemaBase, table=True):
   # siempre deben pertenecer a ESCUELA o LICEO.
   nivel: en.NivelEducativo | None = Field(default=None)
 
+  pases: list["Pases"] = Relationship(back_populates="usuario")
+  reportes: list["Reportes"] = Relationship(back_populates="usuario")
+  auditorias: list["Auditorias"] = Relationship(back_populates="usuario")
+
 
 # Tabla de Representantes
 class Representantes(EsquemaBase, table=True):
@@ -158,13 +162,16 @@ class Estudiantes(EsquemaBase, table=True):
   representante: Representantes | None = Relationship(
     back_populates="estudiantes"
   )
+  pases: list["Pases"] = Relationship(back_populates="estudiante")
+  reportes: list["Reportes"] = Relationship(back_populates="estudiante")
 
 
 # Tabla de Reportes
 class Reportes(EsquemaBase, table=True):
   __tablename__ = "reportes"
   id: int | None = Field(default=None, primary_key=True)
-  id_estudiante: int | None = Field(default=None, foreign_key="estudiantes.id")
+  id_estudiante: int = Field(foreign_key="estudiantes.id")
+  id_usuario: int = Field(foreign_key="usuarios.id")
   id_docente: int | None = Field(default=None, foreign_key="docentes.id")
 
   incidencia: str
@@ -179,13 +186,18 @@ class Reportes(EsquemaBase, table=True):
 
   fecha: datetime
 
+  estudiante: Estudiantes = Relationship(back_populates="reportes")
+  usuario: Usuarios = Relationship(back_populates="reportes")
+  docente: Docentes | None = Relationship()
+
 
 # Tabla de Pases
 class Pases(EsquemaBase, table=True):
   __tablename__ = "pases"
   id: int | None = Field(default=None, primary_key=True)
 
-  id_estudiante: int | None = Field(default=None, foreign_key="estudiantes.id")
+  id_estudiante: int = Field(foreign_key="estudiantes.id")
+  id_usuario: int = Field(foreign_key="usuarios.id")
   id_docente: int | None = Field(default=None, foreign_key="docentes.id")
   id_asignatura: int | None = Field(default=None, foreign_key="asignaturas.id")
   tipo: en.TipoPase = Field(default=en.TipoPase.entrada)  # ENUM: TIPO DE PASE DADO
@@ -194,7 +206,13 @@ class Pases(EsquemaBase, table=True):
 
   fecha: datetime
 
-  autorizador: str
+  # Obligatorio solo desde el cuarto pase activo del mes por tipo.
+  autorizador: str | None = Field(default=None)
+
+  estudiante: Estudiantes = Relationship(back_populates="pases")
+  usuario: Usuarios = Relationship(back_populates="pases")
+  docente: Docentes | None = Relationship()
+  asignatura: Asignaturas | None = Relationship()
 
 
 # Tabla de Bloques Horarios (jornada institucional del liceo)
@@ -252,3 +270,5 @@ class Auditorias(EsquemaBase, table=True):
   modulo: str
   accion: str
   descripcion: str
+
+  usuario: Usuarios = Relationship(back_populates="auditorias")
