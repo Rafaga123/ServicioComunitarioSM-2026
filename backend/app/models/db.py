@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from datetime import UTC, datetime, time
 
 from sqlalchemy import CheckConstraint
@@ -37,89 +35,21 @@ class Usuarios(EsquemaBase, table=True):
   nivel: en.NivelEducativo | None = Field(default=None)
 
 
-# Tabla Intermedia entre Estudiantes y Representantes
-class EstudiantesRepresentantes(EsquemaBase, table=True):
-  __tablename__ = "estudiantes_representantes"
-
-  id_estudiante: int | None = Field(
-    default=None, foreign_key="estudiantes.id", primary_key=True
-  )
-
-  id_representante: int | None = Field(
-    default=None, foreign_key="representantes.id", primary_key=True
-  )
-
-
-# Tabla de Estudiantes
-class Estudiantes(EsquemaBase, table=True):
-  __tablename__ = "estudiantes"
-  id: int | None = Field(default=None, primary_key=True)
-  grado_id: int | None = Field(default=None, foreign_key="grados.id")
-
-  cedula_estudiantil: str
-
-  primer_nombre: str = Field(index=True)
-  segundo_nombre: str = Field(index=True)
-  primer_apellido: str = Field(index=True)
-  segundo_apellido: str = Field(index=True)
-
-  fecha_nacimiento: datetime
-
-  representantes: list["Representantes"] = Relationship(
-    link_model=EstudiantesRepresentantes
-  )
-
-
 # Tabla de Representantes
 class Representantes(EsquemaBase, table=True):
   __tablename__ = "representantes"
   id: int | None = Field(default=None, primary_key=True)
 
   primer_nombre: str = Field(index=True)
-  segundo_nombre: str = Field(index=True)
+  segundo_nombre: str | None = Field(default=None, index=True)
   primer_apellido: str = Field(index=True)
-  segundo_apellido: str = Field(index=True)
+  segundo_apellido: str | None = Field(default=None, index=True)
 
   telefono: str
 
-  estudiantes: list["Estudiantes"] = Relationship(link_model=EstudiantesRepresentantes)
-
-
-# Tabla de Reportes
-class Reportes(EsquemaBase, table=True):
-  __tablename__ = "reportes"
-  id: int | None = Field(default=None, primary_key=True)
-  id_estudiante: int | None = Field(default=None, foreign_key="estudiantes.id")
-  id_docente: int | None = Field(default=None, foreign_key="docentes.id")
-
-  incidencia: str
-  articulo: int
-  reglamento: en.Reglamentos  # ENUM
-
-  defensa: str  # Defensa escrita del estudiante
-  nivel_gravedad: en.NivelGravedad = Field(
-    default=en.NivelGravedad.leve
-  )  # ENUM: LEVE | GRAVE
-  categoria: en.CategoriaReportes  # ENUM: TIPO DE REPORTE
-
-  fecha: datetime
-
-
-# Tabla de Pases
-class Pases(EsquemaBase, table=True):
-  __tablename__ = "pases"
-  id: int | None = Field(default=None, primary_key=True)
-
-  id_estudiante: int | None = Field(default=None, foreign_key="estudiantes.id")
-  id_docente: int | None = Field(default=None, foreign_key="docentes.id")
-  id_asignatura: int | None = Field(default=None, foreign_key="asignaturas.id")
-  tipo: en.TipoPase = Field(default=en.TipoPase.entrada)  # ENUM: TIPO DE PASE DADO
-
-  motivo: str
-
-  fecha: datetime
-
-  autorizador: str
+  estudiantes: list["Estudiantes"] = Relationship(
+    back_populates="representante"
+  )
 
 
 # Tabla de Grados (catálogo fijo del 1 al 11)
@@ -173,9 +103,9 @@ class Docentes(EsquemaBase, table=True):
   id: int | None = Field(default=None, primary_key=True)
 
   primer_nombre: str = Field(index=True)
-  segundo_nombre: str = Field(index=True)
+  segundo_nombre: str | None = Field(default=None, index=True)
   primer_apellido: str = Field(index=True)
-  segundo_apellido: str = Field(index=True)
+  segundo_apellido: str | None = Field(default=None, index=True)
 
   cedula: str
   nivel: en.NivelEducativo
@@ -202,6 +132,71 @@ class Secciones(EsquemaBase, table=True):
   docente_titular: Docentes | None = Relationship(
     back_populates="secciones_titulares"
   )
+  estudiantes: list["Estudiantes"] = Relationship(back_populates="seccion")
+
+
+# Tabla de Estudiantes
+class Estudiantes(EsquemaBase, table=True):
+  __tablename__ = "estudiantes"
+  id: int | None = Field(default=None, primary_key=True)
+  # Una sola FK de ubicación: fija grado y sección a la vez.
+  id_seccion: int = Field(foreign_key="secciones.id")
+  # Un representante puede tener varios estudiantes, pero cada
+  # estudiante tiene como máximo uno.
+  id_representante: int | None = Field(
+    default=None, foreign_key="representantes.id"
+  )
+
+  cedula_estudiantil: str
+
+  primer_nombre: str = Field(index=True)
+  segundo_nombre: str | None = Field(default=None, index=True)
+  primer_apellido: str = Field(index=True)
+  segundo_apellido: str | None = Field(default=None, index=True)
+
+  fecha_nacimiento: datetime
+
+  seccion: Secciones = Relationship(back_populates="estudiantes")
+  representante: Representantes | None = Relationship(
+    back_populates="estudiantes"
+  )
+
+
+# Tabla de Reportes
+class Reportes(EsquemaBase, table=True):
+  __tablename__ = "reportes"
+  id: int | None = Field(default=None, primary_key=True)
+  id_estudiante: int | None = Field(default=None, foreign_key="estudiantes.id")
+  id_docente: int | None = Field(default=None, foreign_key="docentes.id")
+
+  incidencia: str
+  articulo: int
+  reglamento: en.Reglamentos  # ENUM
+
+  defensa: str  # Defensa escrita del estudiante
+  nivel_gravedad: en.NivelGravedad = Field(
+    default=en.NivelGravedad.leve
+  )  # ENUM: LEVE | GRAVE
+  categoria: en.CategoriaReportes  # ENUM: TIPO DE REPORTE
+
+  fecha: datetime
+
+
+# Tabla de Pases
+class Pases(EsquemaBase, table=True):
+  __tablename__ = "pases"
+  id: int | None = Field(default=None, primary_key=True)
+
+  id_estudiante: int | None = Field(default=None, foreign_key="estudiantes.id")
+  id_docente: int | None = Field(default=None, foreign_key="docentes.id")
+  id_asignatura: int | None = Field(default=None, foreign_key="asignaturas.id")
+  tipo: en.TipoPase = Field(default=en.TipoPase.entrada)  # ENUM: TIPO DE PASE DADO
+
+  motivo: str
+
+  fecha: datetime
+
+  autorizador: str
 
 
 # Tabla de Horarios
