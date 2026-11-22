@@ -26,6 +26,24 @@ const formulario = reactive({
 const entradaArchivos = ref(null)
 const arrastrando = ref(false)
 
+// Clases compartidas por los campos del formulario
+const claseCampo =
+  'w-full rounded-md border border-[#aeb2b8] bg-white px-2.5 py-2 text-sm text-[#242a35] focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[#3454c5]'
+const claseCampoCorto = `${claseCampo} min-h-10`
+
+// Píldoras de gravedad: rellenas cuando están inactivas y con borde de color al seleccionarse
+function claseSeveridad(valor) {
+  if (formulario.gravedad === valor) {
+    return valor === 'grave'
+      ? 'border-current bg-white hover:bg-[#faedc8]'
+      : 'border-current bg-white hover:bg-[#d9f1e2]'
+  }
+
+  return valor === 'grave'
+    ? 'border-transparent bg-[#faedc8]'
+    : 'border-transparent bg-[#d9f1e2]'
+}
+
 function agregarArchivos(archivos) {
   const permitidos = Array.from(archivos).filter((archivo) => {
     return archivo.type === 'application/pdf' || archivo.type.startsWith('image/')
@@ -54,17 +72,20 @@ function enviarFormulario(accion) {
 </script>
 
 <template>
-  <form class="incident-form" @submit.prevent="enviarFormulario('submit')">
-    <section class="form-section">
-      <h2>1 · Datos del estudiante</h2>
+  <form
+    class="relative mx-auto grid w-full max-w-[1000px] gap-3.5 p-4 text-[#242a35] max-[520px]:p-2.5"
+    @submit.prevent="enviarFormulario('submit')"
+  >
+    <section class="rounded-[9px] border border-[#c8cbd1] bg-white px-4 pt-3.5 pb-4 shadow-sm">
+      <h2 class="m-0 mb-2.5 text-[17px] font-bold">1 · Datos del estudiante</h2>
 
-      <div class="student-fields">
-        <label class="field">
+      <div class="grid grid-cols-1 gap-x-3.5 gap-y-3 min-[521px]:grid-cols-2">
+        <label class="grid min-w-0 gap-1 text-xs text-[#414752]">
           <span>Curso</span>
-          <input v-model="formulario.curso" type="text" name="curso" />
+          <input v-model="formulario.curso" type="text" name="curso" :class="claseCampoCorto" />
         </label>
 
-        <label class="field">
+        <label class="grid min-w-0 gap-1 text-xs text-[#414752]">
           <span>Estudiante (con búsqueda)</span>
           <input
             v-model="formulario.estudiante"
@@ -72,6 +93,7 @@ function enviarFormulario(accion) {
             name="estudiante"
             list="estudiantes-disponibles"
             autocomplete="off"
+            :class="claseCampoCorto"
           />
           <datalist id="estudiantes-disponibles">
             <option value="Brandon" />
@@ -81,34 +103,39 @@ function enviarFormulario(accion) {
         </label>
       </div>
 
-      <div class="student-card" aria-live="polite">
-        <div class="student-avatar" aria-hidden="true">
+      <div class="mt-[11px] flex items-center gap-3" aria-live="polite">
+        <div
+          class="grid h-[46px] w-[46px] shrink-0 place-items-center rounded-full bg-[#e0e4ec] text-lg font-bold text-[#46516a]"
+          aria-hidden="true"
+        >
           {{ formulario.estudiante ? formulario.estudiante.charAt(0).toUpperCase() : '' }}
         </div>
         <div>
-          <p class="student-card-title">
+          <p class="m-0 text-xs">
             {{ formulario.estudiante || 'Tarjeta del estudiante' }}
           </p>
-          <p class="student-card-notice">Aviso: tiene 2 reportes este año</p>
+          <p class="m-0 text-xs text-[#777d87]">Aviso: tiene 2 reportes este año</p>
         </div>
       </div>
     </section>
 
-    <section class="form-section">
-      <h2>2 · Datos del incidente</h2>
+    <section class="rounded-[9px] border border-[#c8cbd1] bg-white px-4 pt-3.5 pb-4 shadow-sm">
+      <h2 class="m-0 mb-2.5 text-[17px] font-bold">2 · Datos del incidente</h2>
 
-      <div class="incident-fields">
-        <label class="field">
+      <div
+        class="grid grid-cols-1 gap-x-3.5 gap-y-3 min-[521px]:grid-cols-2 min-[761px]:grid-cols-4"
+      >
+        <label class="grid min-w-0 gap-1 text-xs text-[#414752]">
           <span>Fecha</span>
-          <input v-model="formulario.fechaHora" type="date" name="fechaHora" />
+          <input v-model="formulario.fechaHora" type="date" name="fechaHora" :class="claseCampoCorto" />
         </label>
 
-        <label class="field">
+        <label class="grid min-w-0 gap-1 text-xs text-[#414752]">
           <span>Hora</span>
-          <input v-model="formulario.hora" type="time" name="hora" />
+          <input v-model="formulario.hora" type="time" name="hora" :class="claseCampoCorto" />
         </label>
 
-        <label class="field">
+        <label class="grid min-w-0 gap-1 text-xs text-[#414752]">
           <span>Docente</span>
           <input
             v-model="formulario.docente"
@@ -116,16 +143,17 @@ function enviarFormulario(accion) {
             name="docente"
             list="docentes-disponibles"
             autocomplete="off"
+            :class="claseCampoCorto"
           />
           <datalist id="docentes-disponibles">
             <option value="Prof. Vásquez" />
           </datalist>
         </label>
 
-        <label class="field">
+        <label class="grid min-w-0 gap-1 text-xs text-[#414752]">
           <span>Asignatura</span>
           <!--<input v-model="formulario.asignatura" type="text" name="asignatura" />-->
-          <select v-model="formulario.asignatura" name="asignatura">
+          <select v-model="formulario.asignatura" name="asignatura" :class="claseCampoCorto">
             <option value="" disabled>Seleccionar</option>
             <option value="Matemáticas">Matemáticas</option>
             <option value="Ingles">Inglés y otras lenguas</option>
@@ -144,22 +172,22 @@ function enviarFormulario(accion) {
           </select>
         </label>
 
-        <label class="field">
+        <label class="grid min-w-0 gap-1 text-xs text-[#414752]">
           <span>Tipo (académico / conductual)</span>
-          <select v-model="formulario.tipoIncidente" name="tipoIncidente">
+          <select v-model="formulario.tipoIncidente" name="tipoIncidente" :class="claseCampoCorto">
             <option value="" disabled>Seleccionar</option>
             <option value="academico">Académico</option>
             <option value="conductual">Conductual</option>
           </select>
         </label>
 
-        <label class="field">
+        <label class="grid min-w-0 gap-1 text-xs text-[#414752]">
           <span>Tipo de falta</span>
-          <input v-model="formulario.tipoFalta" type="text" name="tipoFalta" />
+          <input v-model="formulario.tipoFalta" type="text" name="tipoFalta" :class="claseCampoCorto" />
         </label>
       </div>
 
-      <fieldset class="radio-picker severity-picker">
+      <fieldset class="mt-2.5 flex flex-nowrap gap-3 border-0 p-0">
         <legend class="sr-only">Gravedad del incidente</legend>
         <label
           v-for="nivel in [
@@ -167,54 +195,78 @@ function enviarFormulario(accion) {
             { valor: 'grave', texto: 'Grave' },
           ]"
           :key="nivel.valor"
-          class="radio-option severity-option"
-          :class="[`severity-${nivel.valor}`, { selected: formulario.gravedad === nivel.valor }]"
+          :class="[
+            'inline-flex cursor-pointer items-center gap-2 rounded-full border-2 px-2.5 py-1 text-xs leading-none',
+            nivel.valor === 'grave' ? 'text-[#72520b]' : 'text-[#285d3b]',
+            claseSeveridad(nivel.valor),
+          ]"
         >
-          <input v-model="formulario.gravedad" type="radio" name="gravedad" :value="nivel.valor" />
+          <input
+            v-model="formulario.gravedad"
+            class="absolute h-px w-px opacity-0"
+            type="radio"
+            name="gravedad"
+            :value="nivel.valor"
+          />
           <span>{{ nivel.texto }}</span>
         </label>
       </fieldset>
     </section>
 
-    <section class="form-section">
-      <h2>3 · Descripción y acciones</h2>
+    <section class="rounded-[9px] border border-[#c8cbd1] bg-white px-4 pt-3.5 pb-4 shadow-sm">
+      <h2 class="m-0 mb-2.5 text-[17px] font-bold">3 · Descripción y acciones</h2>
 
-      <label class="field">
+      <label class="grid min-w-0 gap-1 text-xs text-[#414752]">
         <span>Descripción</span>
         <textarea
           v-model="formulario.descripcion"
+          :class="[claseCampo, 'min-h-[100px] resize-y']"
           name="descripcion"
           rows="4"
           required
         ></textarea>
       </label>
 
-      <label class="field">
+      <label class="mt-2.5 grid min-w-0 gap-1 text-xs text-[#414752]">
         <span>Artículo</span>
-        <input v-model="formulario.Articulo" type="text" name="Articulo" />
+        <input v-model="formulario.Articulo" type="text" name="Articulo" :class="claseCampoCorto" />
       </label>
 
-      <fieldset class="radio-picker law-picker">
-        <legend>Marco legal</legend>
+      <fieldset class="mt-3 flex flex-wrap gap-2 border-0 p-0">
+        <legend class="mb-2 text-xs font-bold text-[#414752]">Marco legal</legend>
         <label
           v-for="ley in ['LOPNNA', 'LOE', 'CBV', 'NC']"
           :key="ley"
-          class="radio-option"
-          :class="{ selected: formulario.Leyes === ley }"
+          :class="[
+            'inline-flex min-h-[38px] cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 text-[13px] transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#3454c5]',
+            formulario.Leyes === ley
+              ? 'border-[#304bbc] bg-[#eef1fa] font-bold text-[#253d9f] shadow-[0_0_0_1px_#304bbc] hover:bg-[#eef1fa]'
+              : 'border-[#c8cbd1] text-[#414752] hover:border-[#7d8ac2] hover:bg-[#f7f8fc]',
+          ]"
         >
-          <input v-model="formulario.Leyes" type="radio" name="Leyes" :value="ley" />
+          <input
+            v-model="formulario.Leyes"
+            class="m-0 h-[18px] w-[18px] accent-[#304bbc]"
+            type="radio"
+            name="Leyes"
+            :value="ley"
+          />
           <span>{{ ley }}</span>
         </label>
       </fieldset>
 
-      <label class="field actions-field">
+      <label class="mt-2.5 grid min-w-0 gap-1 text-xs text-[#414752]">
         <span>Art.88, LOPNNA: Derecho a la Defensa</span>
-        <input v-model="formulario.Defensa" type="text" name="Defensa" />
+        <input v-model="formulario.Defensa" type="text" name="Defensa" :class="claseCampoCorto" />
       </label>
 
       <div
-        class="file-drop"
-        :class="{ 'is-dragging': arrastrando }"
+        :class="[
+          'mt-2.5 grid min-h-14 cursor-pointer place-items-center rounded-md p-2 text-center text-[13px] text-[#414752] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#3454c5]',
+          arrastrando
+            ? 'bg-[#eef1fa] outline outline-2 outline-dashed outline-[#3454c5]'
+            : 'bg-[#e0e4ec]',
+        ]"
         @dragover.prevent="arrastrando = true"
         @dragleave.prevent="arrastrando = false"
         @drop.prevent="
@@ -230,7 +282,7 @@ function enviarFormulario(accion) {
       >
         <input
           ref="entradaArchivos"
-          class="file-input"
+          class="sr-only"
           type="file"
           accept="image/*,.pdf,application/pdf"
           multiple
@@ -239,366 +291,45 @@ function enviarFormulario(accion) {
         <span>Arrastra imágenes o PDF (opcional) o haz clic para seleccionarlos</span>
       </div>
 
-      <ul v-if="formulario.archivos.length" class="file-list">
-        <li v-for="(archivo, indice) in formulario.archivos" :key="`${archivo.name}-${indice}`">
+      <ul v-if="formulario.archivos.length" class="mt-2.5 grid list-none gap-1.5 p-0">
+        <li
+          v-for="(archivo, indice) in formulario.archivos"
+          :key="`${archivo.name}-${indice}`"
+          class="flex justify-between gap-3 text-xs [overflow-wrap:anywhere]"
+        >
           <span>{{ archivo.name }}</span>
-          <button type="button" class="remove-file" @click="quitarArchivo(indice)">
+          <button
+            type="button"
+            class="shrink-0 cursor-pointer border-0 bg-transparent text-[#3454c5] underline"
+            @click="quitarArchivo(indice)"
+          >
             Quitar
           </button>
         </li>
       </ul>
     </section>
 
-    <div class="form-actions">
-      <button type="button" class="button button-secondary" @click="emit('cancel')">
+    <div class="flex flex-wrap justify-end gap-2.5 pt-px max-[520px]:grid max-[520px]:grid-cols-1">
+      <button
+        type="button"
+        class="min-h-[42px] cursor-pointer rounded-md border border-[#777d87] bg-white px-4 text-[13px] font-bold text-[#242a35] hover:bg-[#f4f5f7]"
+        @click="emit('cancel')"
+      >
         Cancelar
       </button>
-      <button type="button" class="button button-secondary" @click="enviarFormulario('save-draft')">
+      <button
+        type="button"
+        class="min-h-[42px] cursor-pointer rounded-md border border-[#777d87] bg-white px-4 text-[13px] font-bold text-[#242a35] hover:bg-[#f4f5f7]"
+        @click="enviarFormulario('save-draft')"
+      >
         Guardar borrador
       </button>
-      <button type="submit" class="button button-primary">Enviar a control de estudios</button>
+      <button
+        type="submit"
+        class="min-h-[42px] cursor-pointer rounded-md border border-[#304bbc] bg-[#304bbc] px-4 text-[13px] font-bold text-white hover:bg-[#253d9f]"
+      >
+        Enviar a control de estudios
+      </button>
     </div>
   </form>
 </template>
-
-<style scoped>
-.incident-form {
-  display: grid;
-  gap: 14px;
-  width: 100%;
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 16px;
-  color: #242a35;
-  font-family: Arial, sans-serif;
-}
-
-.form-section {
-  padding: 14px 16px 16px;
-  border: 1px solid #c8cbd1;
-  border-radius: 9px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
-}
-
-.form-section h2 {
-  margin: 0 0 10px;
-  font-size: 17px;
-  font-weight: 700;
-}
-
-.student-fields,
-.incident-fields {
-  display: grid;
-  gap: 12px 14px;
-}
-
-.student-fields {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.incident-fields {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.field {
-  display: grid;
-  min-width: 0;
-  gap: 4px;
-  color: #414752;
-  font-size: 12px;
-}
-
-.field input,
-.field select,
-.field textarea {
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 40px;
-  padding: 8px 10px;
-  border: 1px solid #aeb2b8;
-  border-radius: 6px;
-  background: #fff;
-  color: #242a35;
-  font: inherit;
-  font-size: 14px;
-}
-
-.field textarea {
-  min-height: 100px;
-  resize: vertical;
-}
-
-.field input:focus,
-.field select:focus,
-.field textarea:focus,
-.file-drop:focus-visible {
-  outline: 2px solid #3454c5;
-  outline-offset: 1px;
-}
-
-.student-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 11px;
-}
-
-.student-avatar {
-  display: grid;
-  width: 46px;
-  height: 46px;
-  flex: 0 0 46px;
-  place-items: center;
-  border-radius: 50%;
-  background: #e0e4ec;
-  color: #46516a;
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.student-card-title,
-.student-card-notice {
-  margin: 0;
-  font-size: 12px;
-}
-
-.student-card-notice {
-  color: #777d87;
-}
-
-.radio-picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 14px 0 0;
-  padding: 0;
-  border: 0;
-}
-
-.radio-picker legend {
-  margin-bottom: 8px;
-  color: #414752;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.radio-option {
-  display: inline-flex;
-  min-height: 38px;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  border: 1px solid #c8cbd1;
-  border-radius: 8px;
-  background: #fff;
-  cursor: pointer;
-  color: #414752;
-  font-size: 13px;
-  transition:
-    border-color 0.15s ease,
-    background-color 0.15s ease,
-    box-shadow 0.15s ease;
-}
-
-.radio-option input[type='radio'] {
-  width: 18px;
-  height: 18px;
-  margin: 0;
-  accent-color: #304bbc;
-}
-
-.radio-option:hover {
-  border-color: #7d8ac2;
-  background: #f7f8fc;
-}
-
-.radio-option:focus-within {
-  outline: 2px solid #3454c5;
-  outline-offset: 2px;
-}
-
-.radio-option.selected {
-  border-color: #304bbc;
-  background: #eef1fa;
-  box-shadow: 0 0 0 1px #304bbc;
-  color: #253d9f;
-  font-weight: 700;
-}
-
-.severity-leve {
-  background: #d9f1e2;
-  color: #285d3b;
-}
-
-.severity-grave {
-  background: #faedc8;
-  color: #72520b;
-}
-
-.severity-picker {
-  flex-wrap: nowrap;
-  gap: 12px;
-  margin-top: 10px;
-}
-
-.severity-option {
-  min-height: 0;
-  padding: 4px 10px;
-  border: 2px solid transparent;
-  border-radius: 999px;
-  font-size: 12px;
-  line-height: 1;
-  transition: none;
-}
-
-.severity-option input[type='radio'] {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
-
-.severity-option.selected {
-  border-color: currentColor;
-  background: inherit;
-  box-shadow: none;
-  font-weight: 400;
-}
-
-.severity-option:hover {
-  border-color: transparent;
-  background: #d9f1e2;
-}
-
-.severity-option.severity-grave:hover {
-  background: #faedc8;
-}
-
-.severity-option.selected:hover {
-  border-color: currentColor;
-}
-
-.law-picker {
-  margin-top: 12px;
-}
-
-.actions-field {
-  margin-top: 10px;
-}
-
-.file-drop {
-  display: grid;
-  min-height: 56px;
-  margin-top: 10px;
-  padding: 8px;
-  place-items: center;
-  border-radius: 6px;
-  background: #e0e4ec;
-  color: #414752;
-  cursor: pointer;
-  text-align: center;
-  font-size: 13px;
-}
-
-.file-drop.is-dragging {
-  outline: 2px dashed #3454c5;
-  background: #eef1fa;
-}
-
-.file-input,
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  clip-path: inset(50%);
-}
-
-.file-list {
-  display: grid;
-  gap: 6px;
-  margin: 10px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.file-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  overflow-wrap: anywhere;
-  font-size: 12px;
-}
-
-.remove-file {
-  flex: 0 0 auto;
-  border: 0;
-  background: none;
-  color: #3454c5;
-  cursor: pointer;
-  font: inherit;
-  text-decoration: underline;
-}
-
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding-top: 1px;
-}
-
-.button {
-  min-height: 42px;
-  padding: 0 16px;
-  border: 1px solid #777d87;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.button-secondary {
-  background: #fff;
-  color: #242a35;
-}
-
-.button-secondary:hover {
-  background: #f4f5f7;
-}
-
-.button-primary {
-  border-color: #304bbc;
-  background: #304bbc;
-  color: #fff;
-}
-
-.button-primary:hover {
-  background: #253d9f;
-}
-
-@media (max-width: 760px) {
-  .incident-fields {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 520px) {
-  .incident-form {
-    padding: 10px;
-  }
-
-  .student-fields,
-  .incident-fields {
-    grid-template-columns: 1fr;
-  }
-
-  .form-actions {
-    display: grid;
-    grid-template-columns: 1fr;
-  }
-}
-</style>

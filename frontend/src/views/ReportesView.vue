@@ -52,6 +52,10 @@ const filtros = ref({
   fecha: '',
 })
 
+// Clases compartidas por encabezados y celdas de la tabla
+const claseCelda = 'whitespace-nowrap border-b border-[#e1e3e7] px-[10px] py-[11px]'
+const claseEncabezado = `${claseCelda} font-bold`
+
 const reportesFiltrados = computed(() => {
   const busqueda = filtros.value.estudiante.trim().toLocaleLowerCase()
 
@@ -90,6 +94,12 @@ function formatearFecha(fecha) {
     day: 'numeric',
     month: 'short',
   }).format(new Date(`${fecha}T12:00:00`))
+}
+
+function claseGravedad(gravedad) {
+  return gravedad === 'Grave'
+    ? 'bg-[#faedc8] text-[#72520b]'
+    : 'bg-[#d9f1e2] text-[#285d3b]'
 }
 
 function exportarReportes() {
@@ -146,25 +156,32 @@ function guardarReporte(datos, estado) {
 </script>
 
 <template>
-  <main class="reports-page">
-    <div v-if="!mostrarFormulario" class="reports-content">
-      <header class="filters" aria-label="Filtros de reportes">
-        <label class="filter-field">
+  <main class="w-full text-[#242a35]">
+    <div v-if="!mostrarFormulario" class="flex flex-col gap-4">
+      <header
+        class="grid grid-cols-2 items-end gap-3 md:grid-cols-3 xl:grid-cols-7"
+        aria-label="Filtros de reportes"
+      >
+        <label class="grid min-w-0 gap-1.5 text-xs font-semibold text-[#414752]">
           <span>Buscar estudiante</span>
           <input
             v-model="filtros.estudiante"
             type="search"
             list="estudiantes-disponibles"
             placeholder="Nombre del estudiante"
+            class="min-h-[42px] w-full rounded-md border border-[#aeb2b8] bg-white px-2.5 py-2 text-sm text-[#242a35] focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[#3454c5]"
           />
           <datalist id="estudiantes-disponibles">
             <option v-for="estudiante in estudiantes" :key="estudiante" :value="estudiante" />
           </datalist>
         </label>
 
-        <label class="filter-field">
+        <label class="grid min-w-0 gap-1.5 text-xs font-semibold text-[#414752]">
           <span>Estado</span>
-          <select v-model="filtros.estado">
+          <select
+            v-model="filtros.estado"
+            class="min-h-[42px] w-full rounded-md border border-[#aeb2b8] bg-white px-2.5 py-2 text-sm text-[#242a35] focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[#3454c5]"
+          >
             <option value="">Todos</option>
             <option value="Enviado">Enviado</option>
             <option value="Atendido">Atendido</option>
@@ -172,78 +189,115 @@ function guardarReporte(datos, estado) {
           </select>
         </label>
 
-        <label class="filter-field">
+        <label class="grid min-w-0 gap-1.5 text-xs font-semibold text-[#414752]">
           <span>Curso</span>
-          <input v-model="filtros.curso" type="search" placeholder="Ej. 3ro B" />
+          <input
+            v-model="filtros.curso"
+            type="search"
+            placeholder="Ej. 3ro B"
+            class="min-h-[42px] w-full rounded-md border border-[#aeb2b8] bg-white px-2.5 py-2 text-sm text-[#242a35] focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[#3454c5]"
+          />
         </label>
 
-        <label class="filter-field">
+        <label class="grid min-w-0 gap-1.5 text-xs font-semibold text-[#414752]">
           <span>Gravedad</span>
-          <select v-model="filtros.gravedad">
+          <select
+            v-model="filtros.gravedad"
+            class="min-h-[42px] w-full rounded-md border border-[#aeb2b8] bg-white px-2.5 py-2 text-sm text-[#242a35] focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[#3454c5]"
+          >
             <option value="">Todas</option>
             <option value="Leve">Leve</option>
             <option value="Grave">Grave</option>
           </select>
         </label>
 
-        <label class="filter-field">
+        <label class="grid min-w-0 gap-1.5 text-xs font-semibold text-[#414752]">
           <span>Tipo</span>
-          <select v-model="filtros.tipo">
+          <select
+            v-model="filtros.tipo"
+            class="min-h-[42px] w-full rounded-md border border-[#aeb2b8] bg-white px-2.5 py-2 text-sm text-[#242a35] focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[#3454c5]"
+          >
             <option value="">Todos</option>
             <option value="Conductual">Conductual</option>
             <option value="Académico">Académico</option>
           </select>
         </label>
 
-        <label class="filter-field">
+        <label class="grid min-w-0 gap-1.5 text-xs font-semibold text-[#414752]">
           <span>Fecha</span>
-          <input v-model="filtros.fecha" type="date" />
+          <input
+            v-model="filtros.fecha"
+            type="date"
+            class="min-h-[42px] w-full rounded-md border border-[#aeb2b8] bg-white px-2.5 py-2 text-sm text-[#242a35] focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[#3454c5]"
+          />
         </label>
 
-        <button class="new-report-button" type="button" @click="mostrarFormulario = true">
+        <button
+          class="col-span-2 min-h-[42px] cursor-pointer whitespace-nowrap rounded-md border border-[#304bbc] bg-[#304bbc] px-4 text-sm font-bold text-white hover:bg-[#253d9f] md:col-span-3 xl:col-span-1"
+          type="button"
+          @click="mostrarFormulario = true"
+        >
           + Nuevo reporte
         </button>
       </header>
 
-      <section class="table-card" aria-label="Lista de reportes">
-        <div class="table-scroll">
-          <table>
-            <thead>
+      <section class="rounded-[9px] border border-[#c8cbd1] bg-white p-4 shadow-sm" aria-label="Lista de reportes">
+        <div class="overflow-x-auto">
+          <table
+            class="w-full border-collapse text-left text-[13px] [&_tbody_tr:last-child>td]:border-b-0"
+          >
+            <thead class="bg-[#f1f2f5] text-[#59606c]">
               <tr>
-                <th scope="col">N.º</th>
-                <th scope="col">Fecha / hora</th>
-                <th scope="col">Estudiante</th>
-                <th scope="col">Curso</th>
-                <th scope="col">Tipo</th>
-                <th scope="col">Gravedad</th>
-                <th scope="col">Docente</th>
-                <th scope="col">Estado</th>
-                <th scope="col"><span class="sr-only">Detalle</span></th>
+                <th scope="col" :class="claseEncabezado">N.º</th>
+                <th scope="col" :class="claseEncabezado">Fecha / hora</th>
+                <th scope="col" :class="claseEncabezado">Estudiante</th>
+                <th scope="col" :class="claseEncabezado">Curso</th>
+                <th scope="col" :class="claseEncabezado">Tipo</th>
+                <th scope="col" :class="claseEncabezado">Gravedad</th>
+                <th scope="col" :class="claseEncabezado">Docente</th>
+                <th scope="col" :class="claseEncabezado">Estado</th>
+                <th scope="col" :class="claseEncabezado"><span class="sr-only">Detalle</span></th>
               </tr>
             </thead>
             <tbody>
               <template v-for="reporte in reportesPaginados" :key="reporte.id">
-                <tr :class="{ 'is-pending': reporte.estado === 'Enviado' }">
-                  <td>#{{ reporte.id }}</td>
-                  <td>
+                <tr>
+                  <td
+                    :class="[
+                      claseCelda,
+                      reporte.estado === 'Enviado' ? 'border-l-4 border-l-[#d59a13]' : '',
+                    ]"
+                  >
+                    #{{ reporte.id }}
+                  </td>
+                  <td :class="claseCelda">
                     {{ formatearFecha(reporte.fecha) }}
                     <span v-if="reporte.hora"> · {{ reporte.hora }}</span>
                   </td>
-                  <td>{{ reporte.estudiante }}</td>
-                  <td>{{ reporte.curso }}</td>
-                  <td>{{ reporte.tipo }}</td>
-                  <td>
-                    <span class="badge" :class="`badge-${reporte.gravedad.toLowerCase()}`">
+                  <td :class="claseCelda">{{ reporte.estudiante }}</td>
+                  <td :class="claseCelda">{{ reporte.curso }}</td>
+                  <td :class="claseCelda">{{ reporte.tipo }}</td>
+                  <td :class="claseCelda">
+                    <span
+                      :class="[
+                        'inline-block rounded-full px-[9px] py-1 text-xs font-bold',
+                        claseGravedad(reporte.gravedad),
+                      ]"
+                    >
                       {{ reporte.gravedad }}
                     </span>
                   </td>
-                  <td>{{ reporte.docente }}</td>
-                  <td>
-                    <span class="badge badge-status">{{ reporte.estado }}</span>
+                  <td :class="claseCelda">{{ reporte.docente }}</td>
+                  <td :class="claseCelda">
+                    <span
+                      class="inline-block rounded-full bg-[#e8eaf0] px-[9px] py-1 text-xs font-bold text-[#3e4552]"
+                    >
+                      {{ reporte.estado }}
+                    </span>
                   </td>
-                  <td>
+                  <td :class="claseCelda">
                     <button
-                      class="details-button"
+                      class="cursor-pointer border-0 bg-transparent text-[#304bbc] underline"
                       type="button"
                       :aria-expanded="detalleAbierto === reporte.id"
                       @click="detalleAbierto = detalleAbierto === reporte.id ? null : reporte.id"
@@ -252,26 +306,41 @@ function guardarReporte(datos, estado) {
                     </button>
                   </td>
                 </tr>
-                <tr v-if="detalleAbierto === reporte.id" class="details-row">
-                  <td colspan="9"><strong>Descripción:</strong> {{ reporte.descripcion }}</td>
+                <tr v-if="detalleAbierto === reporte.id">
+                  <td
+                    colspan="9"
+                    class="whitespace-normal border-b border-[#e1e3e7] bg-[#f8f9fb] px-[10px] py-[11px] text-[#59606c]"
+                  >
+                    <strong>Descripción:</strong> {{ reporte.descripcion }}
+                  </td>
                 </tr>
               </template>
               <tr v-if="reportesPaginados.length === 0">
-                <td class="empty-state" colspan="9">No hay reportes que coincidan con los filtros.</td>
+                <td
+                  class="border-b border-[#e1e3e7] px-6 py-6 text-center whitespace-normal text-[#777d87]"
+                  colspan="9"
+                >
+                  No hay reportes que coincidan con los filtros.
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
-        <footer class="table-footer">
-          <p class="table-note">Mostrando {{ reportesFiltrados.length }} reportes</p>
-          <div class="table-tools">
-            <button type="button" class="table-tool-button" @click="exportarReportes">
+
+        <footer class="mt-3 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+          <p class="m-0 text-xs text-[#777d87]">Mostrando {{ reportesFiltrados.length }} reportes</p>
+          <div class="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              class="min-h-8 cursor-pointer rounded-[5px] border border-[#aeb2b8] bg-white px-2.5 text-xs text-[#414752] disabled:cursor-not-allowed disabled:opacity-50"
+              @click="exportarReportes"
+            >
               Exportar CSV
             </button>
-            <nav class="pagination" aria-label="Paginación de reportes">
+            <nav class="flex items-center gap-3 text-xs text-[#59606c]" aria-label="Paginación de reportes">
               <button
                 type="button"
-                class="table-tool-button"
+                class="min-h-8 cursor-pointer rounded-[5px] border border-[#aeb2b8] bg-white px-2.5 text-xs text-[#414752] disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="paginaActual === 1"
                 @click="paginaActual -= 1"
               >
@@ -280,7 +349,7 @@ function guardarReporte(datos, estado) {
               <span>Página {{ paginaActual }} de {{ totalPaginas }}</span>
               <button
                 type="button"
-                class="table-tool-button"
+                class="min-h-8 cursor-pointer rounded-[5px] border border-[#aeb2b8] bg-white px-2.5 text-xs text-[#414752] disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="paginaActual === totalPaginas"
                 @click="paginaActual += 1"
               >
@@ -292,9 +361,9 @@ function guardarReporte(datos, estado) {
       </section>
     </div>
 
-    <section v-else class="form-page">
-      <header class="form-page-header">
-        <h1>Nuevo reporte</h1>
+    <section v-else class="mx-auto w-full max-w-[1032px]">
+      <header class="mx-4">
+        <h1 class="m-0 text-[22px] font-bold">Nuevo reporte</h1>
       </header>
       <ReporteIncidente
         @cancel="mostrarFormulario = false"
@@ -304,254 +373,3 @@ function guardarReporte(datos, estado) {
     </section>
   </main>
 </template>
-
-<style scoped>
-.reports-page {
-  box-sizing: border-box;
-  min-height: 100vh;
-  padding: 28px;
-  background: #f1f2f5;
-  color: #242a35;
-  font-family: Arial, sans-serif;
-}
-
-.reports-content {
-  display: grid;
-  gap: 16px;
-}
-
-.filters {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(110px, 1fr)) auto;
-  align-items: end;
-  gap: 12px;
-}
-
-.filter-field {
-  display: grid;
-  min-width: 0;
-  gap: 5px;
-  color: #414752;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.filter-field input,
-.filter-field select {
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 42px;
-  padding: 8px 10px;
-  border: 1px solid #aeb2b8;
-  border-radius: 6px;
-  background: #fff;
-  color: #242a35;
-  font: inherit;
-  font-size: 14px;
-}
-
-.filter-field input:focus,
-.filter-field select:focus {
-  outline: 2px solid #3454c5;
-  outline-offset: 1px;
-}
-
-.new-report-button {
-  min-height: 42px;
-  padding: 0 16px;
-  border: 1px solid #304bbc;
-  border-radius: 6px;
-  background: #304bbc;
-  color: #fff;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.new-report-button:hover {
-  background: #253d9f;
-}
-
-.table-card {
-  padding: 16px;
-  border: 1px solid #c8cbd1;
-  border-radius: 9px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
-}
-
-.table-scroll {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-  font-size: 13px;
-}
-
-thead {
-  background: #f1f2f5;
-  color: #59606c;
-}
-
-th,
-td {
-  padding: 11px 10px;
-  border-bottom: 1px solid #e1e3e7;
-  white-space: nowrap;
-}
-
-th {
-  font-weight: 700;
-}
-
-tbody tr:last-child td {
-  border-bottom: 0;
-}
-
-.is-pending td:first-child {
-  border-left: 4px solid #d59a13;
-}
-
-.badge {
-  display: inline-block;
-  padding: 4px 9px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.badge-leve {
-  background: #d9f1e2;
-  color: #285d3b;
-}
-
-.badge-grave {
-  background: #faedc8;
-  color: #72520b;
-}
-
-.badge-status {
-  background: #e8eaf0;
-  color: #3e4552;
-}
-
-.details-button {
-  border: 0;
-  background: transparent;
-  color: #304bbc;
-  cursor: pointer;
-  font: inherit;
-  text-decoration: underline;
-}
-
-.details-row td {
-  background: #f8f9fb;
-  color: #59606c;
-  white-space: normal;
-}
-
-.empty-state {
-  padding: 24px;
-  color: #777d87;
-  text-align: center;
-}
-
-.table-note {
-  margin: 0;
-  color: #777d87;
-  font-size: 12px;
-}
-
-.table-footer,
-.table-tools,
-.pagination {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.table-footer {
-  justify-content: space-between;
-  margin-top: 12px;
-}
-
-.table-tools {
-  flex-wrap: wrap;
-}
-
-.table-tool-button {
-  min-height: 32px;
-  padding: 0 10px;
-  border: 1px solid #aeb2b8;
-  border-radius: 5px;
-  background: #fff;
-  color: #414752;
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-}
-
-.table-tool-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.pagination {
-  color: #59606c;
-  font-size: 12px;
-}
-
-.form-page {
-  width: min(100%, 1032px);
-  margin: 0 auto;
-}
-
-.form-page-header {
-  margin: 0 16px;
-}
-
-.form-page-header h1 {
-  margin: 0;
-  font-size: 22px;
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  clip-path: inset(50%);
-}
-
-@media (max-width: 1050px) {
-  .filters {
-    grid-template-columns: repeat(3, minmax(120px, 1fr));
-  }
-}
-
-@media (max-width: 600px) {
-  .reports-page {
-    padding: 16px;
-  }
-
-  .filters {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .new-report-button {
-    grid-column: 1 / -1;
-  }
-
-  .table-footer,
-  .table-tools {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-}
-</style>
