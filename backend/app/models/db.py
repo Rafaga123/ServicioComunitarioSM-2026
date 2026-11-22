@@ -1,17 +1,18 @@
-from datetime import UTC, datetime, time
+from datetime import datetime, time
 
 from sqlalchemy import CheckConstraint, Index, text
 from sqlmodel import Field, Relationship, SQLModel
 
 import app.models.enums as en
+from app.utils.fechas import ahora_caracas
 
 
 # Clase Padre con los atributos base de cada tabla
 class EsquemaBase(SQLModel):
-  fecha_creacion: datetime = Field(default_factory=lambda: datetime.now(UTC))
+  fecha_creacion: datetime = Field(default_factory=ahora_caracas)
   fecha_actualizacion: datetime = Field(
-    default_factory=lambda: datetime.now(UTC),
-    sa_column_kwargs={"onupdate": lambda: datetime.now(UTC)},
+    default_factory=ahora_caracas,
+    sa_column_kwargs={"onupdate": ahora_caracas},
   )
   fecha_eliminacion: datetime | None = Field(default=None)
 
