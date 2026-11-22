@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, time
 
-from sqlalchemy import CheckConstraint
+from sqlalchemy import CheckConstraint, Index, text
 from sqlmodel import Field, Relationship, SQLModel
 
 import app.models.enums as en
@@ -24,6 +24,14 @@ class EsquemaBase(SQLModel):
 # Tabla de Usuarios
 class Usuarios(EsquemaBase, table=True):
   __tablename__ = "usuarios"
+  __table_args__ = (
+    Index(
+      "uq_usuarios_nombre_activo",
+      "nombre",
+      unique=True,
+      postgresql_where=text("fecha_eliminacion IS NULL"),
+    ),
+  )
   id: int | None = Field(default=None, primary_key=True)
   nombre: str = Field(index=True)
   clave: str
@@ -65,6 +73,12 @@ class Grados(EsquemaBase, table=True):
       "(numero BETWEEN 7 AND 11 AND nivel = 'liceo')",
       name="ck_grados_numero_nivel",
     ),
+    Index(
+      "uq_grados_numero_activo",
+      "numero",
+      unique=True,
+      postgresql_where=text("fecha_eliminacion IS NULL"),
+    ),
   )
 
   id: int | None = Field(default=None, primary_key=True)
@@ -80,6 +94,15 @@ class Grados(EsquemaBase, table=True):
 # Tabla intermedia de Asignaturas y Docentes
 class AsignaturasDocentes(EsquemaBase, table=True):
   __tablename__ = "asignaturas_docentes"
+  __table_args__ = (
+    Index(
+      "uq_asignaturas_docentes_activo",
+      "id_asignatura",
+      "id_docente",
+      unique=True,
+      postgresql_where=text("fecha_eliminacion IS NULL"),
+    ),
+  )
 
   id: int | None = Field(default=None, primary_key=True)
   id_asignatura: int = Field(foreign_key="asignaturas.id")
@@ -89,6 +112,15 @@ class AsignaturasDocentes(EsquemaBase, table=True):
 # Tabla de Asignaturas
 class Asignaturas(EsquemaBase, table=True):
   __tablename__ = "asignaturas"
+  __table_args__ = (
+    Index(
+      "uq_asignaturas_grado_nombre_activo",
+      "id_grado",
+      "nombre",
+      unique=True,
+      postgresql_where=text("fecha_eliminacion IS NULL"),
+    ),
+  )
 
   id: int | None = Field(default=None, primary_key=True)
   id_grado: int = Field(foreign_key="grados.id")
@@ -101,6 +133,14 @@ class Asignaturas(EsquemaBase, table=True):
 # Tabla de Docentes
 class Docentes(EsquemaBase, table=True):
   __tablename__ = "docentes"
+  __table_args__ = (
+    Index(
+      "uq_docentes_cedula_activo",
+      "cedula",
+      unique=True,
+      postgresql_where=text("fecha_eliminacion IS NULL"),
+    ),
+  )
 
   id: int | None = Field(default=None, primary_key=True)
 
@@ -121,6 +161,15 @@ class Docentes(EsquemaBase, table=True):
 # Tabla de Secciones (aulas activas de un grado)
 class Secciones(EsquemaBase, table=True):
   __tablename__ = "secciones"
+  __table_args__ = (
+    Index(
+      "uq_secciones_grado_letra_activo",
+      "id_grado",
+      "letra",
+      unique=True,
+      postgresql_where=text("fecha_eliminacion IS NULL"),
+    ),
+  )
   id: int | None = Field(default=None, primary_key=True)
 
   id_grado: int = Field(foreign_key="grados.id")
@@ -140,6 +189,14 @@ class Secciones(EsquemaBase, table=True):
 # Tabla de Estudiantes
 class Estudiantes(EsquemaBase, table=True):
   __tablename__ = "estudiantes"
+  __table_args__ = (
+    Index(
+      "uq_estudiantes_cedula_activo",
+      "cedula_estudiantil",
+      unique=True,
+      postgresql_where=text("fecha_eliminacion IS NULL"),
+    ),
+  )
   id: int | None = Field(default=None, primary_key=True)
   # Una sola FK de ubicación: fija grado y sección a la vez.
   id_seccion: int = Field(foreign_key="secciones.id")
@@ -225,6 +282,12 @@ class BloquesHorarios(EsquemaBase, table=True):
       "(tipo = 'receso' AND numero IS NULL)",
       name="ck_bloques_horarios_tipo_numero",
     ),
+    Index(
+      "uq_bloques_horarios_orden_activo",
+      "orden",
+      unique=True,
+      postgresql_where=text("fecha_eliminacion IS NULL"),
+    ),
   )
 
   id: int | None = Field(default=None, primary_key=True)
@@ -244,6 +307,15 @@ class Horarios(EsquemaBase, table=True):
   __table_args__ = (
     CheckConstraint("dia_semana BETWEEN 1 AND 5", name="ck_horarios_dia_semana"),
     CheckConstraint("periodo_lectivo >= 2000", name="ck_horarios_periodo"),
+    Index(
+      "uq_horarios_seccion_bloque_periodo_dia_activo",
+      "id_seccion",
+      "id_bloque",
+      "periodo_lectivo",
+      "dia_semana",
+      unique=True,
+      postgresql_where=text("fecha_eliminacion IS NULL"),
+    ),
   )
 
   id: int | None = Field(default=None, primary_key=True)
