@@ -163,10 +163,14 @@ class Docentes(EsquemaBase, table=True):
 class Secciones(EsquemaBase, table=True):
   __tablename__ = "secciones"
   __table_args__ = (
+    CheckConstraint(
+      "periodo_lectivo >= 2000", name="ck_secciones_periodo"
+    ),
     Index(
-      "uq_secciones_grado_letra_activo",
+      "uq_secciones_grado_letra_periodo_activo",
       "id_grado",
       "letra",
+      "periodo_lectivo",
       unique=True,
       postgresql_where=text("fecha_eliminacion IS NULL"),
     ),
@@ -175,6 +179,9 @@ class Secciones(EsquemaBase, table=True):
 
   id_grado: int = Field(foreign_key="grados.id")
   letra: str
+  # Año escolar al que pertenece la sección. Permite que "1er Año A"
+  # de dos períodos distintos coexista sin mezclar cohortes.
+  periodo_lectivo: int = Field(index=True)
   id_docente_titular: int | None = Field(
     default=None, foreign_key="docentes.id"
   )
