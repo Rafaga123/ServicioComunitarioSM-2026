@@ -1,28 +1,69 @@
 from datetime import datetime, time
 
+from pydantic import field_validator, model_validator
 from sqlmodel import Field, SQLModel
 
 import app.models.enums as en
+
+LETRAS_SECCION = ("A", "B", "U")
+
+
+def _normalizar_letra(valor: str) -> str:
+  valor = valor.strip().upper()
+
+  if valor not in LETRAS_SECCION:
+    raise ValueError("La letra de la sección debe ser A, B o U")
+
+  return valor
+
+
+def _normalizar_fecha_caracas(fecha: datetime) -> datetime:
+  # Import local para evitar un ciclo entre modelos y utilidades.
+  from app.utils.fechas import normalizar_fecha
+
+  return normalizar_fecha(fecha)
+
+
+def validar_bloque_horario(
+  tipo: en.TipoBloqueHorario,
+  numero: int | None,
+  hora_inicio: time,
+  hora_fin: time,
+) -> None:
+  """Valida la coherencia de un bloque académico o receso."""
+  if hora_fin <= hora_inicio:
+    raise ValueError("La hora de fin debe ser posterior a la hora de inicio")
+
+  if tipo == en.TipoBloqueHorario.academico:
+    if numero is None or not 1 <= numero <= 8:
+      raise ValueError("Un bloque académico debe tener número entre 1 y 8")
+  elif numero is not None:
+    raise ValueError("Un receso no debe tener número de bloque académico")
 
 
 # ====
 # Esquemas para Usuarios
 # ====
 class CrearUsuario(SQLModel):
-  nombre: str
+  nombre: str = Field(min_length=1, max_length=100)
   clave: str = Field(min_length=8, max_length=72)
   rol: en.RolesAsignables
+  # Coordinador y secretaria siempre pertenecen a un nivel. El
+  # administrador se crea por script con nivel None.
+  nivel: en.NivelEducativo
 
 
 class PeticionUsuario(SQLModel):
   id: int | None
   nombre: str
   rol: en.RolesUsuario
+  nivel: en.NivelEducativo | None = None
 
 
 class ActualizarUsuario(SQLModel):
-  nombre: str | None = Field(default=None, min_length=1)
+  nombre: str | None = Field(default=None, min_length=1, max_length=100)
   rol: en.RolesAsignables | None = None
+  nivel: en.NivelEducativo | None = None
 
 
 class CambiarClave(SQLModel):
@@ -31,120 +72,431 @@ class CambiarClave(SQLModel):
 
 
 # ====
-# Esquemas para Estudiantes
+# Esquemas para Grados (catálogo de solo lectura)
 # ====
-class CrearEstudiante(SQLModel):
-  grado_id: int | None
-
-  cedula_estudiantil: str
-
-  primer_nombre: str
-  segundo_nombre: str = ""
-  primer_apellido: str
-  segundo_apellido: str = ""
-
-  fecha_nacimiento: datetime
+class PeticionGrado(SQLModel):
+  id: int
+  numero: int
+  nombre: str
+  nivel: en.NivelEducativo
 
 
-class PeticionEstudiante(SQLModel):
-  id: int | None
-  grado_id: int | None
-
-  cedula_estudiantil: str
-
-  primer_nombre: str
-  segundo_nombre: str
-  primer_apellido: str
-  segundo_apellido: str
-
-  fecha_nacimiento: datetime
+# Compatibilidad temporal con el router actual. La Fase 4 convierte
+# grados en solo lectura y estos dos esquemas se eliminan.
+class CrearGrado(SQLModel):
+  numero: int = Field(ge=1, le=11)
+  nombre: str
+  nivel: en.NivelEducativo
 
 
-class ActualizarEstudiante(SQLModel):
-  grado_id: int | None = None
+class ActualizarGrado(SQLModel):
+  numero: int | None = Field(default=None, ge=1, le=11)
+  nombre: str | None = None
+  nivel: en.NivelEducativo | None = None
 
-  cedula_estudiantil: str | None = None
 
-  primer_nombre: str | None = None
-  segundo_nombre: str | None = None
-  primer_apellido: str | None = None
-  segundo_apellido: str | None = None
+# ====
+# Esquemas para Secciones
+# ====
+class CrearSeccion(SQLModel):
+  id_grado: int
+  letra: str
+  periodo_lectivo: int = Field(ge=2000)
+  id_docente_titular: int | None = None
 
-  fecha_nacimiento: datetime | None = None
+  @field_validator("letra")
+  @classmethod
+  def validar_letra(cls, valor: str) -> str:
+    return _normalizar_letra(valor)
+
+
+class ActualizarSeccion(SQLModel):
+  letra: str | None = None
+  periodo_lectivo: int | None = Field(default=None, ge=2000)
+  id_docente_titular: int | None = None
+
+  @field_validator("letra")
+  @classmethod
+  def validar_letra(cls, valor: str | None) -> str | None:
+    return _normalizar_letra(valor) if valor is not None else None
+
+
+class PeticionSeccion(SQLModel):
+  id: int
+  id_grado: int
+  letra: str
+  periodo_lectivo: int
+  id_docente_titular: int | None = None
+
+  # Datos de apoyo para listados y desplegables.
+  grado_numero: int | None = None
+  grado_nombre: str | None = None
+  nivel: en.NivelEducativo | None = None
+  docente_titular: str | None = None
 
 
 # ====
 # Esquemas para Representantes
 # ====
 class CrearRepresentante(SQLModel):
-  primer_nombre: str
-  segundo_nombre: str = ""
-  primer_apellido: str
-  segundo_apellido: str = ""
+  primer_nombre: str = Field(min_length=1)
+  segundo_nombre: str | None = None
+  primer_apellido: str = Field(min_length=1)
+  segundo_apellido: str | None = None
 
-  telefono: str
+  telefono: str = Field(min_length=1)
 
 
 class ActualizarRepresentante(SQLModel):
-  primer_nombre: str
-  segundo_nombre: str = ""
-  primer_apellido: str
-  segundo_apellido: str = ""
-
-  telefono: str | None = None
+  primer_nombre: str | None = Field(default=None, min_length=1)
+  segundo_nombre: str | None = None
+  primer_apellido: str | None = Field(default=None, min_length=1)
+  segundo_apellido: str | None = None
+  telefono: str | None = Field(default=None, min_length=1)
 
 
 class PeticionRepresentante(SQLModel):
   id: int
-
   primer_nombre: str
-  segundo_nombre: str = ""
+  segundo_nombre: str | None = None
   primer_apellido: str
-  segundo_apellido: str = ""
-
+  segundo_apellido: str | None = None
   telefono: str
 
 
 # ====
-# Esquema para pases
+# Esquemas para Docentes
 # ====
+class CrearDocente(SQLModel):
+  primer_nombre: str = Field(min_length=1)
+  segundo_nombre: str | None = None
+  primer_apellido: str = Field(min_length=1)
+  segundo_apellido: str | None = None
+
+  cedula: str = Field(min_length=1)
+  nivel: en.NivelEducativo
 
 
+class ActualizarDocente(SQLModel):
+  primer_nombre: str | None = Field(default=None, min_length=1)
+  segundo_nombre: str | None = None
+  primer_apellido: str | None = Field(default=None, min_length=1)
+  segundo_apellido: str | None = None
+  cedula: str | None = Field(default=None, min_length=1)
+  nivel: en.NivelEducativo | None = None
+
+
+class PeticionDocente(SQLModel):
+  id: int
+  primer_nombre: str
+  segundo_nombre: str | None = None
+  primer_apellido: str
+  segundo_apellido: str | None = None
+  cedula: str
+  nivel: en.NivelEducativo
+
+
+# ====
+# Esquemas para Estudiantes
+# ====
+class CrearEstudiante(SQLModel):
+  id_seccion: int
+  id_representante: int | None = None
+
+  cedula_estudiantil: str = Field(min_length=1)
+
+  primer_nombre: str = Field(min_length=1)
+  segundo_nombre: str | None = None
+  primer_apellido: str = Field(min_length=1)
+  segundo_apellido: str | None = None
+
+  fecha_nacimiento: datetime
+
+  @field_validator("fecha_nacimiento")
+  @classmethod
+  def normalizar_fecha_nacimiento(cls, valor: datetime) -> datetime:
+    return _normalizar_fecha_caracas(valor)
+
+
+class ActualizarEstudiante(SQLModel):
+  id_seccion: int | None = None
+  id_representante: int | None = None
+
+  cedula_estudiantil: str | None = Field(default=None, min_length=1)
+
+  primer_nombre: str | None = Field(default=None, min_length=1)
+  segundo_nombre: str | None = None
+  primer_apellido: str | None = Field(default=None, min_length=1)
+  segundo_apellido: str | None = None
+
+  fecha_nacimiento: datetime | None = None
+
+  @field_validator("fecha_nacimiento")
+  @classmethod
+  def normalizar_fecha_nacimiento(
+    cls, valor: datetime | None
+  ) -> datetime | None:
+    return _normalizar_fecha_caracas(valor) if valor is not None else None
+
+
+class PeticionEstudiante(SQLModel):
+  id: int
+  id_seccion: int
+  id_representante: int | None = None
+
+  cedula_estudiantil: str
+
+  primer_nombre: str
+  segundo_nombre: str | None = None
+  primer_apellido: str
+  segundo_apellido: str | None = None
+
+  fecha_nacimiento: datetime
+
+  # Datos de apoyo para listados y filtros por nivel.
+  nivel: en.NivelEducativo | None = None
+  id_grado: int | None = None
+  grado_numero: int | None = None
+  grado_nombre: str | None = None
+  seccion_letra: str | None = None
+  periodo_lectivo: int | None = None
+  representante: str | None = None
+
+
+# ====
+# Esquemas para Asignaturas
+# ====
+class CrearAsignatura(SQLModel):
+  id_grado: int
+  nombre: str = Field(min_length=1)
+
+
+class ActualizarAsignatura(SQLModel):
+  id_grado: int | None = None
+  nombre: str | None = Field(default=None, min_length=1)
+
+
+class PeticionAsignatura(SQLModel):
+  id: int
+  id_grado: int
+  nombre: str
+
+  grado_numero: int | None = None
+  grado_nombre: str | None = None
+  nivel: en.NivelEducativo | None = None
+  docentes: list[PeticionDocente] = Field(default_factory=list)
+
+
+class VincularDocente(SQLModel):
+  id_docente: int
+
+
+# ====
+# Esquemas para Bloques Horarios
+# ====
+class CrearBloqueHorario(SQLModel):
+  orden: int = Field(ge=1, le=10)
+  numero: int | None = Field(default=None, ge=1, le=8)
+  nombre: str = Field(min_length=1)
+  tipo: en.TipoBloqueHorario
+  hora_inicio: time
+  hora_fin: time
+
+  @model_validator(mode="after")
+  def validar_tramo(self):
+    validar_bloque_horario(
+      self.tipo, self.numero, self.hora_inicio, self.hora_fin
+    )
+    return self
+
+
+class ActualizarBloqueHorario(SQLModel):
+  orden: int | None = Field(default=None, ge=1, le=10)
+  numero: int | None = Field(default=None, ge=1, le=8)
+  nombre: str | None = Field(default=None, min_length=1)
+  tipo: en.TipoBloqueHorario | None = None
+  hora_inicio: time | None = None
+  hora_fin: time | None = None
+
+
+class PeticionBloqueHorario(SQLModel):
+  id: int
+  orden: int
+  numero: int | None = None
+  nombre: str
+  tipo: en.TipoBloqueHorario
+  hora_inicio: time
+  hora_fin: time
+
+
+# ====
+# Esquemas para Horarios
+# ====
+class CrearHorario(SQLModel):
+  id_seccion: int
+  id_bloque: int
+  id_asignatura: int
+  id_docente: int
+  periodo_lectivo: int = Field(ge=2000)
+  dia_semana: int = Field(ge=1, le=5)
+
+
+class ActualizarHorario(SQLModel):
+  id_seccion: int | None = None
+  id_bloque: int | None = None
+  id_asignatura: int | None = None
+  id_docente: int | None = None
+  periodo_lectivo: int | None = Field(default=None, ge=2000)
+  dia_semana: int | None = Field(default=None, ge=1, le=5)
+
+
+class PeticionHorario(SQLModel):
+  id: int
+  id_seccion: int
+  id_bloque: int
+  id_asignatura: int
+  id_docente: int
+  periodo_lectivo: int
+  dia_semana: int
+
+  # Datos de apoyo para la grilla y los listados.
+  seccion: str | None = None
+  grado: str | None = None
+  nivel: en.NivelEducativo | None = None
+  bloque: str | None = None
+  bloque_orden: int | None = None
+  hora_inicio: time | None = None
+  hora_fin: time | None = None
+  asignatura: str | None = None
+  docente: str | None = None
+
+
+# Compatibilidad temporal con el autocompletado actual. La Fase 5
+# reescribe horarios y este esquema desaparece.
+class PeticionBloque(SQLModel):
+  encontrado: bool
+  id_horario: int | None = None
+  id_asignatura: int | None = None
+  id_docente: int | None = None
+  asignatura: str | None = None
+  docente: str | None = None
+
+
+# ====
+# Esquemas para Pases
+# ====
 class CrearPase(SQLModel):
   id_estudiante: int
   id_docente: int | None = None
   id_asignatura: int | None = None
   tipo: en.TipoPase = en.TipoPase.entrada
-  motivo: str
+  motivo: str = Field(min_length=1)
   fecha: datetime
-  autorizador: str
+  autorizador: str | None = None
 
-
-class PeticionPase(SQLModel):
-  id: int | None
-  id_estudiante: int | None
-  id_docente: int | None
-  id_asignatura: int | None
-  tipo: en.TipoPase
-  motivo: str
-  fecha: datetime
-  autorizador: str
+  @field_validator("fecha")
+  @classmethod
+  def normalizar_fecha(cls, valor: datetime) -> datetime:
+    return _normalizar_fecha_caracas(valor)
 
 
 class ActualizacionPase(SQLModel):
   id_docente: int | None = None
   id_asignatura: int | None = None
   tipo: en.TipoPase | None = None
-  motivo: str | None = None
+  motivo: str | None = Field(default=None, min_length=1)
   fecha: datetime | None = None
   autorizador: str | None = None
 
+  @field_validator("fecha")
+  @classmethod
+  def normalizar_fecha(cls, valor: datetime | None) -> datetime | None:
+    return _normalizar_fecha_caracas(valor) if valor is not None else None
+
+
+class PeticionPase(SQLModel):
+  id: int
+  id_estudiante: int
+  id_usuario: int
+  id_docente: int | None = None
+  id_asignatura: int | None = None
+  tipo: en.TipoPase
+  motivo: str
+  fecha: datetime
+  autorizador: str | None = None
+
+  # Datos de apoyo para listados y filtros por nivel.
+  estudiante: str | None = None
+  cedula_estudiantil: str | None = None
+  nivel: en.NivelEducativo | None = None
+  usuario: str | None = None
+  docente: str | None = None
+  asignatura: str | None = None
+
 
 # ====
-# Esquema para Auditoria
+# Esquemas para Reportes
 # ====
+class CrearReporte(SQLModel):
+  id_estudiante: int
+  id_docente: int | None = None
+
+  articulo: int = Field(ge=1)
+  reglamento: en.Reglamentos
+  incidencia: str = Field(min_length=1)
+  defensa: str = Field(min_length=1)
+  nivel_gravedad: en.NivelGravedad = en.NivelGravedad.leve
+  categoria: en.CategoriaReportes
+  fecha: datetime
+
+  @field_validator("fecha")
+  @classmethod
+  def normalizar_fecha(cls, valor: datetime) -> datetime:
+    return _normalizar_fecha_caracas(valor)
 
 
+class ActualizarReporte(SQLModel):
+  id_docente: int | None = None
+
+  articulo: int | None = Field(default=None, ge=1)
+  reglamento: en.Reglamentos | None = None
+  incidencia: str | None = Field(default=None, min_length=1)
+  defensa: str | None = Field(default=None, min_length=1)
+  nivel_gravedad: en.NivelGravedad | None = None
+  categoria: en.CategoriaReportes | None = None
+  fecha: datetime | None = None
+
+  @field_validator("fecha")
+  @classmethod
+  def normalizar_fecha(cls, valor: datetime | None) -> datetime | None:
+    return _normalizar_fecha_caracas(valor) if valor is not None else None
+
+
+class PeticionReporte(SQLModel):
+  id: int
+  id_estudiante: int
+  id_usuario: int
+  id_docente: int | None = None
+
+  articulo: int
+  reglamento: en.Reglamentos
+  incidencia: str
+  defensa: str
+  nivel_gravedad: en.NivelGravedad
+  categoria: en.CategoriaReportes
+  fecha: datetime
+
+  # Datos de apoyo para listados y filtros por nivel.
+  estudiante: str | None = None
+  cedula_estudiantil: str | None = None
+  nivel: en.NivelEducativo | None = None
+  usuario: str | None = None
+  docente: str | None = None
+
+
+# ====
+# Esquema para Auditoría
+# ====
 class PeticionAuditoria(SQLModel):
   id: int | None
   usuario_id: int | None
@@ -153,111 +505,3 @@ class PeticionAuditoria(SQLModel):
   accion: str
   descripcion: str
   fecha_creacion: datetime
-
-
-# ====
-# Esquemas para Grados
-# ====
-class CrearGrado(SQLModel):
-  grado: str
-  seccion: str
-
-
-class ActualizarGrado(SQLModel):
-  grado: str | None = None
-  seccion: str | None = None
-
-
-class PeticionGrado(SQLModel):
-  id: int
-  grado: str
-  seccion: str
-
-
-# ====
-# Esquemas para Docentes y Asignaturas
-# ====
-class CrearDocente(SQLModel):
-  primer_nombre: str
-  segundo_nombre: str = ""
-  primer_apellido: str
-  segundo_apellido: str = ""
-
-  cedula: str
-
-
-class ActualizarDocente(SQLModel):
-  primer_nombre: str
-  segundo_nombre: str = ""
-  primer_apellido: str
-  segundo_apellido: str = ""
-
-  cedula: str | None = None
-
-
-class PeticionDocente(SQLModel):
-  id: int
-  primer_nombre: str
-  segundo_nombre: str = ""
-  primer_apellido: str
-  segundo_apellido: str = ""
-  cedula: str
-
-
-class CrearAsignatura(SQLModel):
-  nombre: str
-
-
-class ActualizarAsignatura(SQLModel):
-  nombre: str | None = None
-
-
-class PeticionAsignatura(SQLModel):
-  id: int
-  nombre: str
-
-
-# ====
-# Esquemas para Horarios
-# ====
-class CrearHorario(SQLModel):
-  id_grado: int
-  id_asignatura: int
-  id_docente: int
-  periodo_lectivo: int = Field(ge=2000)
-  dia_semana: int = Field(ge=1, le=5)
-  hora: time
-
-
-class ActualizarHorario(SQLModel):
-  id_grado: int | None = None
-  id_asignatura: int | None = None
-  id_docente: int | None = None
-  periodo_lectivo: int | None = Field(default=None, ge=2000)
-  dia_semana: int | None = Field(default=None, ge=1, le=5)
-  hora: time | None = None
-
-
-class PeticionHorario(SQLModel):
-  id: int
-  id_grado: int
-  id_asignatura: int
-  id_docente: int
-  periodo_lectivo: int
-  dia_semana: int
-  hora: time
-  grado: str
-  seccion: str
-  asignatura: str
-  docente: str
-
-
-class PeticionBloque(SQLModel):
-  # La consulta devuelve una respuesta parcial para que el frontend pueda
-  # mostrar y completar el bloque aunque todavía no exista un horario.
-  encontrado: bool
-  id_horario: int | None = None
-  id_asignatura: int | None = None
-  id_docente: int | None = None
-  asignatura: str | None = None
-  docente: str | None = None
