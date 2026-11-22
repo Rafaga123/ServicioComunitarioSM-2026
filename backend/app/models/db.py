@@ -1,5 +1,6 @@
-from datetime import datetime, time
+from datetime import time
 
+from pydantic import NaiveDatetime
 from sqlalchemy import CheckConstraint, Index, text
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -9,12 +10,12 @@ from app.utils.fechas import ahora_caracas
 
 # Clase Padre con los atributos base de cada tabla
 class EsquemaBase(SQLModel):
-  fecha_creacion: datetime = Field(default_factory=ahora_caracas)
-  fecha_actualizacion: datetime = Field(
+  fecha_creacion: NaiveDatetime = Field(default_factory=ahora_caracas)
+  fecha_actualizacion: NaiveDatetime = Field(
     default_factory=ahora_caracas,
     sa_column_kwargs={"onupdate": ahora_caracas},
   )
-  fecha_eliminacion: datetime | None = Field(default=None)
+  fecha_eliminacion: NaiveDatetime | None = Field(default=None)
 
 
 # ====
@@ -60,9 +61,7 @@ class Representantes(EsquemaBase, table=True):
 
   telefono: str
 
-  estudiantes: list["Estudiantes"] = Relationship(
-    back_populates="representante"
-  )
+  estudiantes: list["Estudiantes"] = Relationship(back_populates="representante")
 
 
 # Tabla de Grados (catálogo fijo del 1 al 11)
@@ -163,9 +162,7 @@ class Docentes(EsquemaBase, table=True):
 class Secciones(EsquemaBase, table=True):
   __tablename__ = "secciones"
   __table_args__ = (
-    CheckConstraint(
-      "periodo_lectivo >= 2000", name="ck_secciones_periodo"
-    ),
+    CheckConstraint("periodo_lectivo >= 2000", name="ck_secciones_periodo"),
     Index(
       "uq_secciones_grado_letra_periodo_activo",
       "id_grado",
@@ -182,14 +179,10 @@ class Secciones(EsquemaBase, table=True):
   # Año escolar al que pertenece la sección. Permite que "1er Año A"
   # de dos períodos distintos coexista sin mezclar cohortes.
   periodo_lectivo: int = Field(index=True)
-  id_docente_titular: int | None = Field(
-    default=None, foreign_key="docentes.id"
-  )
+  id_docente_titular: int | None = Field(default=None, foreign_key="docentes.id")
 
   grado: Grados = Relationship(back_populates="secciones")
-  docente_titular: Docentes | None = Relationship(
-    back_populates="secciones_titulares"
-  )
+  docente_titular: Docentes | None = Relationship(back_populates="secciones_titulares")
   estudiantes: list["Estudiantes"] = Relationship(back_populates="seccion")
   horarios: list["Horarios"] = Relationship(back_populates="seccion")
 
@@ -210,9 +203,7 @@ class Estudiantes(EsquemaBase, table=True):
   id_seccion: int = Field(foreign_key="secciones.id")
   # Un representante puede tener varios estudiantes, pero cada
   # estudiante tiene como máximo uno.
-  id_representante: int | None = Field(
-    default=None, foreign_key="representantes.id"
-  )
+  id_representante: int | None = Field(default=None, foreign_key="representantes.id")
 
   cedula_estudiantil: str
 
@@ -221,12 +212,10 @@ class Estudiantes(EsquemaBase, table=True):
   primer_apellido: str = Field(index=True)
   segundo_apellido: str | None = Field(default=None, index=True)
 
-  fecha_nacimiento: datetime
+  fecha_nacimiento: NaiveDatetime
 
   seccion: Secciones = Relationship(back_populates="estudiantes")
-  representante: Representantes | None = Relationship(
-    back_populates="estudiantes"
-  )
+  representante: Representantes | None = Relationship(back_populates="estudiantes")
   pases: list["Pases"] = Relationship(back_populates="estudiante")
   reportes: list["Reportes"] = Relationship(back_populates="estudiante")
 
@@ -249,7 +238,7 @@ class Reportes(EsquemaBase, table=True):
   )  # ENUM: LEVE | GRAVE
   categoria: en.CategoriaReportes  # ENUM: TIPO DE REPORTE
 
-  fecha: datetime
+  fecha: NaiveDatetime
 
   estudiante: Estudiantes = Relationship(back_populates="reportes")
   usuario: Usuarios = Relationship(back_populates="reportes")
@@ -269,7 +258,7 @@ class Pases(EsquemaBase, table=True):
 
   motivo: str
 
-  fecha: datetime
+  fecha: NaiveDatetime
 
   # Obligatorio solo desde el cuarto pase activo del mes por tipo.
   autorizador: str | None = Field(default=None)
