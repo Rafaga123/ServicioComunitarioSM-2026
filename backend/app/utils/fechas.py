@@ -1,7 +1,6 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-
 # Zona horaria institucional. Todas las fechas del sistema se guardan
 # como datetime naive en esta zona, sin conversiones a UTC.
 ZONA_CARACAS = ZoneInfo("America/Caracas")
@@ -13,6 +12,7 @@ def ahora_caracas() -> datetime:
   Las columnas de la base son TIMESTAMP WITHOUT TIME ZONE. Al quitar
   el tzinfo guardamos exactamente la hora local que ve el usuario.
   """
+
   return datetime.now(ZONA_CARACAS).replace(tzinfo=None)
 
 

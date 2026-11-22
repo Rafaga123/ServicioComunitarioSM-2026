@@ -43,10 +43,10 @@ class ModuloAuditoria(str, Enum):
 
 # Enum para los tipos de reglamento
 class Reglamentos(str, Enum):
-  lopnna = "LOPNNA" # Ley Orgánica para la protección de niños, niñas y adolescentes
-  loe = "LOE"       # Ley Orgánica de Educación
-  cbv = "CBV"       # Constitución de la República Bolivariana de Venezuela
-  nc = "NC"         # Nuestra Carta
+  lopnna = "LOPNNA"  # Ley Orgánica para la protección de niños, niñas y adolescentes
+  loe = "LOE"  # Ley Orgánica de Educación
+  cbv = "CBV"  # Constitución de la República Bolivariana de Venezuela
+  nc = "NC"  # Nuestra Carta
 
 
 # Enum para la gravedad de un reporte
@@ -65,5 +65,3 @@ class CategoriaReportes(str, Enum):
 class TipoPase(str, Enum):
   salida = "SALIDA"
   entrada = "ENTRADA"
-  
-

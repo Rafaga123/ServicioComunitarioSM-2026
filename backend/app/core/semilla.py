@@ -5,7 +5,6 @@ from sqlmodel import Session, select
 from app.models.db import BloquesHorarios, Grados
 from app.models.enums import NivelEducativo, TipoBloqueHorario
 
-
 # Catálogo fijo: del 1 al 6 son grados de escuela y del 7 al 11
 # equivalen a primero a quinto año de liceo.
 GRADOS_BASE = (
@@ -48,9 +47,7 @@ def sembrar_grados(session: Session) -> int:
   creados = 0
 
   for numero, nombre, nivel in GRADOS_BASE:
-    existente = session.exec(
-      select(Grados).where(Grados.numero == numero)
-    ).first()
+    existente = session.exec(select(Grados).where(Grados.numero == numero)).first()
 
     if existente is not None:
       continue

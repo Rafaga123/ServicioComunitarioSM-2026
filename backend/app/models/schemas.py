@@ -233,9 +233,7 @@ class ActualizarEstudiante(SQLModel):
 
   @field_validator("fecha_nacimiento")
   @classmethod
-  def normalizar_fecha_nacimiento(
-    cls, valor: datetime | None
-  ) -> datetime | None:
+  def normalizar_fecha_nacimiento(cls, valor: datetime | None) -> datetime | None:
     return _normalizar_fecha_caracas(valor) if valor is not None else None
 
 
@@ -304,9 +302,7 @@ class CrearBloqueHorario(SQLModel):
 
   @model_validator(mode="after")
   def validar_tramo(self):
-    validar_bloque_horario(
-      self.tipo, self.numero, self.hora_inicio, self.hora_fin
-    )
+    validar_bloque_horario(self.tipo, self.numero, self.hora_inicio, self.hora_fin)
     return self
 
 

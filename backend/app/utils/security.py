@@ -146,9 +146,7 @@ def requerir_operador(
 
 # Verifica que un operador solo acceda a registros de su nivel.
 # El administrador siempre tiene acceso.
-def validar_acceso_nivel(
-  usuario: Usuarios, nivel: NivelEducativo | None
-) -> None:
+def validar_acceso_nivel(usuario: Usuarios, nivel: NivelEducativo | None) -> None:
   if usuario.rol == RolesUsuario.administrador:
     return
 
