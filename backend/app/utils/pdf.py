@@ -10,7 +10,6 @@ from reportlab.platypus import (
   SimpleDocTemplate,
   Spacer,
   Table,
-  TableStyle,
 )
 
 from app.core.config import INSTITUCION_NOMBRE

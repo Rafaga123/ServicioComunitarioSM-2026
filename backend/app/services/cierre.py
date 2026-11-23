@@ -14,7 +14,7 @@ import shutil
 import uuid
 from pathlib import Path
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException
 from sqlmodel import Session, select
 
 from app.core.config import STORAGE_ROOT
@@ -32,12 +32,7 @@ from app.services import listados as servicio_listados
 from app.utils.auditoria import registrar_auditoria
 from app.utils.fechas import ahora_caracas
 from app.utils.pdf import construir_pdf
-from app.utils.storage import (
-  guardar_archivo,
-  hash_contenido,
-  nombre_unico,
-  ruta_absoluta,
-)
+from app.utils.storage import hash_contenido, nombre_unico, ruta_absoluta
 
 GRADOS_PROMOVIDOS_MAX = 11  # 5to Año => 5 es la última promoción; 11 = egreso
 

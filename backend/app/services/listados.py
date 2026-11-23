@@ -6,7 +6,7 @@ Construye los datos de nóminas, representantes y horarios de una sección
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from sqlmodel import Session, select
 
