@@ -15,7 +15,9 @@ from app.routers import (
   estudiantes,
   grados,
   horarios,
+  pases,
   representantes,
+  reportes,
   secciones,
   usuarios,
 )
@@ -52,6 +54,8 @@ api_router.include_router(horarios.router)
 api_router.include_router(usuarios.router)
 api_router.include_router(secciones.router)
 api_router.include_router(bloques_horarios.router)
+api_router.include_router(pases.router)
+api_router.include_router(reportes.router)
 
 app.include_router(api_router)
 
