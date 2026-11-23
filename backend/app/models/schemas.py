@@ -81,20 +81,6 @@ class PeticionGrado(SQLModel):
   nivel: en.NivelEducativo
 
 
-# Compatibilidad temporal con el router actual. La Fase 4 convierte
-# grados en solo lectura y estos dos esquemas se eliminan.
-class CrearGrado(SQLModel):
-  numero: int = Field(ge=1, le=11)
-  nombre: str
-  nivel: en.NivelEducativo
-
-
-class ActualizarGrado(SQLModel):
-  numero: int | None = Field(default=None, ge=1, le=11)
-  nombre: str | None = None
-  nivel: en.NivelEducativo | None = None
-
-
 # ====
 # Esquemas para Secciones
 # ====
