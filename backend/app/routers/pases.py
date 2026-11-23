@@ -191,6 +191,7 @@ def _pase_dto(pase: Pases) -> PeticionPase:
     tipo=pase.tipo,
     motivo=pase.motivo,
     fecha=pase.fecha,
+    periodo_lectivo=pase.periodo_lectivo,
     autorizador=pase.autorizador,
     archivo_url=pase.archivo_url,
     estudiante=nombre_completo(estudiante),
@@ -209,6 +210,7 @@ def listar_pases(
   tipo: TipoPase | None = None,
   anio: int | None = None,
   mes: int | None = Query(default=None, ge=1, le=12),
+  periodo_lectivo: int | None = None,
   nivel: NivelEducativo | None = None,
   paginacion: Paginacion = Depends(),
   session: Session = Depends(get_session),
@@ -232,6 +234,8 @@ def listar_pases(
     consulta = consulta.where(func.extract("year", Pases.fecha) == anio)
   if mes is not None:
     consulta = consulta.where(func.extract("month", Pases.fecha) == mes)
+  if periodo_lectivo is not None:
+    consulta = consulta.where(Pases.periodo_lectivo == periodo_lectivo)
 
   consulta = consulta.order_by(Pases.fecha.desc())
 
@@ -281,6 +285,7 @@ def registrar_pase(
     tipo=pase_in.tipo,
     motivo=pase_in.motivo,
     fecha=pase_in.fecha,
+    periodo_lectivo=estudiante.seccion.periodo_lectivo,
     autorizador=autorizador,
     archivo_url=pase_in.archivo_url,
   )

@@ -187,6 +187,16 @@ class Secciones(EsquemaBase, table=True):
   horarios: list["Horarios"] = Relationship(back_populates="seccion")
 
 
+# Tabla de Periodos lectivos (catálogo de años escolares)
+class PeriodosLectivos(EsquemaBase, table=True):
+  __tablename__ = "periodos_lectivos"
+  id: int | None = Field(default=None, primary_key=True)
+  anio: int = Field(index=True)
+  activo: bool = Field(default=False, index=True)
+  cerrado: bool = Field(default=False, index=True)
+  fecha_cierre: NaiveDatetime | None = Field(default=None)
+
+
 # Tabla de Estudiantes
 class Estudiantes(EsquemaBase, table=True):
   __tablename__ = "estudiantes"
@@ -240,6 +250,9 @@ class Reportes(EsquemaBase, table=True):
 
   fecha: NaiveDatetime
 
+  # Año lectivo al que pertenece el reporte; se deriva de la sección.
+  periodo_lectivo: int | None = Field(default=None, index=True)
+
   # Adjunto opcional del reporte (URL). No se suben archivos todavía.
   archivo_url: str | None = Field(default=None)
 
@@ -262,6 +275,9 @@ class Pases(EsquemaBase, table=True):
   motivo: str
 
   fecha: NaiveDatetime
+
+  # Año lectivo al que pertenece el pase; se deriva de la sección.
+  periodo_lectivo: int | None = Field(default=None, index=True)
 
   # Obligatorio solo desde el cuarto pase activo del mes por tipo.
   autorizador: str | None = Field(default=None)

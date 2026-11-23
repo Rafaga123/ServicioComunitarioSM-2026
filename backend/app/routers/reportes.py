@@ -112,6 +112,7 @@ def _reporte_dto(reporte: Reportes) -> PeticionReporte:
     nivel_gravedad=reporte.nivel_gravedad,
     categoria=reporte.categoria,
     fecha=reporte.fecha,
+    periodo_lectivo=reporte.periodo_lectivo,
     archivo_url=reporte.archivo_url,
     estudiante=nombre_completo(estudiante),
     cedula_estudiantil=estudiante.cedula_estudiantil,
@@ -128,6 +129,7 @@ def listar_reportes(
   id_docente: int | None = None,
   anio: int | None = None,
   mes: int | None = Query(default=None, ge=1, le=12),
+  periodo_lectivo: int | None = None,
   categoria: CategoriaReportes | None = None,
   nivel_gravedad: NivelGravedad | None = None,
   nivel: NivelEducativo | None = None,
@@ -153,6 +155,8 @@ def listar_reportes(
     consulta = consulta.where(func.extract("year", Reportes.fecha) == anio)
   if mes is not None:
     consulta = consulta.where(func.extract("month", Reportes.fecha) == mes)
+  if periodo_lectivo is not None:
+    consulta = consulta.where(Reportes.periodo_lectivo == periodo_lectivo)
   if categoria is not None:
     consulta = consulta.where(Reportes.categoria == categoria)
   if nivel_gravedad is not None:
@@ -200,6 +204,7 @@ def registrar_reporte(
     nivel_gravedad=reporte_in.nivel_gravedad,
     categoria=reporte_in.categoria,
     fecha=reporte_in.fecha,
+    periodo_lectivo=estudiante.seccion.periodo_lectivo,
     archivo_url=reporte_in.archivo_url,
   )
 

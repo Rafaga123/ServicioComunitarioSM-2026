@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlmodel import Session, select
 
@@ -9,15 +9,25 @@ from app.models.db import (
   Grados,
   Horarios,
   Pases,
+  PeriodosLectivos,
   Reportes,
   Representantes,
   Secciones,
   Usuarios,
 )
-from app.models.enums import NivelEducativo
-from app.models.schemas import PeticionResumenGestion
+from app.models.enums import NivelEducativo, RolesUsuario
+from app.models.schemas import (
+  ActualizarPeriodoLectivo,
+  CrearPeriodoLectivo,
+  PeticionPeriodoLectivo,
+  PeticionResumenGestion,
+)
 from app.models.session import get_session
-from app.utils.security import obtener_usuario_actual, resolver_nivel
+from app.utils.security import (
+  obtener_usuario_actual,
+  requerir_roles,
+  resolver_nivel,
+)
 
 router = APIRouter(prefix="/gestion", tags=["Gestión"])
 
@@ -158,6 +168,124 @@ def _contar_representantes(session: Session, nivel: NivelEducativo | None) -> in
     consulta = consulta.where(Grados.nivel == nivel)
 
   return session.exec(consulta).one()
+
+
+def _to_periodo(periodo: PeriodosLectivos) -> PeticionPeriodoLectivo:
+  return PeticionPeriodoLectivo(
+    id=periodo.id,
+    anio=periodo.anio,
+    activo=periodo.activo,
+    cerrado=periodo.cerrado,
+  )
+
+
+@router.get("/periodos", response_model=list[PeticionPeriodoLectivo])
+def listar_periodos(
+  session: Session = Depends(get_session),
+  usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
+):
+  periodos = session.exec(
+    select(PeriodosLectivos)
+    .where(PeriodosLectivos.fecha_eliminacion.is_(None))
+    .order_by(PeriodosLectivos.anio.desc())
+  ).all()
+
+  return [_to_periodo(periodo) for periodo in periodos]
+
+
+@router.get("/periodos/activo", response_model=PeticionPeriodoLectivo | None)
+def obtener_periodo_activo(
+  session: Session = Depends(get_session),
+  usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
+):
+  periodo = session.exec(
+    select(PeriodosLectivos).where(
+      PeriodosLectivos.activo,
+      PeriodosLectivos.fecha_eliminacion.is_(None),
+    )
+  ).first()
+
+  return _to_periodo(periodo) if periodo else None
+
+
+@router.post(
+  "/periodos",
+  response_model=PeticionPeriodoLectivo,
+  status_code=status.HTTP_201_CREATED,
+)
+def crear_periodo(
+  periodo_in: CrearPeriodoLectivo,
+  session: Session = Depends(get_session),
+  usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
+):
+  existente = session.exec(
+    select(PeriodosLectivos).where(
+      PeriodosLectivos.anio == periodo_in.anio,
+      PeriodosLectivos.fecha_eliminacion.is_(None),
+    )
+  ).first()
+  if existente:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="Ya existe un periodo lectivo con ese año",
+    )
+
+  periodo = PeriodosLectivos(
+    anio=periodo_in.anio, activo=periodo_in.activo, cerrado=False
+  )
+  session.add(periodo)
+  session.flush()
+
+  if periodo.activo:
+    otros = session.exec(
+      select(PeriodosLectivos).where(
+        PeriodosLectivos.id != periodo.id,
+        PeriodosLectivos.activo,
+        PeriodosLectivos.fecha_eliminacion.is_(None),
+      )
+    ).all()
+    for otro in otros:
+      otro.activo = False
+
+  session.commit()
+  session.refresh(periodo)
+  return _to_periodo(periodo)
+
+
+@router.patch("/periodos/{periodo_id}", response_model=PeticionPeriodoLectivo)
+def actualizar_periodo(
+  periodo_id: int,
+  periodo_in: ActualizarPeriodoLectivo,
+  session: Session = Depends(get_session),
+  usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
+):
+  periodo = session.get(PeriodosLectivos, periodo_id)
+  if not periodo or periodo.fecha_eliminacion is not None:
+    raise HTTPException(
+      status_code=status.HTTP_404_NOT_FOUND, detail="Periodo no encontrado"
+    )
+
+  datos = periodo_in.model_dump(exclude_unset=True)
+  if datos.get("activo"):
+    otros = session.exec(
+      select(PeriodosLectivos).where(
+        PeriodosLectivos.id != periodo_id,
+        PeriodosLectivos.activo,
+        PeriodosLectivos.fecha_eliminacion.is_(None),
+      )
+    ).all()
+    for otro in otros:
+      otro.activo = False
+    periodo.cerrado = False
+
+  for campo, valor in datos.items():
+    setattr(periodo, campo, valor)
+
+  session.add(periodo)
+  session.flush()
+  session.commit()
+  session.refresh(periodo)
+  return _to_periodo(periodo)
 
 
 @router.get("/resumen", response_model=PeticionResumenGestion)

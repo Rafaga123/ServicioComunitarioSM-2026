@@ -411,6 +411,7 @@ class PeticionPase(SQLModel):
   tipo: en.TipoPase
   motivo: str
   fecha: datetime
+  periodo_lectivo: int | None = None
   autorizador: str | None = None
   archivo_url: str | None = None
 
@@ -421,6 +422,23 @@ class PeticionPase(SQLModel):
   usuario: str | None = None
   docente: str | None = None
   asignatura: str | None = None
+
+
+class PeticionPeriodoLectivo(SQLModel):
+  id: int | None = None
+  anio: int = Field(ge=2000)
+  activo: bool = False
+  cerrado: bool = False
+
+
+class CrearPeriodoLectivo(SQLModel):
+  anio: int = Field(ge=2000)
+  activo: bool = False
+
+
+class ActualizarPeriodoLectivo(SQLModel):
+  activo: bool | None = None
+  cerrado: bool | None = None
 
 
 # ====
@@ -476,6 +494,7 @@ class PeticionReporte(SQLModel):
   nivel_gravedad: en.NivelGravedad
   categoria: en.CategoriaReportes
   fecha: datetime
+  periodo_lectivo: int | None = None
   archivo_url: str | None = None
 
   # Datos de apoyo para listados y filtros por nivel.
