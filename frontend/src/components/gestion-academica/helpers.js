@@ -18,7 +18,13 @@ export const norm = (s) =>
 
 export const ordinal = (n) => ['1er', '2do', '3er', '4to', '5to', '6to'][n - 1] ?? `${n}°`
 
-export const nomPersona = (x) => `${x.nombre} ${x.apellido}`
+// Acepta tanto la forma de la API (primerNombre...) como la local (nombre/apellido).
+export const nomPersona = (x) => {
+  const partes = [x?.primerNombre, x?.segundoNombre, x?.primerApellido, x?.segundoApellido]
+    .filter(Boolean)
+    .join(' ')
+  return partes || [x?.nombre, x?.apellido].filter(Boolean).join(' ') || '—'
+}
 
 export const nomEst = (e) =>
   [e.primerNombre, e.segundoNombre, e.primerApellido, e.segundoApellido].filter(Boolean).join(' ')

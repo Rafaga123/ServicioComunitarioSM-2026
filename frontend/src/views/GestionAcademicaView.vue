@@ -7,6 +7,14 @@ import {
   actualizarDocente,
   eliminarDocente,
 } from '../services/docentes'
+import {
+  listarRepresentantes,
+  listarTodosRepresentantes,
+  crearRepresentante,
+  actualizarRepresentante,
+  eliminarRepresentante,
+} from '../services/representantes'
+import { useRecursoPaginado } from '@/composables/useRecursoPaginado'
 import RepresentantesTabla from '@/components/gestion-academica/RepresentantesTabla.vue'
 import EstudiantesTabla from '@/components/gestion-academica/EstudiantesTabla.vue'
 import AsignaturasTabla from '@/components/gestion-academica/AsignaturasTabla.vue'
@@ -74,34 +82,21 @@ const vacios = {
 const tab = ref(tabs.some((t) => t.id === props.tabInicial) ? props.tabInicial : 'representantes')
 const tabActual = computed(() => tabs.find((t) => t.id === tab.value))
 
-// ───────────── Datos (vacíos: se llenan desde la API) ─────────────
-// representantes: { id, nombre, apellido, telefono }
+// ───────────── Datos (vacío: los listados conectados se llenan desde la API) ─────────────
+// representantes: { id, primerNombre, segundoNombre, primerApellido, segundoApellido, telefono }  (API /representantes)
 // estudiantes:    { id, primerNombre, segundoNombre, primerApellido, segundoApellido, gradoId, representanteIds[] }   (Estudiantes_Representantes)
 // asignaturas:    { id, nombre }
-// docentes:       { id, primerNombre, segundoNombre, primerApellido, segundoApellido, cedula }  (API /docentes)
+// docentes:       { id, primerNombre, segundoNombre, primerApellido, segundoApellido, cedula, nivel }  (API /docentes)
 // horarios:       { id, gradoId, asignaturaId, diaSemana, hora }
 // grados:         { id, grado, seccion }
 const datos = reactive({ representantes: [], estudiantes: [], asignaturas: [], docentes: [], horarios: [], grados: [] })
 let seq = 0
 const nuevoId = () => ++seq // TODO FastAPI: el id lo asigna el servidor
 
-// ───────────── Docentes (única pestaña conectada a la API) ─────────────
-// El backend pagina con offset/size y devuelve { items, total, offset, size }.
-// No admite búsqueda por texto: para filtrar se trae la lista completa una vez
-// (size=100 por página) y el filtrado/orden se hace en el cliente.
-const docentesApi = reactive({
-  page: 1,
-  size: POR_PAGINA,
-  total: 0,
-  loading: false,
-  error: '',
-  cargado: false,
-  todos: [], // caché completa para la búsqueda
-  todosListo: false, // ¿ya se cargó la lista completa?
-  cargandoTodos: false,
-})
-let peticionDocentes = 0 // evita que una respuesta vieja pise a una más reciente
-let peticionTodos = 0
+// ───────────── Listados conectados a la API ─────────────
+// Docentes y representantes comparten el mismo contrato paginado:
+// { items, total, offset, size }. El backend no busca por texto, así que el
+// filtrado se resuelve en el cliente sobre la lista completa.
 
 // Nivel educativo de la consulta:
 // - El administrador no tiene nivel propio y puede ver ambos; el filtro es suyo.
@@ -114,78 +109,72 @@ const alcanceNivel = computed(() =>
   nivelConsulta.value ? etiquetaNivel(nivelConsulta.value) : 'todos los niveles',
 )
 
-async function cargarDocentes(paginaSolicitada = docentesApi.page) {
-  const solicitud = ++peticionDocentes
-  docentesApi.loading = true
-  docentesApi.error = ''
+// Texto del estado vacío: cuando el filtro de nivel esconde todo, conviene
+// explicar por qué en vez de decir que no hay representantes registrados.
+const vacioTitulo = computed(() =>
+  tab.value === 'representantes' && nivelConsulta.value
+    ? `No hay representantes en ${alcanceNivel.value}`
+    : vacios[tab.value].titulo,
+)
+const vacioTexto = computed(() =>
+  tab.value === 'representantes' && nivelConsulta.value
+    ? 'Solo aparecen representantes con estudiantes activos en ese nivel.'
+    : vacios[tab.value].texto,
+)
 
-  try {
-    const respuesta = await listarDocentes({
-      page: paginaSolicitada,
-      size: docentesApi.size,
-      nivel: nivelConsulta.value || undefined,
-    })
-    if (solicitud !== peticionDocentes) return
+// "docente"/"docentes" según la pestaña, para los textos de totales.
+const sustantivo = computed(() => {
+  const { singular } = tabActual.value
+  return { uno: singular, varios: `${singular}s` }
+})
 
-    const ultimaPagina = Math.max(1, Math.ceil(respuesta.total / docentesApi.size))
+const docentes = useRecursoPaginado({
+  listar: listarDocentes,
+  listarTodos: listarTodosDocentes,
+  getNivel: () => nivelConsulta.value,
+  asignar: (items) => { datos.docentes = items },
+  porDefecto: POR_PAGINA,
+})
+const representantes = useRecursoPaginado({
+  listar: listarRepresentantes,
+  listarTodos: listarTodosRepresentantes,
+  getNivel: () => nivelConsulta.value,
+  asignar: (items) => { datos.representantes = items },
+  porDefecto: POR_PAGINA,
+})
 
-    // Si la página pedida quedó vacía (por ejemplo al borrar el último registro),
-    // retrocedemos a la última página válida.
-    if (respuesta.total > 0 && paginaSolicitada > ultimaPagina) {
-      docentesApi.page = ultimaPagina
-      await cargarDocentes(ultimaPagina)
-      return
-    }
+const docentesApi = docentes.estado
+const representantesApi = representantes.estado
+const cargarDocentes = docentes.cargar
+const cargarTodosDocentes = docentes.cargarTodos
+const cargarRepresentantes = representantes.cargar
+const cargarTodosRepresentantes = representantes.cargarTodos
 
-    datos.docentes = respuesta.items
-    docentesApi.total = respuesta.total
-    docentesApi.page = Math.min(Math.max(1, paginaSolicitada), ultimaPagina)
-    docentesApi.cargado = true
-  } catch (error) {
-    if (solicitud !== peticionDocentes) return
-    docentesApi.error = error?.message || 'No se pudieron cargar los docentes.'
-  } finally {
-    if (solicitud === peticionDocentes) docentesApi.loading = false
-  }
+// Pestaña cuyo listado vive en el backend (null en las que siguen locales).
+const apiTab = computed(() =>
+  ({ docentes: docentesApi, representantes: representantesApi }[tab.value] ?? null),
+)
+
+const cargarTab = (paginaSolicitada) => {
+  if (tab.value === 'docentes') return cargarDocentes(paginaSolicitada)
+  if (tab.value === 'representantes') return cargarRepresentantes(paginaSolicitada)
 }
-
-async function cargarTodosDocentes() {
-  const solicitud = ++peticionTodos
-  docentesApi.cargandoTodos = true
-  docentesApi.todosListo = false
-  docentesApi.error = ''
-
-  try {
-    const { items } = await listarTodosDocentes({
-      nivel: nivelConsulta.value || undefined,
-    })
-    if (solicitud !== peticionTodos) return
-    docentesApi.todos = items
-    docentesApi.todosListo = true
-  } catch (error) {
-    if (solicitud !== peticionTodos) return
-    docentesApi.todos = []
-    docentesApi.error = error?.message || 'No se pudo cargar la lista completa de docentes.'
-  } finally {
-    if (solicitud === peticionTodos) docentesApi.cargandoTodos = false
-  }
+const cargarTodosTab = () => {
+  if (tab.value === 'docentes') return cargarTodosDocentes()
+  if (tab.value === 'representantes') return cargarTodosRepresentantes()
 }
+const recargarTab = () =>
+  filtrando.value ? cargarTodosTab() : cargarTab(apiTab.value?.page ?? 1)
 
-// Tras crear/editar/eliminar: refresca la página del servidor y, si hay una
-// búsqueda activa, también la caché completa para que el filtro siga al día.
-async function refrescarDocentes() {
-  docentesApi.todos = []
-  docentesApi.todosListo = false
-  await cargarDocentes(docentesApi.page)
-  if (filtrandoDocentes.value) await cargarTodosDocentes()
-}
+const refrescarDocentes = () => docentes.refrescar({ conTodos: filtrando.value })
+const refrescarRepresentantes = () =>
+  representantes.refrescar({ conTodos: filtrando.value })
 
 onMounted(() => {
   // Las demás pestañas siguen con datos locales hasta que sus endpoints se conecten.
-  if (tab.value === 'docentes') cargarDocentes(1)
+  if (apiTab.value) cargarTab(1)
+  if (tab.value === 'estudiantes') cargarTodosRepresentantes()
 })
-
-// El resto de listas se cargará desde la API más adelante.
 
 // ───────────── Helpers ─────────────
 // norm, ordinal, nomPersona, nomEst, nomDocente, diaNombre y gradoTexto
@@ -214,10 +203,6 @@ const etiqueta = (t, x) =>
 // ───────────── Búsqueda (un solo campo por pestaña) ─────────────
 const busq = reactive({ representantes: '', estudiantes: '', asignaturas: '', docentes: '', horarios: '' })
 
-const listaRepresentantes = computed(() => {
-  const q = norm(busq.representantes)
-  return datos.representantes.filter((r) => !q || norm(nomPersona(r)).includes(q))
-})
 const listaEstudiantes = computed(() => {
   const q = norm(busq.estudiantes)
   return datos.estudiantes.filter((e) => !q || norm(nomEst(e)).includes(q))
@@ -226,22 +211,6 @@ const listaAsignaturas = computed(() => {
   const q = norm(busq.asignaturas)
   return datos.asignaturas.filter((a) => !q || norm(a.nombre).includes(q))
 })
-// Búsqueda de docentes: el backend no filtra, así que se hace en cliente sobre
-// la lista completa (nombre completo o cédula, sin mayúsculas ni acentos).
-const docentesFiltro = computed(() => norm(busq.docentes).trim())
-const filtrandoDocentes = computed(() => tab.value === 'docentes' && docentesFiltro.value !== '')
-const docentesFiltrados = computed(() => {
-  const q = docentesFiltro.value
-  if (!q) return []
-  return docentesApi.todos.filter(
-    (d) => norm(nomDocente(d)).includes(q) || norm(d.cedula).includes(q),
-  )
-})
-const buscandoDocentes = computed(() => filtrandoDocentes.value && !docentesApi.todosListo)
-const cargandoDocentes = computed(() => docentesApi.loading || docentesApi.cargandoTodos)
-const listaDocentes = computed(() =>
-  filtrandoDocentes.value ? docentesFiltrados.value : datos.docentes,
-)
 const listaHorarios = computed(() => {
   const q = norm(busq.horarios)
   return datos.horarios
@@ -256,86 +225,115 @@ const listaHorarios = computed(() => {
     })
 })
 
+// Texto sobre el que se busca en cada pestaña conectada a la API.
+const textoBusqueda = (t, x) =>
+  t === 'docentes' ? `${nomDocente(x)} ${x.cedula ?? ''}` : etiqueta(t, x)
+
+// Búsqueda de las pestañas conectadas: el backend no filtra, así que se hace
+// en el cliente sobre la lista completa (sin mayúsculas ni acentos).
+const busqTab = computed(() => norm(busq[tab.value]).trim())
+const filtrando = computed(() => Boolean(apiTab.value) && busqTab.value !== '')
+const filtrados = computed(() => {
+  if (!apiTab.value || !busqTab.value) return []
+  return apiTab.value.todos.filter((x) =>
+    norm(textoBusqueda(tab.value, x)).includes(busqTab.value),
+  )
+})
+const buscandoTab = computed(() => filtrando.value && !apiTab.value?.todosListo)
+const cargandoTab = computed(
+  () => Boolean(apiTab.value && (apiTab.value.loading || apiTab.value.cargandoTodos)),
+)
+
 // ───────────── Paginación ─────────────
 const pagina = reactive({ representantes: 1, estudiantes: 1, asignaturas: 1, docentes: 1, horarios: 1 })
 Object.keys(busq).forEach((k) => watch(() => busq[k], () => { pagina[k] = 1 })) // al buscar, vuelve a la página 1
 
-// Al buscar docentes se necesita la lista completa para filtrar en cliente.
-watch(() => busq.docentes, (valor) => {
-  pagina.docentes = 1
-  if (norm(valor).trim() && !docentesApi.todosListo && !docentesApi.cargandoTodos) {
-    cargarTodosDocentes()
-  }
+// Al buscar en una pestaña conectada se necesita la lista completa para
+// filtrar en el cliente.
+watch(() => [tab.value, busq[tab.value]], () => {
+  pagina[tab.value] = 1
+  const api = apiTab.value
+  if (!api) return
+  if (busqTab.value && !api.todosListo && !api.cargandoTodos) cargarTodosTab()
 })
 
-const listaTab = computed(() => ({
-  representantes: listaRepresentantes.value,
-  estudiantes: listaEstudiantes.value,
-  asignaturas: listaAsignaturas.value,
-  docentes: listaDocentes.value,
-  horarios: listaHorarios.value,
-}[tab.value]))
+const listaTab = computed(() => {
+  if (apiTab.value) return filtrando.value ? filtrados.value : datos[tab.value]
+  return {
+    estudiantes: listaEstudiantes.value,
+    asignaturas: listaAsignaturas.value,
+    horarios: listaHorarios.value,
+  }[tab.value] ?? []
+})
 
-// Docentes usa el total y la página del servidor, salvo cuando hay búsqueda
-// activa: entonces se pagina en cliente sobre la lista completa filtrada.
-const tamanoPagina = computed(() => (tab.value === 'docentes' ? docentesApi.size : POR_PAGINA))
+// Las pestañas conectadas usan el total y la página del servidor, salvo con
+// búsqueda activa: entonces se pagina en cliente sobre la lista filtrada.
+const tamanoPagina = computed(() => apiTab.value?.size ?? POR_PAGINA)
 const totalFiltrado = computed(() => {
-  if (tab.value !== 'docentes') return listaTab.value.length
-  return filtrandoDocentes.value ? docentesFiltrados.value.length : docentesApi.total
+  const api = apiTab.value
+  if (!api) return listaTab.value.length
+  return filtrando.value ? filtrados.value.length : api.total
 })
 const totalPaginas = computed(() => Math.max(1, Math.ceil(totalFiltrado.value / tamanoPagina.value)))
 const pg = computed(() => {
-  if (tab.value !== 'docentes') return Math.min(pagina[tab.value], totalPaginas.value)
+  const api = apiTab.value
+  if (!api) return Math.min(pagina[tab.value], totalPaginas.value)
   return Math.min(
-    filtrandoDocentes.value ? pagina.docentes : docentesApi.page,
+    filtrando.value ? pagina[tab.value] : api.page,
     totalPaginas.value,
   )
 })
 const filasPagina = computed(() => {
-  if (tab.value !== 'docentes') {
+  const api = apiTab.value
+  if (!api) {
     return listaTab.value.slice((pg.value - 1) * tamanoPagina.value, pg.value * tamanoPagina.value)
   }
-  if (!filtrandoDocentes.value) return datos.docentes
+  if (!filtrando.value) return datos[tab.value]
   const inicio = (pg.value - 1) * tamanoPagina.value
-  return docentesFiltrados.value.slice(inicio, inicio + tamanoPagina.value)
+  return filtrados.value.slice(inicio, inicio + tamanoPagina.value)
 })
 const desde = computed(() => (totalFiltrado.value ? (pg.value - 1) * tamanoPagina.value + 1 : 0))
 const hasta = computed(() => Math.min(pg.value * tamanoPagina.value, totalFiltrado.value))
 const irPagina = (n) => {
   const destino = Math.min(Math.max(1, n), totalPaginas.value)
+  const api = apiTab.value
 
-  if (tab.value === 'docentes') {
-    if (filtrandoDocentes.value) {
-      pagina.docentes = destino
-      return
-    }
-    if (destino === docentesApi.page) return
-    docentesApi.page = destino
-    cargarDocentes(destino)
+  if (!api || filtrando.value) {
+    pagina[tab.value] = destino
     return
   }
-
-  pagina[tab.value] = destino
+  if (destino === api.page) return
+  api.page = destino
+  cargarTab(destino)
 }
-// Se observa el tamaño en vez de usar @change en el <select>: así la recarga
-// siempre ocurre después de que v-model actualizó docentesApi.size.
-watch(() => docentesApi.size, () => {
-  pagina.docentes = 1
-  if (filtrandoDocentes.value) return // se repagina en cliente
-  docentesApi.page = 1
-  cargarDocentes(1)
-})
 
-// Cambiar el nivel desde el filtro reinicia la página y la caché de búsqueda.
+// Se observa el tamaño en vez de usar @change en el <select>: así la recarga
+// siempre ocurre después de que v-model actualizó el tamaño del recurso.
+const vigilarTamano = (nombre, api, recargar) =>
+  watch(() => api.size, () => {
+    pagina[nombre] = 1
+    if (tab.value !== nombre || filtrando.value) return // se repagina en cliente
+    api.page = 1
+    recargar(1)
+  })
+vigilarTamano('docentes', docentesApi, cargarDocentes)
+vigilarTamano('representantes', representantesApi, cargarRepresentantes)
+
+// Cambiar el nivel reinicia ambos listados del servidor.
 watch(nivelFiltro, () => {
   if (!esAdministrador.value) return
   pagina.docentes = 1
-  docentesApi.page = 1
-  docentesApi.todos = []
-  docentesApi.todosListo = false
-  if (tab.value === 'docentes') cargarDocentes(1)
+  pagina.representantes = 1
+  docentes.reiniciar()
+  representantes.reiniciar()
+  if (apiTab.value) cargarTab(1)
 })
-const totalTab = (id) => (id === 'docentes' ? docentesApi.total : datos[id].length)
+
+const totalTab = (id) => {
+  if (id === 'docentes') return docentesApi.total
+  if (id === 'representantes') return representantesApi.total
+  return datos[id].length
+}
 const botonesPagina = computed(() => {
   const total = totalPaginas.value, p = pg.value
   const nums = [...new Set([1, total, p - 1, p, p + 1].filter((n) => n >= 1 && n <= total))].sort((a, b) => a - b)
@@ -352,7 +350,7 @@ const panelRef = ref(null)
 const repBusq = ref('')
 
 const formVacio = {
-  representantes: () => ({ nombre: '', apellido: '', telefono: '' }),
+  representantes: () => ({ primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: '', telefono: '' }),
   estudiantes: () => ({ primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: '', anio: '', seccion: '', representanteIds: [] }),
   asignaturas: () => ({ nombre: '' }),
   docentes: () => ({ primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: '', cedula: '', nivel: nivelFiltro.value || '' }),
@@ -390,22 +388,37 @@ const cerrarPanel = () => { panel.abierto = false }
 const irA = (id) => { cerrarPanel(); tab.value = id }
 watch(tab, (valor) => {
   cerrarPanel()
-  // La primera vez que se abre Docentes se pide la primera página al servidor.
-  if (valor === 'docentes' && !docentesApi.cargado && !docentesApi.loading) cargarDocentes(1)
+  // La primera vez que se abre una pestaña conectada se pide la página 1.
+  if (apiTab.value && !apiTab.value.cargado && !apiTab.value.loading) cargarTab(1)
+  // El selector de representantes del formulario de estudiantes necesita la
+  // lista completa, no solo la página visible.
+  if (valor === 'estudiantes' && !representantesApi.todosListo && !representantesApi.cargandoTodos) {
+    cargarTodosRepresentantes()
+  }
 })
 
-// Selector de representantes (Estudiantes_Representantes)
+// Selector de representantes (pestaña Estudiantes, aún local).
+const repOpciones = computed(() =>
+  representantesApi.todosListo ? representantesApi.todos : datos.representantes,
+)
+const repPorId = (id) =>
+  representantesApi.todos.find((r) => r.id === id) ??
+  datos.representantes.find((r) => r.id === id)
 const repCoincidencias = computed(() => {
   const q = norm(repBusq.value.trim())
   const elegidos = form.value.representanteIds ?? []
   if (!q) return []
-  return datos.representantes.filter((r) => !elegidos.includes(r.id) && norm(nomPersona(r)).includes(q)).slice(0, 6)
+  return repOpciones.value.filter((r) => !elegidos.includes(r.id) && norm(nomPersona(r)).includes(q)).slice(0, 6)
 })
 const agregarRep = (id) => { form.value.representanteIds.push(id); repBusq.value = '' }
 const quitarRep = (id) => { form.value.representanteIds = form.value.representanteIds.filter((x) => x !== id) }
 
 const validar = (t, f) => {
   const otros = datos[t].filter((x) => x.id !== f.id)
+  if (t === 'representantes') {
+    if (!f.primerNombre || !f.primerApellido) return 'El primer nombre y el primer apellido son obligatorios.'
+    if (!f.telefono) return 'El número telefónico es obligatorio.'
+  }
   if (t === 'docentes' && !f.nivel) return 'Selecciona el nivel educativo del docente.'
   if (t === 'asignaturas' && otros.some((x) => norm(x.nombre) === norm(f.nombre))) return 'Ya existe una asignatura con ese nombre.'
   if (t === 'horarios') {
@@ -434,19 +447,22 @@ const guardar = async () => {
   const err = validar(t, f)
   if (err) { errorForm.value = err; return }
 
-  // Docentes: crear/actualizar en la API y recargar la página actual.
-  if (t === 'docentes') {
+  // Docentes y representantes: crear/actualizar en la API y recargar.
+  if (t === 'docentes' || t === 'representantes') {
     const creando = panel.modo === 'crear'
+    const recurso = t === 'docentes'
+      ? { crear: crearDocente, actualizar: actualizarDocente, recargar: refrescarDocentes }
+      : { crear: crearRepresentante, actualizar: actualizarRepresentante, recargar: refrescarRepresentantes }
     errorForm.value = ''
     guardando.value = true
     try {
-      if (creando) await crearDocente(f)
-      else await actualizarDocente(f.id, f)
+      if (creando) await recurso.crear(f)
+      else await recurso.actualizar(f.id, f)
       cerrarPanel()
       avisar(creando ? 'Registro creado correctamente.' : 'Cambios guardados.')
-      await refrescarDocentes()
+      await recurso.recargar()
     } catch (error) {
-      errorForm.value = error?.message || 'No se pudo guardar el docente.'
+      errorForm.value = error?.message || `No se pudo guardar el ${tabActual.value.singular}.`
     } finally {
       guardando.value = false
     }
@@ -482,7 +498,7 @@ const avisar = (msg) => {
 }
 
 const consecuencias = {
-  representantes: ' Se quitará su vínculo con los estudiantes.',
+  representantes: ' Solo se puede eliminar si no tiene estudiantes asignados.',
   asignaturas: ' Se quitará de los docentes y se eliminarán sus horarios.',
   docentes: '',
   estudiantes: '',
@@ -491,22 +507,24 @@ const consecuencias = {
 const eliminar = (item) => {
   const t = tab.value
   pedirConfirmacion(`Eliminar ${tabActual.value.singular}`, `¿Eliminar "${etiqueta(t, item)}"? Esta acción no se puede deshacer.${consecuencias[t]}`, 'Eliminar', async () => {
-    // Docentes: borrado real en la API (soft delete) y recarga de la página.
-    if (t === 'docentes') {
+    // Docentes y representantes: borrado real en la API (soft delete).
+    if (t === 'docentes' || t === 'representantes') {
+      const recurso = t === 'docentes'
+        ? { eliminar: eliminarDocente, api: docentesApi, recargar: refrescarDocentes, nombre: 'docente' }
+        : { eliminar: eliminarRepresentante, api: representantesApi, recargar: refrescarRepresentantes, nombre: 'representante' }
       try {
-        await eliminarDocente(item.id)
+        await recurso.eliminar(item.id)
         avisar('Registro eliminado.')
-        await refrescarDocentes()
+        await recurso.recargar()
       } catch (error) {
         // Se conserva el mensaje para que el usuario pueda reintentar.
-        docentesApi.error = error?.message || 'No se pudo eliminar el docente.'
-        avisar(docentesApi.error)
+        recurso.api.error = error?.message || `No se pudo eliminar el ${recurso.nombre}.`
+        avisar(recurso.api.error)
       }
       return
     }
 
     // TODO FastAPI: DELETE /api/{t}/{id}
-    if (t === 'representantes') datos.estudiantes.forEach((e) => { e.representanteIds = e.representanteIds.filter((id) => id !== item.id) })
     if (t === 'asignaturas') {
       datos.docentes.forEach((d) => { d.asignaturaIds = (d.asignaturaIds ?? []).filter((id) => id !== item.id) })
       datos.horarios = datos.horarios.filter((h) => h.asignaturaId !== item.id)
@@ -537,16 +555,16 @@ const eliminar = (item) => {
 
       <div role="tabpanel" class="flex flex-col gap-5 p-5 md:p-6">
 
-        <!-- Barra: buscador + tamaño de página (docentes) + botón nuevo -->
+        <!-- Barra: buscador + nivel + tamaño de página + botón nuevo -->
         <div class="flex flex-wrap items-center gap-3">
           <div class="relative min-w-[220px] flex-1">
             <label for="busq" class="sr-only">Buscar</label>
             <svg aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5b6a72]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
             <input id="busq" v-model="busq[tab]" type="search" :placeholder="placeholders[tab]" :class="[inp, '!pl-10']">
           </div>
-          <div v-if="tab === 'docentes' && esAdministrador" class="flex items-center gap-2">
-            <label for="nivel-doc" class="whitespace-nowrap text-sm font-semibold text-[#233E47]">Nivel</label>
-            <select id="nivel-doc" v-model="nivelFiltro" :class="[inp, '!h-10 !w-auto']">
+          <div v-if="apiTab && esAdministrador" class="flex items-center gap-2">
+            <label for="nivel-filtro" class="whitespace-nowrap text-sm font-semibold text-[#233E47]">Nivel</label>
+            <select id="nivel-filtro" v-model="nivelFiltro" :class="[inp, '!h-10 !w-auto']">
               <option value="">Todos</option>
               <option value="LICEO">Liceo</option>
               <option value="ESCUELA">Escuela</option>
@@ -561,33 +579,47 @@ const eliminar = (item) => {
               <option :value="100">100</option>
             </select>
           </div>
-          <button v-if="tab !== 'docentes' || esAdministrador" type="button" :class="btnP" @click="abrirNuevo">
+          <div v-else-if="tab === 'representantes'" class="flex items-center gap-2">
+            <label for="tam-rep" class="whitespace-nowrap text-sm font-semibold text-[#233E47]">Por página</label>
+            <select id="tam-rep" v-model.number="representantesApi.size" :class="[inp, '!h-10 !w-auto']">
+              <option :value="10">10</option>
+              <option :value="25">25</option>
+              <option :value="50">50</option>
+              <option :value="100">100</option>
+            </select>
+          </div>
+          <button v-if="!apiTab || esAdministrador" type="button" :class="btnP" @click="abrirNuevo">
             <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
             {{ tabActual.nuevo }}
           </button>
         </div>
 
-        <!-- Resumen del filtro y del total (sólo docentes) -->
-        <p v-if="tab === 'docentes' && !(docentesApi.error && !docentesApi.cargado)" class="-mt-1 text-sm text-[#4a5a63]">
-          <span v-if="buscandoDocentes">Buscando en todos los docentes…</span>
-          <span v-else-if="filtrandoDocentes"><b class="text-[#233E47]">{{ totalFiltrado }}</b> coincidencia(s) de <b class="text-[#233E47]">{{ docentesApi.total }}</b> docente(s)</span>
-          <span v-else><b class="text-[#233E47]">{{ docentesApi.total }}</b> docente(s) en {{ alcanceNivel }}</span>
+        <!-- Resumen del filtro y del total -->
+        <p v-if="apiTab && !(apiTab.error && !apiTab.cargado)" class="-mt-1 text-sm text-[#4a5a63]">
+          <span v-if="buscandoTab">Buscando en todos los {{ tabActual.label.toLowerCase() }}…</span>
+          <span v-else-if="filtrando"><b class="text-[#233E47]">{{ totalFiltrado }}</b> coincidencia(s) de <b class="text-[#233E47]">{{ apiTab.total }}</b> {{ apiTab.total === 1 ? sustantivo.uno : sustantivo.varios }}</span>
+          <span v-else><b class="text-[#233E47]">{{ apiTab.total }}</b> {{ apiTab.total === 1 ? sustantivo.uno : sustantivo.varios }} en {{ alcanceNivel }}</span>
         </p>
 
-        <!-- Error de carga (sólo docentes) -->
-        <p v-if="tab === 'docentes' && docentesApi.error" role="alert" class="rounded-xl bg-[#fbd5d2] px-4 py-3 text-sm font-semibold text-[#8a1c14]">
-          {{ docentesApi.error }}
-          <button type="button" class="ml-2 font-bold underline" @click="filtrandoDocentes ? cargarTodosDocentes() : cargarDocentes(docentesApi.page)">Reintentar</button>
+        <!-- El nivel de un representante se deduce de sus estudiantes -->
+        <p v-if="tab === 'representantes' && nivelConsulta" class="-mt-3 text-xs text-[#5b6a72]">
+          Solo aparecen representantes con estudiantes activos en {{ alcanceNivel }}.
         </p>
 
-        <!-- Cargando la primera página (sólo docentes) -->
-        <p v-if="tab === 'docentes' && docentesApi.loading && !datos.docentes.length" :class="sinRes">Cargando docentes…</p>
+        <!-- Error de carga -->
+        <p v-if="apiTab && apiTab.error" role="alert" class="rounded-xl bg-[#fbd5d2] px-4 py-3 text-sm font-semibold text-[#8a1c14]">
+          {{ apiTab.error }}
+          <button type="button" class="ml-2 font-bold underline" @click="recargarTab">Reintentar</button>
+        </p>
+
+        <!-- Cargando la primera página -->
+        <p v-if="apiTab && apiTab.loading && !datos[tab].length" :class="sinRes">Cargando {{ tabActual.label.toLowerCase() }}…</p>
 
         <!-- Estado vacío general (aún no hay ningún dato) -->
-        <div v-if="!datos[tab].length && !(tab === 'docentes' && (docentesApi.loading || docentesApi.error))" class="flex flex-col items-center gap-2 rounded-xl border border-dashed border-[#91a5c9] bg-[#f6f9fe] px-4 py-14 text-center">
+        <div v-if="!datos[tab].length && !(apiTab && (apiTab.loading || apiTab.error))" class="flex flex-col items-center gap-2 rounded-xl border border-dashed border-[#91a5c9] bg-[#f6f9fe] px-4 py-14 text-center">
           <svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#91a5c9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M7 9.5V15c0 1.5 2.2 3 5 3s5-1.5 5-3V9.5"/></svg>
-          <p class="text-lg font-bold text-[#233E47]">{{ vacios[tab].titulo }}</p>
-          <p class="max-w-md text-sm text-[#4a5a63]">{{ vacios[tab].texto }}</p>
+          <p class="text-lg font-bold text-[#233E47]">{{ vacioTitulo }}</p>
+          <p class="max-w-md text-sm text-[#4a5a63]">{{ vacioTexto }}</p>
           <button type="button" :class="[btnS, 'mt-2']" @click="abrirNuevo">{{ vacios[tab].boton }}</button>
         </div>
 
@@ -598,6 +630,10 @@ const eliminar = (item) => {
             v-if="tab === 'representantes'"
             :filas="filasPagina"
             :estudiantes="datos.estudiantes"
+            :buscando="buscandoTab"
+            :cargando="apiTab.cargandoTodos"
+            :filtrando="filtrando"
+            :puede-gestionar="esAdministrador"
             @editar="abrirEditar"
             @eliminar="eliminar"
           />
@@ -605,7 +641,7 @@ const eliminar = (item) => {
           <EstudiantesTabla
             v-else-if="tab === 'estudiantes'"
             :filas="filasPagina"
-            :representantes="datos.representantes"
+            :representantes="repOpciones"
             :grados="datos.grados"
             @editar="abrirEditar"
             @eliminar="eliminar"
@@ -622,9 +658,9 @@ const eliminar = (item) => {
           <DocentesTabla
             v-else-if="tab === 'docentes'"
             :filas="filasPagina"
-            :buscando="buscandoDocentes"
-            :cargando="docentesApi.cargandoTodos"
-            :filtrando="filtrandoDocentes"
+            :buscando="buscandoTab"
+            :cargando="apiTab.cargandoTodos"
+            :filtrando="filtrando"
             :puede-gestionar="esAdministrador"
             @editar="abrirEditar"
             @eliminar="eliminar"
@@ -644,20 +680,20 @@ const eliminar = (item) => {
           <nav v-if="totalFiltrado > 0" aria-label="Paginación" class="flex flex-wrap items-center justify-between gap-3">
             <p class="text-sm text-[#4a5a63]">
               Mostrando <b class="text-[#233E47]">{{ desde }}–{{ hasta }}</b> de <b class="text-[#233E47]">{{ totalFiltrado }}</b>
-              {{ tab === 'docentes' && filtrandoDocentes ? 'coincidencias' : 'registros' }}
-              <span v-if="tab === 'docentes' && cargandoDocentes" class="ml-2 italic text-[#5b6a72]">actualizando…</span>
+              {{ filtrando ? 'coincidencias' : 'registros' }}
+              <span v-if="cargandoTab" class="ml-2 italic text-[#5b6a72]">actualizando…</span>
             </p>
             <div class="flex flex-wrap items-center gap-1.5">
               <span class="mr-1 whitespace-nowrap text-sm text-[#4a5a63]">Página <b class="text-[#233E47]">{{ pg }}</b> de <b class="text-[#233E47]">{{ totalPaginas }}</b></span>
-              <button type="button" :class="btnPag" :disabled="pg === 1 || (tab === 'docentes' && cargandoDocentes)" aria-label="Primera página" @click="irPagina(1)">«</button>
-              <button type="button" :class="btnPag" :disabled="pg === 1 || (tab === 'docentes' && cargandoDocentes)" aria-label="Página anterior" @click="irPagina(pg - 1)">← Anterior</button>
+              <button type="button" :class="btnPag" :disabled="pg === 1 || cargandoTab" aria-label="Primera página" @click="irPagina(1)">«</button>
+              <button type="button" :class="btnPag" :disabled="pg === 1 || cargandoTab" aria-label="Página anterior" @click="irPagina(pg - 1)">← Anterior</button>
               <template v-for="(b, i) in botonesPagina" :key="i">
                 <span v-if="b === '…'" class="px-1 text-[#5b6a72]" aria-hidden="true">…</span>
                 <button v-else type="button" :aria-current="b === pg ? 'page' : null" :aria-label="'Página ' + b"
                         :class="[btnPag, b === pg ? '!border-[#233E47] !bg-[#233E47] !text-white' : '']" @click="irPagina(b)">{{ b }}</button>
               </template>
-              <button type="button" :class="btnPag" :disabled="pg === totalPaginas || (tab === 'docentes' && cargandoDocentes)" aria-label="Página siguiente" @click="irPagina(pg + 1)">Siguiente →</button>
-              <button type="button" :class="btnPag" :disabled="pg === totalPaginas || (tab === 'docentes' && cargandoDocentes)" aria-label="Última página" @click="irPagina(totalPaginas)">»</button>
+              <button type="button" :class="btnPag" :disabled="pg === totalPaginas || cargandoTab" aria-label="Página siguiente" @click="irPagina(pg + 1)">Siguiente →</button>
+              <button type="button" :class="btnPag" :disabled="pg === totalPaginas || cargandoTab" aria-label="Última página" @click="irPagina(totalPaginas)">»</button>
             </div>
           </nav>
         </template>
@@ -686,8 +722,10 @@ const eliminar = (item) => {
               <!-- Representante -->
               <template v-if="tab === 'representantes'">
                 <div class="grid gap-3 sm:grid-cols-2">
-                  <div><label for="f-nombre" :class="lbl">Nombre</label><input id="f-nombre" v-model="form.nombre" maxlength="50" required :class="[inp, 'mt-1']"></div>
-                  <div><label for="f-apellido" :class="lbl">Apellido</label><input id="f-apellido" v-model="form.apellido" maxlength="50" required :class="[inp, 'mt-1']"></div>
+                  <div><label for="f-r-pn" :class="lbl">Primer nombre</label><input id="f-r-pn" v-model="form.primerNombre" maxlength="50" required :class="[inp, 'mt-1']"></div>
+                  <div><label for="f-r-sn" :class="lbl">Segundo nombre</label><input id="f-r-sn" v-model="form.segundoNombre" maxlength="50" :class="[inp, 'mt-1']"></div>
+                  <div><label for="f-r-pa" :class="lbl">Primer apellido</label><input id="f-r-pa" v-model="form.primerApellido" maxlength="50" required :class="[inp, 'mt-1']"></div>
+                  <div><label for="f-r-sa" :class="lbl">Segundo apellido</label><input id="f-r-sa" v-model="form.segundoApellido" maxlength="50" :class="[inp, 'mt-1']"></div>
                 </div>
                 <div><label for="f-tel" :class="lbl">Número telefónico</label><input id="f-tel" v-model="form.telefono" type="tel" maxlength="50" required :class="[inp, 'mt-1']"></div>
               </template>
@@ -713,13 +751,13 @@ const eliminar = (item) => {
                   <label for="f-rep" :class="lbl">Representantes</label>
                   <div v-if="form.representanteIds.length" class="mt-2 flex flex-wrap gap-1.5">
                     <span v-for="id in form.representanteIds" :key="id" :class="[tag, 'flex items-center gap-1.5 !py-1']">
-                      {{ porId('representantes', id) ? nomPersona(porId('representantes', id)) : '—' }}
+                      {{ repPorId(id) ? nomPersona(repPorId(id)) : '—' }}
                       <button type="button" class="font-bold" :aria-label="'Quitar representante'" @click="quitarRep(id)">✕</button>
                     </span>
                   </div>
                   <p v-else :class="[nada, 'mt-2']">Sin representantes vinculados aún</p>
                   <input id="f-rep" v-model="repBusq" type="search" placeholder="Buscar representante por nombre o apellido" autocomplete="off" :class="[inp, 'mt-2']">
-                  <p v-if="!datos.representantes.length" :class="aviso2">
+                  <p v-if="!repOpciones.length" :class="aviso2">
                     Aún no hay representantes registrados.
                     <button type="button" class="font-bold underline" @click="irA('representantes')">Registrar uno primero</button>
                   </p>
