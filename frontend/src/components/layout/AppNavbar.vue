@@ -1,4 +1,5 @@
 <script setup>
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 // Reutilizamos Heroicons para mantener el mismo lenguaje de diseño
 import {
@@ -6,12 +7,28 @@ import {
   Bars3Icon,
   UserCircleIcon,
 } from '@heroicons/vue/24/outline'
+import {
+  sesion,
+  cargarPerfil,
+  cerrarSesion,
+  etiquetaRol,
+  etiquetaNivel,
+} from '@/services/auth'
 
 const emit = defineEmits(['toggle-sidebar'])
 const router = useRouter()
 
+// El rol y el nivel vienen del JWT; el nombre se completa con /auth/me.
+const nombre = computed(() => sesion.usuario?.nombre || '')
+const rol = computed(() => etiquetaRol())
+const nivel = computed(() => etiquetaNivel())
+
+onMounted(() => {
+  if (sesion.token && !sesion.usuario?.nombre) cargarPerfil()
+})
+
 const logout = () => {
-  localStorage.removeItem('token')
+  cerrarSesion()
   router.push({ name: 'Login' })
 }
 </script>
@@ -47,15 +64,18 @@ const logout = () => {
     <!-- LADO DERECHO: Perfil de Usuario -->
     <div class="flex items-center gap-3 sm:gap-4">
 
-      <!-- Información del usuario (Opcional, pero le da un toque muy profesional) -->
+      <!-- Información del usuario (rol y nivel del JWT + nombre de /auth/me) -->
       <div class="hidden flex-col items-end sm:flex">
-        <span class="text-sm font-bold text-[#233E47]">Administrador</span>
-        <span class="text-xs font-medium text-gray-500">Marta Lara</span>
+        <span class="text-sm font-bold text-[#233E47]">{{ nombre || 'Usuario' }}</span>
+        <span class="text-xs font-medium text-gray-500">
+          {{ rol }}<template v-if="nivel"> · {{ nivel }}</template>
+        </span>
       </div>
 
       <!-- Botón del avatar -->
       <button
         type="button"
+        :title="nombre ? `${nombre} · ${rol}` : rol"
         class="rounded-full bg-gray-50 p-1.5 text-gray-400 transition-all hover:bg-gray-100 hover:text-[#233E47] focus:outline-none focus:ring-2 focus:ring-[#91a5c9] focus:ring-offset-2"
       >
         <UserCircleIcon class="h-7 w-7" aria-hidden="true" />

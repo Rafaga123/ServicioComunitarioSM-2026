@@ -4,6 +4,7 @@ import { ref } from 'vue'
 import fondo from '../assets/fachada.jpg'
 import logo from '../assets/logo santa marta.png'
 import { useRoute, useRouter } from 'vue-router'
+import { iniciarSesion } from '@/services/auth'
 const router = useRouter()
 const route = useRoute()
 
@@ -49,9 +50,11 @@ const handleLogin = async () => {
     }
 
     const data = await response.json()
-    localStorage.setItem('token', data.access_token)
+    // Guarda el token y decodifica rol/nivel para el resto de la sesión.
+    iniciarSesion(data.access_token)
 
-    // Si el guard nos mandó aquí desde otra ruta, volvemos allí
+    // Si el guard nos mandó aquí desde otra ruta, volvemos allí.
+    // Si el rol no tiene permiso para esa ruta, el guard lo devuelve a su inicio.
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : null
     router.push(redirect || { name: 'dashboard' })
 

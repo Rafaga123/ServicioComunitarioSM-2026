@@ -24,6 +24,7 @@ import {
   diaNombre,
   gradoTexto,
 } from '@/components/gestion-academica/helpers'
+import { esAdministrador, nivelActual, etiquetaNivel } from '@/services/auth'
 import {
   card,
   inp,
@@ -102,13 +103,28 @@ const docentesApi = reactive({
 let peticionDocentes = 0 // evita que una respuesta vieja pise a una más reciente
 let peticionTodos = 0
 
+// Nivel educativo de la consulta:
+// - El administrador no tiene nivel propio y puede ver ambos; el filtro es suyo.
+// - Los operadores quedan atados a su nivel (el backend también lo impone).
+const nivelFiltro = ref(esAdministrador.value ? '' : (nivelActual.value ?? ''))
+const nivelConsulta = computed(() =>
+  esAdministrador.value ? nivelFiltro.value : (nivelActual.value ?? ''),
+)
+const alcanceNivel = computed(() =>
+  nivelConsulta.value ? etiquetaNivel(nivelConsulta.value) : 'todos los niveles',
+)
+
 async function cargarDocentes(paginaSolicitada = docentesApi.page) {
   const solicitud = ++peticionDocentes
   docentesApi.loading = true
   docentesApi.error = ''
 
   try {
-    const respuesta = await listarDocentes({ page: paginaSolicitada, size: docentesApi.size })
+    const respuesta = await listarDocentes({
+      page: paginaSolicitada,
+      size: docentesApi.size,
+      nivel: nivelConsulta.value || undefined,
+    })
     if (solicitud !== peticionDocentes) return
 
     const ultimaPagina = Math.max(1, Math.ceil(respuesta.total / docentesApi.size))
@@ -140,7 +156,9 @@ async function cargarTodosDocentes() {
   docentesApi.error = ''
 
   try {
-    const { items } = await listarTodosDocentes()
+    const { items } = await listarTodosDocentes({
+      nivel: nivelConsulta.value || undefined,
+    })
     if (solicitud !== peticionTodos) return
     docentesApi.todos = items
     docentesApi.todosListo = true
@@ -307,6 +325,16 @@ watch(() => docentesApi.size, () => {
   docentesApi.page = 1
   cargarDocentes(1)
 })
+
+// Cambiar el nivel desde el filtro reinicia la página y la caché de búsqueda.
+watch(nivelFiltro, () => {
+  if (!esAdministrador.value) return
+  pagina.docentes = 1
+  docentesApi.page = 1
+  docentesApi.todos = []
+  docentesApi.todosListo = false
+  if (tab.value === 'docentes') cargarDocentes(1)
+})
 const totalTab = (id) => (id === 'docentes' ? docentesApi.total : datos[id].length)
 const botonesPagina = computed(() => {
   const total = totalPaginas.value, p = pg.value
@@ -327,7 +355,7 @@ const formVacio = {
   representantes: () => ({ nombre: '', apellido: '', telefono: '' }),
   estudiantes: () => ({ primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: '', anio: '', seccion: '', representanteIds: [] }),
   asignaturas: () => ({ nombre: '' }),
-  docentes: () => ({ primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: '', cedula: '' }),
+  docentes: () => ({ primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: '', cedula: '', nivel: nivelFiltro.value || '' }),
   horarios: () => ({ anio: '', seccion: '', diaSemana: '', hora: '', asignaturaId: '' }),
 }
 const tituloPanel = computed(() => (panel.modo === 'crear' ? tabActual.value.nuevo : `Editar ${tabActual.value.singular}`))
@@ -378,6 +406,7 @@ const quitarRep = (id) => { form.value.representanteIds = form.value.representan
 
 const validar = (t, f) => {
   const otros = datos[t].filter((x) => x.id !== f.id)
+  if (t === 'docentes' && !f.nivel) return 'Selecciona el nivel educativo del docente.'
   if (t === 'asignaturas' && otros.some((x) => norm(x.nombre) === norm(f.nombre))) return 'Ya existe una asignatura con ese nombre.'
   if (t === 'horarios') {
     const g = buscarGrado(f.anio, f.seccion)
@@ -515,6 +544,14 @@ const eliminar = (item) => {
             <svg aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5b6a72]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
             <input id="busq" v-model="busq[tab]" type="search" :placeholder="placeholders[tab]" :class="[inp, '!pl-10']">
           </div>
+          <div v-if="tab === 'docentes' && esAdministrador" class="flex items-center gap-2">
+            <label for="nivel-doc" class="whitespace-nowrap text-sm font-semibold text-[#233E47]">Nivel</label>
+            <select id="nivel-doc" v-model="nivelFiltro" :class="[inp, '!h-10 !w-auto']">
+              <option value="">Todos</option>
+              <option value="LICEO">Liceo</option>
+              <option value="ESCUELA">Escuela</option>
+            </select>
+          </div>
           <div v-if="tab === 'docentes'" class="flex items-center gap-2">
             <label for="tam-doc" class="whitespace-nowrap text-sm font-semibold text-[#233E47]">Por página</label>
             <select id="tam-doc" v-model.number="docentesApi.size" :class="[inp, '!h-10 !w-auto']">
@@ -524,7 +561,7 @@ const eliminar = (item) => {
               <option :value="100">100</option>
             </select>
           </div>
-          <button type="button" :class="btnP" @click="abrirNuevo">
+          <button v-if="tab !== 'docentes' || esAdministrador" type="button" :class="btnP" @click="abrirNuevo">
             <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
             {{ tabActual.nuevo }}
           </button>
@@ -534,7 +571,7 @@ const eliminar = (item) => {
         <p v-if="tab === 'docentes' && !(docentesApi.error && !docentesApi.cargado)" class="-mt-1 text-sm text-[#4a5a63]">
           <span v-if="buscandoDocentes">Buscando en todos los docentes…</span>
           <span v-else-if="filtrandoDocentes"><b class="text-[#233E47]">{{ totalFiltrado }}</b> coincidencia(s) de <b class="text-[#233E47]">{{ docentesApi.total }}</b> docente(s)</span>
-          <span v-else><b class="text-[#233E47]">{{ docentesApi.total }}</b> docente(s) registrado(s)</span>
+          <span v-else><b class="text-[#233E47]">{{ docentesApi.total }}</b> docente(s) en {{ alcanceNivel }}</span>
         </p>
 
         <!-- Error de carga (sólo docentes) -->
@@ -588,6 +625,7 @@ const eliminar = (item) => {
             :buscando="buscandoDocentes"
             :cargando="docentesApi.cargandoTodos"
             :filtrando="filtrandoDocentes"
+            :puede-gestionar="esAdministrador"
             @editar="abrirEditar"
             @eliminar="eliminar"
           />
@@ -712,6 +750,14 @@ const eliminar = (item) => {
                 <div>
                   <label for="f-d-ced" :class="lbl">Cédula</label>
                   <input id="f-d-ced" v-model="form.cedula" maxlength="20" required inputmode="numeric" :class="[inp, 'mt-1']">
+                </div>
+                <div>
+                  <label for="f-d-nivel" :class="lbl">Nivel educativo</label>
+                  <select id="f-d-nivel" v-model="form.nivel" required :class="[inp, 'mt-1']">
+                    <option value="" disabled>Selecciona</option>
+                    <option value="LICEO">Liceo</option>
+                    <option value="ESCUELA">Escuela</option>
+                  </select>
                 </div>
                 <p class="text-sm text-[#4a5a63]">Las asignaturas que dicta se gestionan aparte, desde la pestaña Asignaturas.</p>
               </template>

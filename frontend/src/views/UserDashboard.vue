@@ -1,8 +1,13 @@
 <script setup>
     import { ref, computed } from 'vue'
+    import { sesion, etiquetaNivel } from '@/services/auth'
 
-    //Vista cambia dependiendo del usuario
-    const RolesUsuario = ref('SECRETARIA')
+    // Rol y nivel salen del JWT; el nombre se completa con /auth/me.
+    const RolesUsuario = computed(() => sesion.usuario?.rol ?? 'SECRETARIA')
+    const nombreUsuario = computed(() => sesion.usuario?.nombre || '')
+    const nivelUsuario = computed(
+        () => etiquetaNivel(sesion.usuario?.nivel) || 'Todos los niveles'
+    )
 
     //Datos para secretaría (Retardos)
     const statsSecretaria = ref([
@@ -119,15 +124,18 @@
 </script>
 
 <template>
-    <MainLayout>
-        <div class="space-y-6">
+    <div class="space-y-6">
         
         <!--Bienvenida al usuario y botones dinamicos-->
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-            <h1 class="text-2xl font-bold text-[#1b2a47]">Bienvenido(a)</h1>
+            <h1 class="text-2xl font-bold text-[#1b2a47]">
+                Bienvenido(a)<template v-if="nombreUsuario">, {{ nombreUsuario }}</template>
+            </h1>
             <p class="text-sm text-[#4a5876] mt-0.5">
                 Rol activo: <span class="font-semibold text-[#2c4a7a]">{{ RolesUsuario }}</span>
+                <span class="mx-1 text-[#91a5c9]">·</span>
+                Nivel: <span class="font-semibold text-[#2c4a7a]">{{ nivelUsuario }}</span>
             </p>
             </div>
 
@@ -136,27 +144,27 @@
             
             <!-- Botones para ADMINISTRADOR -->
             <template v-if="RolesUsuario === 'ADMINISTRADOR'">
-                <router-link to="/AuditoriaView" class="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-[#1b2a47] shadow-sm transition hover:bg-gray-50">
+                <router-link :to="{ name: 'auditorias' }" class="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-[#1b2a47] shadow-sm transition hover:bg-gray-50">
                 Ver Auditorías
                 </router-link>
-                <router-link to="/UsuariosView" class="rounded-xl bg-[#2c4a7a] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(44,74,122,0.25)] transition hover:bg-[#233d68]">
+                <router-link :to="{ name: 'usuarios' }" class="rounded-xl bg-[#2c4a7a] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(44,74,122,0.25)] transition hover:bg-[#233d68]">
                 + Añadir Usuario
                 </router-link>
             </template>
 
             <!--Botones para COORDINADOR-->
             <template v-else-if="RolesUsuario === 'COORDINADOR'">
-                <router-link to="/ReportesView" class="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-[#1b2a47] shadow-sm transition hover:bg-gray-50">
+                <router-link :to="{ name: 'reportes' }" class="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-[#1b2a47] shadow-sm transition hover:bg-gray-50">
                 Historial de Reportes
                 </router-link>
-                <router-link to="/ReporteIncidente" class="rounded-xl bg-[#2c4a7a] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(44,74,122,0.25)] transition hover:bg-[#233d68]">
+                <router-link :to="{ name: 'reportes' }" class="rounded-xl bg-[#2c4a7a] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(44,74,122,0.25)] transition hover:bg-[#233d68]">
                 Generar Reporte
                 </router-link>
             </template>
 
             <!--Botones para SECRETARÍA-->
             <template v-else>
-                <router-link to="/RegistroRetardo" class="rounded-xl bg-[#2c4a7a] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(44,74,122,0.25)] transition hover:bg-[#233d68]">
+                <router-link :to="{ name: 'pases' }" class="rounded-xl bg-[#2c4a7a] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(44,74,122,0.25)] transition hover:bg-[#233d68]">
                 Registrar Retardo
                 </router-link>
             </template>
@@ -182,7 +190,7 @@
             <div v-if="RolesUsuario === 'ADMINISTRADOR'">
                 <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-bold text-[#1b2a47]">Últimos Movimientos en el Sistema</h2>
-                <router-link to="/AuditoriaView" class="text-xs font-bold text-[#2c4a7a] hover:underline">Ir a auditoría</router-link>
+                <router-link :to="{ name: 'auditorias' }" class="text-xs font-bold text-[#2c4a7a] hover:underline">Ir a auditoría</router-link>
                 </div>
                 <div class="overflow-x-auto">
                 <table class="w-full text-left text-sm text-gray-600">
@@ -208,7 +216,7 @@
             <div v-else-if="RolesUsuario === 'COORDINADOR'">
                 <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-bold text-[#1b2a47]">Últimas Incidencias Registradas</h2>
-                <router-link to="/ReportesView" class="text-xs font-bold text-[#2c4a7a] hover:underline">Ver todas</router-link>
+                <router-link :to="{ name: 'reportes' }" class="text-xs font-bold text-[#2c4a7a] hover:underline">Ver todas</router-link>
                 </div>
                 <div class="overflow-x-auto">
                 <table class="w-full text-left text-sm text-gray-600">
@@ -315,7 +323,7 @@
             <div>
                 <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-bold text-[#1b2a47]">Resumen de Auditorías</h2>
-                <router-link to="/AuditoriaView" class="text-xs font-bold text-[#2c4a7a] hover:underline">Ver historial completo</router-link>
+                <router-link :to="{ name: 'auditorias' }" class="text-xs font-bold text-[#2c4a7a] hover:underline">Ver historial completo</router-link>
                 </div>
                 <div class="space-y-3">
                 <div v-for="aud in ultimasAuditorias" :key="aud.id" class="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
@@ -333,7 +341,7 @@
             <div v-if="RolesUsuario === 'COORDINADOR'" class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm lg:col-span-2">
             <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-bold text-[#1b2a47]">Reportes Recientes (Conductuales y Académicos)</h2>
-                <router-link to="/ReportesView" class="text-xs font-bold text-[#2c4a7a] hover:underline">Gestionar todos</router-link>
+                <router-link :to="{ name: 'reportes' }" class="text-xs font-bold text-[#2c4a7a] hover:underline">Gestionar todos</router-link>
             </div>
             <div class="space-y-3">
                 <div v-for="item in reportes" :key="item.id" class="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
@@ -349,5 +357,4 @@
         </div>
 
         </div>
-    </MainLayout>
 </template>

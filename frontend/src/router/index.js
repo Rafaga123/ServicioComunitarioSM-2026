@@ -1,19 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import {
+  sincronizarSesion,
+  puedeAccederRuta,
+  rutaInicio,
+} from '@/services/auth'
 
 const APP_NAME = 'Control de Pases'
-
-// Comprueba si el token guardado es un JWT expirado sin llamar al backend
-const isTokenExpired = (token) => {
-  try {
-    const payload = JSON.parse(
-      atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')),
-    )
-    return typeof payload.exp === 'number' && payload.exp * 1000 <= Date.now()
-  } catch {
-    // Si el token no es un JWT legible, lo dejamos pasar y que el backend decida
-    return false
-  }
-}
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -72,22 +64,22 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  const token = localStorage.getItem('token')
-  const hasValidToken = Boolean(token) && !isTokenExpired(token)
+  // Lee el JWT (rol y nivel) y descarta tokens vencidos.
+  const usuario = sincronizarSesion()
 
-  // Token vencido: lo limpiamos para no dejar una sesión inválida
-  if (token && !hasValidToken) {
-    localStorage.removeItem('token')
-  }
-
-  // Si la ruta no es pública y no hay token → al login
-  if (!to.meta.public && !hasValidToken) {
+  // Si la ruta no es pública y no hay sesión válida → al login
+  if (!to.meta.public && !usuario) {
     return { name: 'Login', query: { redirect: to.fullPath } }
   }
 
-  // Si ya está logueado y va a /login → al dashboard
-  if (to.meta.public && hasValidToken) {
-    return { name: 'dashboard' }
+  // Si ya está logueado y va a /login → a su inicio
+  if (to.meta.public && usuario) {
+    return { name: rutaInicio() }
+  }
+
+  // Enlaces ocultos para el rol tampoco se pueden abrir escribiendo la URL.
+  if (!to.meta.public && !puedeAccederRuta(to.name)) {
+    return { name: rutaInicio() }
   }
 })
 

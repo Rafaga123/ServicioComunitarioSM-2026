@@ -1,5 +1,5 @@
 <script setup>
-import { markRaw } from "vue";
+import { computed, markRaw } from "vue";
 import { useRoute } from "vue-router";
 // 1. Importamos los íconos que necesitamos (versión outline/bordes)
 import {
@@ -11,6 +11,12 @@ import {
   ShieldCheckIcon,
   XMarkIcon,
 } from "@heroicons/vue/24/outline";
+import {
+  sesion,
+  puedeAccederRuta,
+  etiquetaRol,
+  etiquetaNivel,
+} from "@/services/auth";
 
 defineProps({
   // En móvil controla la entrada/salida del panel deslizante
@@ -23,7 +29,7 @@ const route = useRoute(); // Para saber en qué ruta estamos
 
 // 2. Inyectamos los componentes en la matriz usando markRaw por rendimiento
 // Navegamos por nombre de ruta: si cambia la URL, el menú sigue funcionando
-const menuItems = [
+const todosLosItems = [
   { name: "Dashboard", route: "dashboard", icon: markRaw(Squares2X2Icon) },
   { name: "Pases", route: "pases", icon: markRaw(ClockIcon) },
   { name: "Reportes", route: "reportes", icon: markRaw(DocumentTextIcon) },
@@ -35,6 +41,17 @@ const menuItems = [
   { name: "Usuarios", route: "usuarios", icon: markRaw(UsersIcon) },
   { name: "Auditoría", route: "auditorias", icon: markRaw(ShieldCheckIcon) },
 ];
+
+// El rol sale del JWT: el menú se recalcula solo cuando cambia la sesión.
+const menuItems = computed(() =>
+  todosLosItems.filter((item) => puedeAccederRuta(item.route)),
+);
+
+const nombreUsuario = computed(
+  () => sesion.usuario?.nombre || "Usuario",
+);
+const rolUsuario = computed(() => etiquetaRol());
+const nivelUsuario = computed(() => etiquetaNivel());
 
 // Marca activo también las rutas hijas (ej. /pases/123)
 const isActive = (name) => route.matched.some((record) => record.name === name);
@@ -78,5 +95,15 @@ const isActive = (name) => route.matched.some((record) => record.name === name);
         {{ item.name }}
       </RouterLink>
     </nav>
+
+    <!-- Usuario y rol leídos del JWT -->
+    <div class="border-t border-white/10 px-4 py-3">
+      <p class="truncate text-sm font-semibold text-white">
+        {{ nombreUsuario }}
+      </p>
+      <p class="mt-0.5 text-xs text-[#91a5c9]">
+        {{ rolUsuario }}<template v-if="nivelUsuario"> · {{ nivelUsuario }}</template>
+      </p>
+    </div>
   </aside>
 </template>
