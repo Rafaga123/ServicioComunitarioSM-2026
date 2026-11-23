@@ -112,6 +112,7 @@ def _reporte_dto(reporte: Reportes) -> PeticionReporte:
     nivel_gravedad=reporte.nivel_gravedad,
     categoria=reporte.categoria,
     fecha=reporte.fecha,
+    archivo_url=reporte.archivo_url,
     estudiante=nombre_completo(estudiante),
     cedula_estudiantil=estudiante.cedula_estudiantil,
     nivel=grado.nivel,
@@ -199,6 +200,7 @@ def registrar_reporte(
     nivel_gravedad=reporte_in.nivel_gravedad,
     categoria=reporte_in.categoria,
     fecha=reporte_in.fecha,
+    archivo_url=reporte_in.archivo_url,
   )
 
   session.add(nuevo_reporte)
@@ -233,7 +235,7 @@ def actualizar_reporte(
   datos_actualizar = {
     campo: valor
     for campo, valor in datos_actualizar.items()
-    if valor is not None or campo == "id_docente"
+    if valor is not None or campo in {"id_docente", "archivo_url"}
   }
 
   if not datos_actualizar:

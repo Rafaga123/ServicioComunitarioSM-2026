@@ -240,6 +240,9 @@ class Reportes(EsquemaBase, table=True):
 
   fecha: NaiveDatetime
 
+  # Adjunto opcional del reporte (URL). No se suben archivos todavía.
+  archivo_url: str | None = Field(default=None)
+
   estudiante: Estudiantes = Relationship(back_populates="reportes")
   usuario: Usuarios = Relationship(back_populates="reportes")
   docente: Docentes | None = Relationship()
@@ -262,6 +265,9 @@ class Pases(EsquemaBase, table=True):
 
   # Obligatorio solo desde el cuarto pase activo del mes por tipo.
   autorizador: str | None = Field(default=None)
+
+  # Adjunto opcional del pase (URL). No se suben archivos todavía.
+  archivo_url: str | None = Field(default=None)
 
   estudiante: Estudiantes = Relationship(back_populates="pases")
   usuario: Usuarios = Relationship(back_populates="pases")

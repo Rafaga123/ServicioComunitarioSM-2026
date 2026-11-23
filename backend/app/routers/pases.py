@@ -192,6 +192,7 @@ def _pase_dto(pase: Pases) -> PeticionPase:
     motivo=pase.motivo,
     fecha=pase.fecha,
     autorizador=pase.autorizador,
+    archivo_url=pase.archivo_url,
     estudiante=nombre_completo(estudiante),
     cedula_estudiantil=estudiante.cedula_estudiantil,
     nivel=grado.nivel,
@@ -281,6 +282,7 @@ def registrar_pase(
     motivo=pase_in.motivo,
     fecha=pase_in.fecha,
     autorizador=autorizador,
+    archivo_url=pase_in.archivo_url,
   )
 
   session.add(nuevo_pase)
@@ -315,7 +317,7 @@ def actualizar_pase(
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(estudiante))
 
   datos_actualizar = pase_in.model_dump(exclude_unset=True)
-  campos_opcionales = {"id_docente", "id_asignatura", "autorizador"}
+  campos_opcionales = {"id_docente", "id_asignatura", "autorizador", "archivo_url"}
   datos_actualizar = {
     campo: valor
     for campo, valor in datos_actualizar.items()

@@ -379,6 +379,7 @@ class CrearPase(SQLModel):
   motivo: str = Field(min_length=1)
   fecha: datetime
   autorizador: str | None = None
+  archivo_url: str | None = None
 
   @field_validator("fecha")
   @classmethod
@@ -393,6 +394,7 @@ class ActualizacionPase(SQLModel):
   motivo: str | None = Field(default=None, min_length=1)
   fecha: datetime | None = None
   autorizador: str | None = None
+  archivo_url: str | None = None
 
   @field_validator("fecha")
   @classmethod
@@ -410,6 +412,7 @@ class PeticionPase(SQLModel):
   motivo: str
   fecha: datetime
   autorizador: str | None = None
+  archivo_url: str | None = None
 
   # Datos de apoyo para listados y filtros por nivel.
   estudiante: str | None = None
@@ -434,6 +437,7 @@ class CrearReporte(SQLModel):
   nivel_gravedad: en.NivelGravedad = en.NivelGravedad.leve
   categoria: en.CategoriaReportes
   fecha: datetime
+  archivo_url: str | None = None
 
   @field_validator("fecha")
   @classmethod
@@ -451,6 +455,7 @@ class ActualizarReporte(SQLModel):
   nivel_gravedad: en.NivelGravedad | None = None
   categoria: en.CategoriaReportes | None = None
   fecha: datetime | None = None
+  archivo_url: str | None = None
 
   @field_validator("fecha")
   @classmethod
@@ -471,6 +476,7 @@ class PeticionReporte(SQLModel):
   nivel_gravedad: en.NivelGravedad
   categoria: en.CategoriaReportes
   fecha: datetime
+  archivo_url: str | None = None
 
   # Datos de apoyo para listados y filtros por nivel.
   estudiante: str | None = None
