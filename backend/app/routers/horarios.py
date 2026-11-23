@@ -144,6 +144,11 @@ def _validar_horario(
       status_code=status.HTTP_400_BAD_REQUEST,
       detail="La asignatura no pertenece al grado de la sección",
     )
+  if asignatura.periodo_lectivo != periodo_lectivo:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="La asignatura no pertenece al periodo lectivo de la sección",
+    )
 
   docente = _obtener_activo(session, Docentes, id_docente, "Docente no encontrado")
   if docente.nivel != NivelEducativo.liceo:

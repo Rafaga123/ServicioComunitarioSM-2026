@@ -253,16 +253,20 @@ class PeticionEstudiante(SQLModel):
 class CrearAsignatura(SQLModel):
   id_grado: int
   nombre: str = Field(min_length=1)
+  periodo_lectivo: int = Field(ge=2000)
 
 
 class ActualizarAsignatura(SQLModel):
   id_grado: int | None = None
   nombre: str | None = Field(default=None, min_length=1)
+  # El periodo lectivo se asigna en el registro; el cliente no puede cambiarlo.
+  periodo_lectivo: int | None = None
 
 
 class PeticionAsignatura(SQLModel):
   id: int
   id_grado: int
+  periodo_lectivo: int
   nombre: str
 
   grado_numero: int | None = None

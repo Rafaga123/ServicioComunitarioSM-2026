@@ -114,9 +114,10 @@ class Asignaturas(EsquemaBase, table=True):
   __tablename__ = "asignaturas"
   __table_args__ = (
     Index(
-      "uq_asignaturas_grado_nombre_activo",
+      "uq_asignaturas_grado_nombre_periodo_activo",
       "id_grado",
       "nombre",
+      "periodo_lectivo",
       unique=True,
       postgresql_where=text("fecha_eliminacion IS NULL"),
     ),
@@ -124,6 +125,10 @@ class Asignaturas(EsquemaBase, table=True):
 
   id: int | None = Field(default=None, primary_key=True)
   id_grado: int = Field(foreign_key="grados.id")
+
+  # Año lectivo al que pertenece la asignatura. Evita mezclar asignaturas
+  # de distintos períodos lectivos dentro del mismo grado.
+  periodo_lectivo: int = Field(index=True)
 
   nombre: str
   grado: Grados = Relationship(back_populates="asignaturas")

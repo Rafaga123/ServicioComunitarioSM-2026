@@ -14,6 +14,7 @@ from app.models.db import (
   Docentes,
   Grados,
   Horarios,
+  PeriodosLectivos,
   Usuarios,
 )
 from app.models.enums import (
@@ -110,12 +111,33 @@ def _validar_grado_liceo(session: Session, id_grado: int) -> Grados:
   return grado
 
 
+def _validar_periodo(session: Session, periodo_lectivo: int) -> PeriodosLectivos:
+  periodo = session.exec(
+    select(PeriodosLectivos).where(
+      PeriodosLectivos.anio == periodo_lectivo,
+      PeriodosLectivos.fecha_eliminacion.is_(None),
+    )
+  ).first()
+  if not periodo or periodo.cerrado:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="El periodo lectivo no existe o está cerrado",
+    )
+
+  return periodo
+
+
 def _validar_duplicado_asignatura(
-  session: Session, id_grado: int, nombre: str, excluir_id: int | None = None
+  session: Session,
+  id_grado: int,
+  nombre: str,
+  periodo_lectivo: int,
+  excluir_id: int | None = None,
 ) -> None:
   statement = select(Asignaturas).where(
     Asignaturas.id_grado == id_grado,
     Asignaturas.nombre == nombre,
+    Asignaturas.periodo_lectivo == periodo_lectivo,
     Asignaturas.fecha_eliminacion.is_(None),
   )
   if excluir_id is not None:
@@ -132,6 +154,7 @@ def _asignatura_dto(asignatura: Asignaturas, session: Session) -> PeticionAsigna
   return PeticionAsignatura(
     id=asignatura.id,
     id_grado=asignatura.id_grado,
+    periodo_lectivo=asignatura.periodo_lectivo,
     nombre=asignatura.nombre,
     grado_numero=grado.numero if grado else None,
     grado_nombre=grado.nombre if grado else None,
@@ -145,6 +168,7 @@ def listar_asignaturas(
   paginacion: Paginacion = Depends(),
   nivel: NivelEducativo | None = None,
   id_grado: int | None = None,
+  periodo_lectivo: int | None = None,
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
@@ -156,6 +180,8 @@ def listar_asignaturas(
     consulta = consulta.where(Grados.nivel == nivel)
   if id_grado is not None:
     consulta = consulta.where(Asignaturas.id_grado == id_grado)
+  if periodo_lectivo is not None:
+    consulta = consulta.where(Asignaturas.periodo_lectivo == periodo_lectivo)
 
   items, total = paginar(session, consulta, paginacion)
 
@@ -184,10 +210,15 @@ def registrar_asignatura(
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
   grado = _validar_grado_liceo(session, asignatura_in.id_grado)
-  _validar_duplicado_asignatura(session, asignatura_in.id_grado, asignatura_in.nombre)
+  periodo = _validar_periodo(session, asignatura_in.periodo_lectivo)
+  _validar_duplicado_asignatura(
+    session, asignatura_in.id_grado, asignatura_in.nombre, periodo.anio
+  )
 
   nueva_asignatura = Asignaturas(
-    id_grado=asignatura_in.id_grado, nombre=asignatura_in.nombre
+    id_grado=asignatura_in.id_grado,
+    nombre=asignatura_in.nombre,
+    periodo_lectivo=periodo.anio,
   )
 
   session.add(nueva_asignatura)
@@ -217,6 +248,15 @@ def actualizar_asignatura(
   asignatura_db = _obtener_asignatura_activa(session, asignatura_id)
   datos_actualizar = asignatura_in.model_dump(exclude_unset=True, exclude_none=True)
 
+  if "periodo_lectivo" in datos_actualizar:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail=(
+        "El periodo lectivo de una asignatura no puede cambiar después del"
+        " registro; se crea una asignatura nueva en el nuevo periodo."
+      ),
+    )
+
   if not datos_actualizar:
     return _asignatura_dto(asignatura_db, session)
 
@@ -227,6 +267,7 @@ def actualizar_asignatura(
       session,
       nuevo_grado_id,
       datos_actualizar.get("nombre", asignatura_db.nombre),
+      periodo_lectivo=asignatura_db.periodo_lectivo,
       excluir_id=asignatura_id,
     )
     if session.exec(
@@ -247,6 +288,7 @@ def actualizar_asignatura(
       session,
       asignatura_db.id_grado,
       datos_actualizar["nombre"],
+      periodo_lectivo=asignatura_db.periodo_lectivo,
       excluir_id=asignatura_id,
     )
 
@@ -352,9 +394,7 @@ def vincular_docente(
       detail="El docente ya está vinculado a esta asignatura",
     )
 
-  session.add(
-    AsignaturasDocentes(id_asignatura=asignatura.id, id_docente=docente.id)
-  )
+  session.add(AsignaturasDocentes(id_asignatura=asignatura.id, id_docente=docente.id))
   session.flush()
 
   registrar_auditoria(
