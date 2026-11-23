@@ -13,6 +13,11 @@ DB_NAME = os.getenv("POSTGRES_DB")
 DB_HOST = os.getenv("POSTGRES_HOST", "127.0.0.1")
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
+# Nombre de la institución que encabeza los PDFs de listados.
+INSTITUCION_NOMBRE = os.getenv(
+  "INSTITUCION_NOMBRE", "UNIDAD EDUCATIVA PRIVADA SANTA MARTA"
+)
+
 # Directorio raíz del almacenamiento físico de archivos adjuntos de pases y reportes.
 STORAGE_ROOT = os.getenv("STORAGE_ROOT", r"C:\sistema")
 

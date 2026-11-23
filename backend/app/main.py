@@ -18,6 +18,7 @@ from app.routers import (
   gestion,
   grados,
   horarios,
+  listados,
   pases,
   reportes,
   representantes,
@@ -59,6 +60,7 @@ api_router.include_router(secciones.router)
 api_router.include_router(bloques_horarios.router)
 api_router.include_router(pases.router)
 api_router.include_router(reportes.router)
+api_router.include_router(listados.router)
 api_router.include_router(gestion.router)
 
 app.include_router(api_router)

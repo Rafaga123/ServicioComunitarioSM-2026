@@ -115,6 +115,18 @@ def validar_upload(archivo: UploadFile) -> tuple[str, str, str, bytes]:
   return _sanitizar_nombre(nombre), extension.lstrip("."), mime, contenido
 
 
+def nombre_unico(ruta_relativa: str, nombre_archivo: str) -> str:
+  """Añade sufijo `_v{n}` si el archivo ya existe; lo devuelve igual si no."""
+  destino = ruta_absoluta(ruta_relativa)
+  if not destino.exists():
+    return nombre_archivo
+  stem, sufijo = os.path.splitext(nombre_archivo)
+  i = 2
+  while (destino.parent / f"{stem}_v{i}{sufijo}").exists():
+    i += 1
+  return f"{stem}_v{i}{sufijo}"
+
+
 def guardar_archivo(ruta_relativa: str, contenido: bytes) -> None:
   destino = ruta_absoluta(ruta_relativa)
   destino.parent.mkdir(parents=True, exist_ok=True)

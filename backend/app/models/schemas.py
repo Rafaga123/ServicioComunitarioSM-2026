@@ -555,6 +555,43 @@ class PeticionReporte(SQLModel):
 
 
 # ====
+# Esquemas para Listados (PDFs generados por tipo)
+# ====
+class SolicitudListado(SQLModel):
+  """Filtros para generar un listado PDF.
+
+  Una sección define grado/periodo; sin sección, se genera "general" por
+  nivel. `id_grado` solo admite grados de liceo (horarios).
+  """
+
+  periodo_lectivo: int | None = None
+  nivel: en.NivelEducativo | None = None
+  id_grado: int | None = None
+  id_seccion: int | None = None
+
+
+class PeticionDocumentoGenerado(SQLModel):
+  id: int | None = None
+  tipo: en.TipoDocumento
+  periodo_lectivo: int | None = None
+  nivel: en.NivelEducativo | None = None
+  id_grado: int | None = None
+  id_seccion: int | None = None
+
+  nombre_archivo: str
+  ruta_relativa: str
+  hash: str
+  tamano: int
+  mime: str
+  fecha_generacion: datetime
+  generado_por: int | None = None
+
+  # Datos de apoyo para filtros y desplegables
+  grado_numero: int | None = None
+  grado_nombre: str | None = None
+
+
+# ====
 # Esquema para el resumen de gestión académica
 # ====
 class PeticionResumenGestion(SQLModel):

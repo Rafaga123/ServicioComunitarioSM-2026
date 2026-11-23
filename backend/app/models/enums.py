@@ -40,6 +40,14 @@ class ModuloAuditoria(str, Enum):
   reportes = "REPORTES"
   auditorias = "AUDITORIAS"
   periodos_lectivos = "PERIODOS_LECTIVOS"
+  documentos = "DOCUMENTOS"
+
+
+# Tipos de documentos generados como PDFs de listados institucionales
+class TipoDocumento(str, Enum):
+  nominas = "nominas"
+  representantes = "representantes"
+  horarios = "horarios"
 
 
 # Enum para los tipos de reglamento

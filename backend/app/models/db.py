@@ -382,3 +382,25 @@ class Auditorias(EsquemaBase, table=True):
   descripcion: str
 
   usuario: Usuarios = Relationship(back_populates="auditorias")
+
+
+# Tabla de Documentos generados como PDFs de listados institucionales.
+class DocumentosGenerados(EsquemaBase, table=True):
+  __tablename__ = "documentos_generados"
+  id: int | None = Field(default=None, primary_key=True)
+  tipo: en.TipoDocumento
+  periodo_lectivo: int | None = Field(default=None, index=True)
+  nivel: en.NivelEducativo | None = Field(default=None)
+  id_grado: int | None = Field(default=None, foreign_key="grados.id")
+  id_seccion: int | None = Field(default=None, foreign_key="secciones.id")
+  nombre_archivo: str
+  ruta_relativa: str
+  hash: str
+  tamano: int
+  mime: str
+  fecha_generacion: NaiveDatetime
+  generado_por: int | None = Field(default=None, foreign_key="usuarios.id")
+
+  grado: Grados | None = Relationship()
+  seccion: Secciones | None = Relationship()
+  usuario: Usuarios | None = Relationship()
