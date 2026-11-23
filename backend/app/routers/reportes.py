@@ -390,6 +390,19 @@ def descargar_reporte_archivo(
 
   ruta = _ruta_archivo_segura(reporte.archivo_url)
 
+  registrar_auditoria(
+    session,
+    usuario_actual.id,
+    ModuloAuditoria.reportes,
+    "DESCARGAR_ARCHIVO",
+    (
+      f"Descargó el adjunto '{reporte.archivo_nombre}' "
+      f"del reporte #{reporte.id} de '{nombre_completo(reporte.estudiante)}'."
+    ),
+  )
+  session.flush()
+  session.commit()
+
   return FileResponse(
     path=str(ruta),
     media_type=reporte.archivo_mime or "application/octet-stream",

@@ -15,7 +15,7 @@ from app.models.db import (
   Secciones,
   Usuarios,
 )
-from app.models.enums import NivelEducativo, RolesUsuario
+from app.models.enums import ModuloAuditoria, NivelEducativo, RolesUsuario
 from app.models.schemas import (
   ActualizarPeriodoLectivo,
   CrearPeriodoLectivo,
@@ -23,6 +23,7 @@ from app.models.schemas import (
   PeticionResumenGestion,
 )
 from app.models.session import get_session
+from app.utils.auditoria import registrar_auditoria
 from app.utils.security import (
   obtener_usuario_actual,
   requerir_roles,
@@ -247,6 +248,14 @@ def crear_periodo(
     for otro in otros:
       otro.activo = False
 
+  registrar_auditoria(
+    session,
+    usuario_actual.id,
+    ModuloAuditoria.periodos_lectivos,
+    "CREAR",
+    f"Se creó el periodo lectivo {periodo_in.anio}.",
+  )
+
   session.commit()
   session.refresh(periodo)
   return _to_periodo(periodo)
@@ -280,6 +289,15 @@ def actualizar_periodo(
 
   for campo, valor in datos.items():
     setattr(periodo, campo, valor)
+
+  registrar_auditoria(
+    session,
+    usuario_actual.id,
+    ModuloAuditoria.periodos_lectivos,
+    "ACTUALIZAR",
+    f"Se actualizó el periodo lectivo {periodo.anio} "
+    f"(activo={periodo.activo}, cerrado={periodo.cerrado}).",
+  )
 
   session.add(periodo)
   session.flush()

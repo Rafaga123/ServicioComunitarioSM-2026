@@ -492,6 +492,19 @@ def descargar_pase_archivo(
 
   ruta = _ruta_archivo_segura(pase.archivo_url)
 
+  registrar_auditoria(
+    session,
+    usuario_actual.id,
+    ModuloAuditoria.pases,
+    "DESCARGAR_ARCHIVO",
+    (
+      f"Descargó el adjunto '{pase.archivo_nombre}' "
+      f"del pase #{pase.id} de '{nombre_completo(pase.estudiante)}'."
+    ),
+  )
+  session.flush()
+  session.commit()
+
   return FileResponse(
     path=str(ruta),
     media_type=pase.archivo_mime or "application/octet-stream",

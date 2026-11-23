@@ -39,6 +39,7 @@ class ModuloAuditoria(str, Enum):
   pases = "PASES"
   reportes = "REPORTES"
   auditorias = "AUDITORIAS"
+  periodos_lectivos = "PERIODOS_LECTIVOS"
 
 
 # Enum para los tipos de reglamento
