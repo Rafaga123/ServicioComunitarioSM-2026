@@ -63,8 +63,6 @@ app.add_middleware(
   allow_headers=["*"],
 )
 
-# fastapi dev app/main.py --host 0.0.0.0 --port 8000
-
 
 @app.get("/")
 def get_root():
