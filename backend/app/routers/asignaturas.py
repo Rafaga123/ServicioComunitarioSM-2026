@@ -127,6 +127,22 @@ def _validar_periodo(session: Session, periodo_lectivo: int) -> PeriodosLectivos
   return periodo
 
 
+def _obtener_periodo_activo(session: Session) -> PeriodosLectivos:
+  periodo = session.exec(
+    select(PeriodosLectivos).where(
+      PeriodosLectivos.activo,
+      PeriodosLectivos.fecha_eliminacion.is_(None),
+    )
+  ).first()
+  if not periodo:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="No hay periodo lectivo activo; selecciona uno explícitamente.",
+    )
+
+  return periodo
+
+
 def _validar_duplicado_asignatura(
   session: Session,
   id_grado: int,
@@ -210,7 +226,10 @@ def registrar_asignatura(
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
   grado = _validar_grado_liceo(session, asignatura_in.id_grado)
-  periodo = _validar_periodo(session, asignatura_in.periodo_lectivo)
+  if asignatura_in.periodo_lectivo is not None:
+    periodo = _validar_periodo(session, asignatura_in.periodo_lectivo)
+  else:
+    periodo = _obtener_periodo_activo(session)
   _validar_duplicado_asignatura(
     session, asignatura_in.id_grado, asignatura_in.nombre, periodo.anio
   )

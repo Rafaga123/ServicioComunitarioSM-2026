@@ -253,7 +253,8 @@ class PeticionEstudiante(SQLModel):
 class CrearAsignatura(SQLModel):
   id_grado: int
   nombre: str = Field(min_length=1)
-  periodo_lectivo: int = Field(ge=2000)
+  # Opcional: si no se envía, se usa el periodo lectivo activo.
+  periodo_lectivo: int | None = Field(default=None, ge=2000)
 
 
 class ActualizarAsignatura(SQLModel):
