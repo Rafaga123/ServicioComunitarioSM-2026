@@ -109,6 +109,21 @@ def nivel_efectivo(usuario: Usuarios) -> NivelEducativo | None:
   return usuario.nivel
 
 
+# Resuelve el nivel para filtrar consultas.
+# El administrador puede pedir cualquier nivel o ninguno; los operadores
+# quedan restringidos a su propio nivel aunque pidan otro por query string.
+def resolver_nivel(
+  usuario: Usuarios, nivel_solicitado: NivelEducativo | None
+) -> NivelEducativo | None:
+  if usuario.rol == RolesUsuario.administrador:
+    return nivel_solicitado
+
+  if nivel_solicitado is not None:
+    validar_acceso_nivel(usuario, nivel_solicitado)
+
+  return usuario.nivel
+
+
 # Solo el administrador gestiona catálogos y operaciones estructurales
 def requerir_admin(
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
