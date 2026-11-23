@@ -1,11 +1,13 @@
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 # ruff: noqa: F401 # Evita el error por importación sin uso para el Litner Ruff
 from app.models import db
-from app.models.session import inicializar_base_datos
+from app.models.session import engine, inicializar_base_datos
 from app.routers import (
   asignaturas,
   auditorias,
@@ -13,11 +15,12 @@ from app.routers import (
   bloques_horarios,
   docentes,
   estudiantes,
+  gestion,
   grados,
   horarios,
   pases,
-  representantes,
   reportes,
+  representantes,
   secciones,
   usuarios,
 )
@@ -56,13 +59,16 @@ api_router.include_router(secciones.router)
 api_router.include_router(bloques_horarios.router)
 api_router.include_router(pases.router)
 api_router.include_router(reportes.router)
+api_router.include_router(gestion.router)
 
 app.include_router(api_router)
 
 app.add_middleware(
   CORSMiddleware,
   allow_origins=["*"],
-  allow_credentials=True,
+  # El auth viaja como Bearer en el header, no en cookies. Con el
+  # frontend servido desde el mismo backend tampoco hay cross-origin.
+  allow_credentials=False,
   allow_methods=["*"],
   allow_headers=["*"],
 )
@@ -71,3 +77,17 @@ app.add_middleware(
 @app.get("/")
 def get_root():
   return {"status": "Ok"}
+
+
+@app.get("/health", tags=["Salud"])
+def health_check():
+  try:
+    with engine.connect() as conexion:
+      conexion.execute(text("SELECT 1"))
+  except SQLAlchemyError:
+    raise HTTPException(
+      status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+      detail="Base de datos no disponible",
+    )
+
+  return {"status": "ok", "database": "ok"}

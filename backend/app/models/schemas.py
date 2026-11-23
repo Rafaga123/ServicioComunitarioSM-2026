@@ -481,6 +481,21 @@ class PeticionReporte(SQLModel):
 
 
 # ====
+# Esquema para el resumen de gestión académica
+# ====
+class PeticionResumenGestion(SQLModel):
+  nivel: en.NivelEducativo | None = None
+  representantes: int
+  estudiantes: int
+  secciones: int
+  docentes: int
+  asignaturas: int
+  horarios: int
+  pases: int
+  reportes: int
+
+
+# ====
 # Esquema para Auditoría
 # ====
 class PeticionAuditoria(SQLModel):
