@@ -562,11 +562,6 @@ class SolicitudCierreAnio(SQLModel):
   periodo_siguiente: int = Field(ge=2000)
 
 
-class SolicitudCierreAnio(SQLModel):
-  periodo_actual: int = Field(ge=2000)
-  periodo_siguiente: int = Field(ge=2000)
-
-
 class PeticionCierreAnio(SQLModel):
   periodo_cerrado: int
   periodo_activado: int
