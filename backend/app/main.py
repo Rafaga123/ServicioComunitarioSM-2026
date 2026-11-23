@@ -10,11 +10,13 @@ from app.routers import (
   asignaturas,
   auditorias,
   auth,
+  bloques_horarios,
   docentes,
   estudiantes,
   grados,
   horarios,
   representantes,
+  secciones,
   usuarios,
 )
 from app.utils.ip import obtener_ip_local
@@ -48,6 +50,8 @@ api_router.include_router(docentes.router)
 api_router.include_router(asignaturas.router)
 api_router.include_router(horarios.router)
 api_router.include_router(usuarios.router)
+api_router.include_router(secciones.router)
+api_router.include_router(bloques_horarios.router)
 
 app.include_router(api_router)
 
