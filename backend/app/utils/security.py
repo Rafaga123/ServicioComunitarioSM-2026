@@ -118,6 +118,12 @@ def resolver_nivel(
   if usuario.rol == RolesUsuario.administrador:
     return nivel_solicitado
 
+  if usuario.nivel is None:
+    raise HTTPException(
+      status_code=status.HTTP_403_FORBIDDEN,
+      detail="La cuenta no tiene un nivel educativo asignado",
+    )
+
   if nivel_solicitado is not None:
     validar_acceso_nivel(usuario, nivel_solicitado)
 
