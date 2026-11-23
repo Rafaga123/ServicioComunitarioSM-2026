@@ -8,8 +8,19 @@ from app.core.paginacion import (
   filtro_activos,
   paginar,
 )
-from app.models.db import Asignaturas, Docentes, Usuarios
-from app.models.enums import ModuloAuditoria, RolesUsuario
+from app.models.db import (
+  Asignaturas,
+  AsignaturasDocentes,
+  Docentes,
+  Grados,
+  Horarios,
+  Usuarios,
+)
+from app.models.enums import (
+  ModuloAuditoria,
+  NivelEducativo,
+  RolesUsuario,
+)
 from app.models.schemas import (
   ActualizarAsignatura,
   CrearAsignatura,
@@ -19,7 +30,12 @@ from app.models.schemas import (
 from app.models.session import get_session
 from app.utils.auditoria import registrar_auditoria
 from app.utils.nombres import nombre_completo
-from app.utils.security import obtener_usuario_actual, requerir_roles
+from app.utils.security import (
+  obtener_usuario_actual,
+  requerir_roles,
+  resolver_nivel,
+  validar_acceso_nivel,
+)
 from app.utils.soft_delete import marcar_eliminado
 
 router = APIRouter(prefix="/asignaturas", tags=["Asignaturas"])
@@ -49,17 +65,103 @@ def _obtener_docente_activo(session: Session, docente_id: int) -> Docentes:
   return docente
 
 
+def _dto_docente(docente: Docentes) -> PeticionDocente:
+  return PeticionDocente(
+    id=docente.id,
+    primer_nombre=docente.primer_nombre,
+    segundo_nombre=docente.segundo_nombre,
+    primer_apellido=docente.primer_apellido,
+    segundo_apellido=docente.segundo_apellido,
+    cedula=docente.cedula,
+    nivel=docente.nivel,
+  )
+
+
+def _obtener_docentes_vinculados(
+  session: Session, asignatura_id: int
+) -> list[PeticionDocente]:
+  consulta = (
+    select(Docentes)
+    .join(AsignaturasDocentes, Docentes.id == AsignaturasDocentes.id_docente)
+    .where(
+      AsignaturasDocentes.id_asignatura == asignatura_id,
+      AsignaturasDocentes.fecha_eliminacion.is_(None),
+      Docentes.fecha_eliminacion.is_(None),
+    )
+    .order_by(Docentes.id)
+  )
+  return [_dto_docente(d) for d in session.exec(consulta).all()]
+
+
+def _validar_grado_liceo(session: Session, id_grado: int) -> Grados:
+  grado = session.get(Grados, id_grado)
+
+  if not grado or grado.fecha_eliminacion is not None:
+    raise HTTPException(
+      status_code=status.HTTP_404_NOT_FOUND, detail="Grado no encontrado"
+    )
+
+  if grado.nivel != NivelEducativo.liceo:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="Las asignaturas solo pueden vincular grados de liceo",
+    )
+
+  return grado
+
+
+def _validar_duplicado_asignatura(
+  session: Session, id_grado: int, nombre: str, excluir_id: int | None = None
+) -> None:
+  statement = select(Asignaturas).where(
+    Asignaturas.id_grado == id_grado,
+    Asignaturas.nombre == nombre,
+    Asignaturas.fecha_eliminacion.is_(None),
+  )
+  if excluir_id is not None:
+    statement = statement.where(Asignaturas.id != excluir_id)
+  if session.exec(statement).first():
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="Ya existe una asignatura activa en este grado con ese nombre",
+    )
+
+
+def _asignatura_dto(asignatura: Asignaturas, session: Session) -> PeticionAsignatura:
+  grado = asignatura.grado
+  return PeticionAsignatura(
+    id=asignatura.id,
+    id_grado=asignatura.id_grado,
+    nombre=asignatura.nombre,
+    grado_numero=grado.numero if grado else None,
+    grado_nombre=grado.nombre if grado else None,
+    nivel=grado.nivel if grado else None,
+    docentes=_obtener_docentes_vinculados(session, asignatura.id),
+  )
+
+
 @router.get("/", response_model=RespuestaPaginada[PeticionAsignatura])
 def listar_asignaturas(
   paginacion: Paginacion = Depends(),
+  nivel: NivelEducativo | None = None,
+  id_grado: int | None = None,
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
   consulta = filtro_activos(select(Asignaturas), Asignaturas)
+  consulta = consulta.join(Grados, Asignaturas.id_grado == Grados.id)
+
+  nivel = resolver_nivel(usuario_actual, nivel)
+  if nivel is not None:
+    consulta = consulta.where(Grados.nivel == nivel)
+  if id_grado is not None:
+    consulta = consulta.where(Asignaturas.id_grado == id_grado)
 
   items, total = paginar(session, consulta, paginacion)
 
-  return construir_pagina(items, total, paginacion)
+  return construir_pagina(
+    [_asignatura_dto(a, session) for a in items], total, paginacion
+  )
 
 
 @router.get("/{asignatura_id}", response_model=PeticionAsignatura)
@@ -68,7 +170,9 @@ def obtener_asignatura(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
-  return _obtener_asignatura_activa(session, asignatura_id)
+  asignatura = _obtener_asignatura_activa(session, asignatura_id)
+  validar_acceso_nivel(usuario_actual, asignatura.grado.nivel)
+  return _asignatura_dto(asignatura, session)
 
 
 @router.post(
@@ -79,15 +183,12 @@ def registrar_asignatura(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
-  statement = select(Asignaturas).where(Asignaturas.nombre == asignatura_in.nombre)
+  grado = _validar_grado_liceo(session, asignatura_in.id_grado)
+  _validar_duplicado_asignatura(session, asignatura_in.id_grado, asignatura_in.nombre)
 
-  if session.exec(statement).first():
-    raise HTTPException(
-      status_code=status.HTTP_400_BAD_REQUEST,
-      detail="Ya existe una asignatura con ese nombre",
-    )
-
-  nueva_asignatura = Asignaturas(nombre=asignatura_in.nombre)
+  nueva_asignatura = Asignaturas(
+    id_grado=asignatura_in.id_grado, nombre=asignatura_in.nombre
+  )
 
   session.add(nueva_asignatura)
   session.flush()
@@ -97,13 +198,13 @@ def registrar_asignatura(
     usuario_actual.id,
     ModuloAuditoria.asignaturas,
     "CREAR",
-    f"Se registró la asignatura '{nueva_asignatura.nombre}'.",
+    f"Se registró la asignatura '{nueva_asignatura.nombre}' en {grado.nombre}.",
   )
 
   session.commit()
   session.refresh(nueva_asignatura)
 
-  return nueva_asignatura
+  return _asignatura_dto(nueva_asignatura, session)
 
 
 @router.put("/{asignatura_id}", response_model=PeticionAsignatura)
@@ -117,32 +218,39 @@ def actualizar_asignatura(
   datos_actualizar = asignatura_in.model_dump(exclude_unset=True, exclude_none=True)
 
   if not datos_actualizar:
-    return asignatura_db
+    return _asignatura_dto(asignatura_db, session)
+
+  nuevo_grado_id = datos_actualizar.get("id_grado", asignatura_db.id_grado)
+  if "id_grado" in datos_actualizar and nuevo_grado_id != asignatura_db.id_grado:
+    _validar_grado_liceo(session, nuevo_grado_id)
+    _validar_duplicado_asignatura(
+      session,
+      nuevo_grado_id,
+      datos_actualizar.get("nombre", asignatura_db.nombre),
+      excluir_id=asignatura_id,
+    )
+    if session.exec(
+      select(Horarios).where(
+        Horarios.id_asignatura == asignatura_id,
+        Horarios.fecha_eliminacion.is_(None),
+      )
+    ).first():
+      raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="La asignatura tiene horarios activos",
+      )
 
   if (
     "nombre" in datos_actualizar and datos_actualizar["nombre"] != asignatura_db.nombre
   ):
-    statement = select(Asignaturas).where(
-      Asignaturas.nombre == datos_actualizar["nombre"],
-      Asignaturas.id != asignatura_id,
+    _validar_duplicado_asignatura(
+      session,
+      asignatura_db.id_grado,
+      datos_actualizar["nombre"],
+      excluir_id=asignatura_id,
     )
 
-    if session.exec(statement).first():
-      raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail="La nueva asignatura ya está registrada con otro nombre",
-      )
-
-  cambios = {
-    campo: valor
-    for campo, valor in datos_actualizar.items()
-    if getattr(asignatura_db, campo) != valor
-  }
-
-  if not cambios:
-    return asignatura_db
-
-  for campo, valor in cambios.items():
+  for campo, valor in datos_actualizar.items():
     setattr(asignatura_db, campo, valor)
 
   session.add(asignatura_db)
@@ -159,7 +267,7 @@ def actualizar_asignatura(
   session.commit()
   session.refresh(asignatura_db)
 
-  return asignatura_db
+  return _asignatura_dto(asignatura_db, session)
 
 
 @router.delete("/{asignatura_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -169,6 +277,27 @@ def eliminar_asignatura(
   usuario_actual: Usuarios = Depends(requerir_admin),
 ) -> None:
   asignatura_db = _obtener_asignatura_activa(session, asignatura_id)
+
+  if session.exec(
+    select(Horarios).where(
+      Horarios.id_asignatura == asignatura_id,
+      Horarios.fecha_eliminacion.is_(None),
+    )
+  ).first():
+    raise HTTPException(
+      status_code=status.HTTP_409_CONFLICT,
+      detail="La asignatura tiene horarios activos",
+    )
+  if session.exec(
+    select(AsignaturasDocentes).where(
+      AsignaturasDocentes.id_asignatura == asignatura_id,
+      AsignaturasDocentes.fecha_eliminacion.is_(None),
+    )
+  ).first():
+    raise HTTPException(
+      status_code=status.HTTP_409_CONFLICT,
+      detail="La asignatura tiene vinculaciones activas con docentes",
+    )
 
   marcar_eliminado(session, asignatura_db)
   session.flush()
@@ -191,10 +320,8 @@ def listar_docentes_asignatura(
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
   asignatura = _obtener_asignatura_activa(session, asignatura_id)
-
-  return [
-    docente for docente in asignatura.docentes if docente.fecha_eliminacion is None
-  ]
+  validar_acceso_nivel(usuario_actual, asignatura.grado.nivel)
+  return _obtener_docentes_vinculados(session, asignatura_id)
 
 
 @router.post("/{asignatura_id}/docentes/{docente_id}")
@@ -207,16 +334,27 @@ def vincular_docente(
   asignatura = _obtener_asignatura_activa(session, asignatura_id)
   docente = _obtener_docente_activo(session, docente_id)
 
-  # La relación es muchos-a-muchos; evitamos duplicados antes de guardar.
-  if docente in asignatura.docentes:
+  if docente.nivel != NivelEducativo.liceo:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="Solo se pueden vincular docentes de liceo a asignaturas",
+    )
+
+  if session.exec(
+    select(AsignaturasDocentes).where(
+      AsignaturasDocentes.id_asignatura == asignatura.id,
+      AsignaturasDocentes.id_docente == docente.id,
+      AsignaturasDocentes.fecha_eliminacion.is_(None),
+    )
+  ).first():
     raise HTTPException(
       status_code=status.HTTP_400_BAD_REQUEST,
       detail="El docente ya está vinculado a esta asignatura",
     )
 
-  asignatura.docentes.append(docente)
-
-  session.add(asignatura)
+  session.add(
+    AsignaturasDocentes(id_asignatura=asignatura.id, id_docente=docente.id)
+  )
   session.flush()
 
   registrar_auditoria(
@@ -251,17 +389,22 @@ def desvincular_docente(
   usuario_actual: Usuarios = Depends(requerir_admin),
 ) -> None:
   asignatura = _obtener_asignatura_activa(session, asignatura_id)
-  docente = session.get(Docentes, docente_id)
+  docente = _obtener_docente_activo(session, docente_id)
+  link = session.exec(
+    select(AsignaturasDocentes).where(
+      AsignaturasDocentes.id_asignatura == asignatura_id,
+      AsignaturasDocentes.id_docente == docente_id,
+      AsignaturasDocentes.fecha_eliminacion.is_(None),
+    )
+  ).first()
 
-  if not docente or docente not in asignatura.docentes:
+  if not link:
     raise HTTPException(
       status_code=status.HTTP_404_NOT_FOUND,
       detail="El docente no está vinculado a esta asignatura",
     )
 
-  asignatura.docentes.remove(docente)
-
-  session.add(asignatura)
+  marcar_eliminado(session, link)
   session.flush()
 
   registrar_auditoria(
@@ -270,7 +413,7 @@ def desvincular_docente(
     ModuloAuditoria.asignaturas,
     "DESVINCULAR_DOCENTE",
     (
-      f"Se desvinculó al docente '{nombre_completo(docente)}' "
+      f"Se desvinculó el docente '{nombre_completo(docente)}' "
       f"de la asignatura '{asignatura.nombre}'."
     ),
   )
