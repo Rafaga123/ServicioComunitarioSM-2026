@@ -24,6 +24,18 @@ def _normalizar_fecha_caracas(fecha: datetime) -> datetime:
   return normalizar_fecha(fecha)
 
 
+def _validar_ruta_relativa(valor: str | None) -> str | None:
+  """Valida que archivo_url sea una ruta relativa segura dentro de STORAGE_ROOT."""
+  if valor is None:
+    return valor
+  valor = valor.replace("\\", "/").strip()
+  if not valor or valor.startswith("/"):
+    raise ValueError("La ruta debe ser relativa al directorio de almacenamiento")
+  if any(parte in ("", ".", "..") for parte in valor.split("/")):
+    raise ValueError("La ruta debe ser una ruta relativa segura")
+  return valor
+
+
 def validar_bloque_horario(
   tipo: en.TipoBloqueHorario,
   numero: int | None,
@@ -386,6 +398,11 @@ class CrearPase(SQLModel):
   autorizador: str | None = None
   archivo_url: str | None = None
 
+  @field_validator("archivo_url")
+  @classmethod
+  def validar_archivo_url(cls, valor: str | None) -> str | None:
+    return _validar_ruta_relativa(valor)
+
   @field_validator("fecha")
   @classmethod
   def normalizar_fecha(cls, valor: datetime) -> datetime:
@@ -400,6 +417,11 @@ class ActualizacionPase(SQLModel):
   fecha: datetime | None = None
   autorizador: str | None = None
   archivo_url: str | None = None
+
+  @field_validator("archivo_url")
+  @classmethod
+  def validar_archivo_url(cls, valor: str | None) -> str | None:
+    return _validar_ruta_relativa(valor)
 
   @field_validator("fecha")
   @classmethod
@@ -419,6 +441,12 @@ class PeticionPase(SQLModel):
   periodo_lectivo: int | None = None
   autorizador: str | None = None
   archivo_url: str | None = None
+  archivo_nombre: str | None = None
+  archivo_mime: str | None = None
+  archivo_tamano: int | None = None
+  archivo_hash: str | None = None
+  archivo_subido_por: int | None = None
+  archivo_fecha: datetime | None = None
 
   # Datos de apoyo para listados y filtros por nivel.
   estudiante: str | None = None
@@ -462,6 +490,11 @@ class CrearReporte(SQLModel):
   fecha: datetime
   archivo_url: str | None = None
 
+  @field_validator("archivo_url")
+  @classmethod
+  def validar_archivo_url(cls, valor: str | None) -> str | None:
+    return _validar_ruta_relativa(valor)
+
   @field_validator("fecha")
   @classmethod
   def normalizar_fecha(cls, valor: datetime) -> datetime:
@@ -479,6 +512,11 @@ class ActualizarReporte(SQLModel):
   categoria: en.CategoriaReportes | None = None
   fecha: datetime | None = None
   archivo_url: str | None = None
+
+  @field_validator("archivo_url")
+  @classmethod
+  def validar_archivo_url(cls, valor: str | None) -> str | None:
+    return _validar_ruta_relativa(valor)
 
   @field_validator("fecha")
   @classmethod
@@ -501,6 +539,12 @@ class PeticionReporte(SQLModel):
   fecha: datetime
   periodo_lectivo: int | None = None
   archivo_url: str | None = None
+  archivo_nombre: str | None = None
+  archivo_mime: str | None = None
+  archivo_tamano: int | None = None
+  archivo_hash: str | None = None
+  archivo_subido_por: int | None = None
+  archivo_fecha: datetime | None = None
 
   # Datos de apoyo para listados y filtros por nivel.
   estudiante: str | None = None

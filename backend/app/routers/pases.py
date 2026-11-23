@@ -1,6 +1,16 @@
 from datetime import datetime
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import (
+  APIRouter,
+  Depends,
+  File,
+  HTTPException,
+  Query,
+  UploadFile,
+  status,
+)
+from fastapi.responses import FileResponse
 from sqlalchemy import func
 from sqlmodel import Session, select
 
@@ -41,6 +51,15 @@ from app.utils.security import (
   validar_acceso_nivel,
 )
 from app.utils.soft_delete import marcar_eliminado
+from app.utils.storage import (
+  existe_archivo,
+  guardar_archivo,
+  quitar_meta_archivo,
+  registrar_meta_archivo,
+  ruta_absoluta,
+  ruta_relativa_imagen,
+  validar_upload,
+)
 
 router = APIRouter(prefix="/pases", tags=["Pases"])
 requerir_personal = requerir_roles(
@@ -194,6 +213,12 @@ def _pase_dto(pase: Pases) -> PeticionPase:
     periodo_lectivo=pase.periodo_lectivo,
     autorizador=pase.autorizador,
     archivo_url=pase.archivo_url,
+    archivo_nombre=pase.archivo_nombre,
+    archivo_mime=pase.archivo_mime,
+    archivo_tamano=pase.archivo_tamano,
+    archivo_hash=pase.archivo_hash,
+    archivo_subido_por=pase.archivo_subido_por,
+    archivo_fecha=pase.archivo_fecha,
     estudiante=nombre_completo(estudiante),
     cedula_estudiantil=estudiante.cedula_estudiantil,
     nivel=grado.nivel,
@@ -391,6 +416,110 @@ def eliminar_pase(
     ModuloAuditoria.pases,
     "ELIMINAR",
     f"Se dio de baja el pase #{pase_db.id} de '{nombre_completo(estudiante)}'.",
+  )
+
+  session.commit()
+
+
+def _ruta_archivo_segura(archivo_url: str | None) -> Path:
+  if not archivo_url or not existe_archivo(archivo_url):
+    raise HTTPException(
+      status_code=status.HTTP_409_CONFLICT,
+      detail="El archivo adjunto no está disponible localmente",
+    )
+  return ruta_absoluta(archivo_url)
+
+
+@router.post("/{pase_id}/archivo", response_model=PeticionPase)
+def subir_pase_archivo(
+  pase_id: int,
+  archivo: UploadFile = File(...),
+  session: Session = Depends(get_session),
+  usuario_actual: Usuarios = Depends(requerir_personal),
+):
+  pase = _obtener_pase_activo(session, pase_id)
+  estudiante = pase.estudiante
+  validar_acceso_nivel(usuario_actual, _nivel_estudiante(estudiante))
+
+  try:
+    nombre_base, extension, mime, contenido = validar_upload(archivo)
+  except ValueError as error:
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
+
+  seccion = estudiante.seccion
+  ruta_relativa = ruta_relativa_imagen(
+    pase.fecha,
+    seccion.grado.numero,
+    seccion.letra,
+    seccion.grado.nivel,
+    estudiante.id,
+    pase.id,
+    extension,
+  )
+  guardar_archivo(ruta_relativa, contenido)
+  registrar_meta_archivo(
+    pase, ruta_relativa, nombre_base, mime, contenido, usuario_actual.id
+  )
+
+  session.add(pase)
+  session.flush()
+
+  registrar_auditoria(
+    session,
+    usuario_actual.id,
+    ModuloAuditoria.pases,
+    "SUBIR_ARCHIVO",
+    (
+      f"Subió el adjunto '{nombre_base}' ({len(contenido)} bytes) "
+      f"del pase #{pase.id} de '{nombre_completo(estudiante)}'."
+    ),
+  )
+
+  session.commit()
+  session.refresh(pase)
+  return _pase_dto(pase)
+
+
+@router.get("/{pase_id}/archivo")
+def descargar_pase_archivo(
+  pase_id: int,
+  inline: bool = Query(default=False),
+  session: Session = Depends(get_session),
+  usuario_actual: Usuarios = Depends(requerir_personal),
+):
+  pase = _obtener_pase_activo(session, pase_id)
+  validar_acceso_nivel(usuario_actual, _nivel_estudiante(pase.estudiante))
+
+  ruta = _ruta_archivo_segura(pase.archivo_url)
+
+  return FileResponse(
+    path=str(ruta),
+    media_type=pase.archivo_mime or "application/octet-stream",
+    filename=pase.archivo_nombre or f"pase-{pase.id}",
+    content_disposition_type="inline" if inline else "attachment",
+  )
+
+
+@router.delete("/{pase_id}/archivo", status_code=status.HTTP_204_NO_CONTENT)
+def quitar_pase_archivo(
+  pase_id: int,
+  session: Session = Depends(get_session),
+  usuario_actual: Usuarios = Depends(requerir_personal),
+) -> None:
+  pase = _obtener_pase_activo(session, pase_id)
+  estudiante = pase.estudiante
+  validar_acceso_nivel(usuario_actual, _nivel_estudiante(estudiante))
+
+  quitar_meta_archivo(pase)
+  session.add(pase)
+  session.flush()
+
+  registrar_auditoria(
+    session,
+    usuario_actual.id,
+    ModuloAuditoria.pases,
+    "QUITAR_ARCHIVO",
+    f"Quitó el adjunto del pase #{pase.id} de '{nombre_completo(estudiante)}'.",
   )
 
   session.commit()

@@ -1,4 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pathlib import Path
+
+from fastapi import (
+  APIRouter,
+  Depends,
+  File,
+  HTTPException,
+  Query,
+  UploadFile,
+  status,
+)
+from fastapi.responses import FileResponse
 from sqlalchemy import func
 from sqlmodel import Session, select
 
@@ -38,6 +49,15 @@ from app.utils.security import (
   validar_acceso_nivel,
 )
 from app.utils.soft_delete import marcar_eliminado
+from app.utils.storage import (
+  existe_archivo,
+  guardar_archivo,
+  quitar_meta_archivo,
+  registrar_meta_archivo,
+  ruta_absoluta,
+  ruta_relativa_imagen,
+  validar_upload,
+)
 
 router = APIRouter(prefix="/reportes", tags=["Reportes"])
 requerir_personal = requerir_roles(
@@ -114,6 +134,12 @@ def _reporte_dto(reporte: Reportes) -> PeticionReporte:
     fecha=reporte.fecha,
     periodo_lectivo=reporte.periodo_lectivo,
     archivo_url=reporte.archivo_url,
+    archivo_nombre=reporte.archivo_nombre,
+    archivo_mime=reporte.archivo_mime,
+    archivo_tamano=reporte.archivo_tamano,
+    archivo_hash=reporte.archivo_hash,
+    archivo_subido_por=reporte.archivo_subido_por,
+    archivo_fecha=reporte.archivo_fecha,
     estudiante=nombre_completo(estudiante),
     cedula_estudiantil=estudiante.cedula_estudiantil,
     nivel=grado.nivel,
@@ -288,6 +314,110 @@ def eliminar_reporte(
     ModuloAuditoria.reportes,
     "ELIMINAR",
     (f"Se dio de baja el reporte #{reporte_db.id} de '{nombre_completo(estudiante)}'."),
+  )
+
+  session.commit()
+
+
+def _ruta_archivo_segura(archivo_url: str | None) -> Path:
+  if not archivo_url or not existe_archivo(archivo_url):
+    raise HTTPException(
+      status_code=status.HTTP_409_CONFLICT,
+      detail="El archivo adjunto no está disponible localmente",
+    )
+  return ruta_absoluta(archivo_url)
+
+
+@router.post("/{reporte_id}/archivo", response_model=PeticionReporte)
+def subir_reporte_archivo(
+  reporte_id: int,
+  archivo: UploadFile = File(...),
+  session: Session = Depends(get_session),
+  usuario_actual: Usuarios = Depends(requerir_personal),
+):
+  reporte = _obtener_reporte_activo(session, reporte_id)
+  estudiante = reporte.estudiante
+  validar_acceso_nivel(usuario_actual, _nivel_estudiante(estudiante))
+
+  try:
+    nombre_base, extension, mime, contenido = validar_upload(archivo)
+  except ValueError as error:
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
+
+  seccion = estudiante.seccion
+  ruta_relativa = ruta_relativa_imagen(
+    reporte.fecha,
+    seccion.grado.numero,
+    seccion.letra,
+    seccion.grado.nivel,
+    estudiante.id,
+    reporte.id,
+    extension,
+  )
+  guardar_archivo(ruta_relativa, contenido)
+  registrar_meta_archivo(
+    reporte, ruta_relativa, nombre_base, mime, contenido, usuario_actual.id
+  )
+
+  session.add(reporte)
+  session.flush()
+
+  registrar_auditoria(
+    session,
+    usuario_actual.id,
+    ModuloAuditoria.reportes,
+    "SUBIR_ARCHIVO",
+    (
+      f"Subió el adjunto '{nombre_base}' ({len(contenido)} bytes) "
+      f"del reporte #{reporte.id} de '{nombre_completo(estudiante)}'."
+    ),
+  )
+
+  session.commit()
+  session.refresh(reporte)
+  return _reporte_dto(reporte)
+
+
+@router.get("/{reporte_id}/archivo")
+def descargar_reporte_archivo(
+  reporte_id: int,
+  inline: bool = Query(default=False),
+  session: Session = Depends(get_session),
+  usuario_actual: Usuarios = Depends(requerir_personal),
+):
+  reporte = _obtener_reporte_activo(session, reporte_id)
+  validar_acceso_nivel(usuario_actual, _nivel_estudiante(reporte.estudiante))
+
+  ruta = _ruta_archivo_segura(reporte.archivo_url)
+
+  return FileResponse(
+    path=str(ruta),
+    media_type=reporte.archivo_mime or "application/octet-stream",
+    filename=reporte.archivo_nombre or f"reporte-{reporte.id}",
+    content_disposition_type="inline" if inline else "attachment",
+  )
+
+
+@router.delete("/{reporte_id}/archivo", status_code=status.HTTP_204_NO_CONTENT)
+def quitar_reporte_archivo(
+  reporte_id: int,
+  session: Session = Depends(get_session),
+  usuario_actual: Usuarios = Depends(requerir_personal),
+) -> None:
+  reporte = _obtener_reporte_activo(session, reporte_id)
+  estudiante = reporte.estudiante
+  validar_acceso_nivel(usuario_actual, _nivel_estudiante(estudiante))
+
+  quitar_meta_archivo(reporte)
+  session.add(reporte)
+  session.flush()
+
+  registrar_auditoria(
+    session,
+    usuario_actual.id,
+    ModuloAuditoria.reportes,
+    "QUITAR_ARCHIVO",
+    f"Quitó el adjunto del reporte #{reporte.id} de '{nombre_completo(estudiante)}'.",
   )
 
   session.commit()

@@ -258,8 +258,15 @@ class Reportes(EsquemaBase, table=True):
   # Año lectivo al que pertenece el reporte; se deriva de la sección.
   periodo_lectivo: int | None = Field(default=None, index=True)
 
-  # Adjunto opcional del reporte (URL). No se suben archivos todavía.
+  # Adjunto opcional del reporte. `archivo_url` es una ruta relativa dentro
+  # de STORAGE_ROOT; el archivo físico se descarga con GET /reportes/{id}/archivo.
   archivo_url: str | None = Field(default=None)
+  archivo_nombre: str | None = Field(default=None)
+  archivo_mime: str | None = Field(default=None)
+  archivo_tamano: int | None = Field(default=None)
+  archivo_hash: str | None = Field(default=None)
+  archivo_subido_por: int | None = Field(default=None)
+  archivo_fecha: NaiveDatetime | None = Field(default=None)
 
   estudiante: Estudiantes = Relationship(back_populates="reportes")
   usuario: Usuarios = Relationship(back_populates="reportes")
@@ -287,8 +294,15 @@ class Pases(EsquemaBase, table=True):
   # Obligatorio solo desde el cuarto pase activo del mes por tipo.
   autorizador: str | None = Field(default=None)
 
-  # Adjunto opcional del pase (URL). No se suben archivos todavía.
+  # Adjunto opcional del pase. `archivo_url` es una ruta relativa dentro
+  # de STORAGE_ROOT; el archivo físico se descarga con GET /pases/{id}/archivo.
   archivo_url: str | None = Field(default=None)
+  archivo_nombre: str | None = Field(default=None)
+  archivo_mime: str | None = Field(default=None)
+  archivo_tamano: int | None = Field(default=None)
+  archivo_hash: str | None = Field(default=None)
+  archivo_subido_por: int | None = Field(default=None)
+  archivo_fecha: NaiveDatetime | None = Field(default=None)
 
   estudiante: Estudiantes = Relationship(back_populates="pases")
   usuario: Usuarios = Relationship(back_populates="pases")
