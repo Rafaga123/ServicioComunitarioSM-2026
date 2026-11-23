@@ -12,29 +12,42 @@ from app.core.paginacion import (
 )
 from app.models.db import (
   Asignaturas,
+  AsignaturasDocentes,
+  BloquesHorarios,
   Docentes,
   Estudiantes,
   Grados,
   Horarios,
+  Secciones,
   Usuarios,
 )
-from app.models.enums import ModuloAuditoria, RolesUsuario
+from app.models.enums import (
+  ModuloAuditoria,
+  NivelEducativo,
+  RolesUsuario,
+  TipoBloqueHorario,
+)
 from app.models.schemas import (
   ActualizarHorario,
   CrearHorario,
-  PeticionBloque,
+  PeticionConsultaHorario,
   PeticionHorario,
 )
 from app.models.session import get_session
 from app.utils.auditoria import registrar_auditoria
-from app.utils.security import obtener_usuario_actual, requerir_roles
+from app.utils.nombres import nombre_completo
+from app.utils.security import (
+  obtener_usuario_actual,
+  requerir_roles,
+  validar_acceso_nivel,
+)
 from app.utils.soft_delete import marcar_eliminado
 
 router = APIRouter(prefix="/horarios", tags=["Horarios"])
 requerir_admin = requerir_roles(RolesUsuario.administrador)
 
 
-def _obtener_registro_activo(session: Session, modelo, registro_id: int, mensaje: str):
+def _obtener_activo(session: Session, modelo, registro_id: int, mensaje: str):
   registro = session.get(modelo, registro_id)
 
   if not registro or registro.fecha_eliminacion is not None:
@@ -43,176 +56,207 @@ def _obtener_registro_activo(session: Session, modelo, registro_id: int, mensaje
   return registro
 
 
-def _validar_referencias(
-  session: Session, id_grado: int, id_asignatura: int, id_docente: int
-) -> tuple[Grados, Asignaturas, Docentes]:
-  grado = _obtener_registro_activo(
-    session, Grados, id_grado, "Grado no encontrado"
-  )
-  asignatura = _obtener_registro_activo(
-    session, Asignaturas, id_asignatura, "Asignatura no encontrada"
-  )
-  docente = _obtener_registro_activo(
-    session, Docentes, id_docente, "Docente no encontrado"
-  )
-
-  return grado, asignatura, docente
-
-
-def _validar_solape(
+def _validar_colision_seccion(
   session: Session,
-  id_grado: int,
+  id_seccion: int,
+  id_bloque: int,
   periodo_lectivo: int,
   dia_semana: int,
-  hora: time,
   excluir_id: int | None = None,
 ) -> None:
-  # La franja se identifica por grado, período, día y hora. Solo se comparan
-  # horarios activos para permitir reutilizar una franja después de una baja.
-  statement = select(Horarios).where(
-    Horarios.id_grado == id_grado,
+  consulta = select(Horarios).where(
+    Horarios.id_seccion == id_seccion,
+    Horarios.id_bloque == id_bloque,
     Horarios.periodo_lectivo == periodo_lectivo,
     Horarios.dia_semana == dia_semana,
-    Horarios.hora == hora,
     Horarios.fecha_eliminacion.is_(None),
   )
-
   if excluir_id is not None:
-    statement = statement.where(Horarios.id != excluir_id)
-
-  if session.exec(statement).first():
+    consulta = consulta.where(Horarios.id != excluir_id)
+  if session.exec(consulta).first():
     raise HTTPException(
-      status_code=status.HTTP_400_BAD_REQUEST,
-      detail=(
-        "Ya existe un horario activo para ese grado, período, día y hora"
-      ),
+      status_code=status.HTTP_409_CONFLICT,
+      detail="La sección ya tiene una clase en ese bloque y día",
     )
 
 
-def _descripcion_horario(
-  horario: Horarios,
-  grado: Grados,
-  asignatura: Asignaturas,
-  docente: Docentes,
-) -> str:
-  return (
-    f"para el grado {grado.grado} \"{grado.seccion}\" "
-    f"con la asignatura '{asignatura.nombre}' y el docente "
-    f"'{docente.nombre} {docente.apellido}', el día {horario.dia_semana} "
-    f"a las {horario.hora.strftime('%H:%M')} del período "
-    f"{horario.periodo_lectivo}"
+def _validar_colision_docente(
+  session: Session,
+  id_docente: int,
+  id_bloque: int,
+  periodo_lectivo: int,
+  dia_semana: int,
+  excluir_id: int | None = None,
+) -> None:
+  consulta = select(Horarios).where(
+    Horarios.id_docente == id_docente,
+    Horarios.id_bloque == id_bloque,
+    Horarios.periodo_lectivo == periodo_lectivo,
+    Horarios.dia_semana == dia_semana,
+    Horarios.fecha_eliminacion.is_(None),
+  )
+  if excluir_id is not None:
+    consulta = consulta.where(Horarios.id != excluir_id)
+  if session.exec(consulta).first():
+    raise HTTPException(
+      status_code=status.HTTP_409_CONFLICT,
+      detail="El docente ya tiene una clase en ese bloque y día",
+    )
+
+
+def _validar_horario(
+  session: Session,
+  id_seccion: int,
+  id_bloque: int,
+  id_asignatura: int,
+  id_docente: int,
+  periodo_lectivo: int,
+  dia_semana: int,
+  excluir_id: int | None = None,
+) -> tuple[Secciones, BloquesHorarios, Asignaturas, Docentes]:
+  seccion = _obtener_activo(session, Secciones, id_seccion, "Sección no encontrada")
+  grado = seccion.grado
+
+  if grado.nivel != NivelEducativo.liceo:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="Los horarios solo aplican a secciones de liceo",
+    )
+
+  if seccion.periodo_lectivo != periodo_lectivo:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="La sección pertenece a otro período lectivo",
+    )
+
+  bloque = _obtener_activo(session, BloquesHorarios, id_bloque, "Bloque no encontrado")
+  if bloque.tipo != TipoBloqueHorario.academico:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="Solo se pueden programar bloques académicos",
+    )
+
+  asignatura = _obtener_activo(
+    session, Asignaturas, id_asignatura, "Asignatura no encontrada"
+  )
+  if asignatura.id_grado != seccion.id_grado:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="La asignatura no pertenece al grado de la sección",
+    )
+  if asignatura.periodo_lectivo != periodo_lectivo:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="La asignatura no pertenece al periodo lectivo de la sección",
+    )
+
+  docente = _obtener_activo(session, Docentes, id_docente, "Docente no encontrado")
+  if docente.nivel != NivelEducativo.liceo:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="Solo se pueden asignar docentes de liceo",
+    )
+
+  vinculado = session.exec(
+    select(AsignaturasDocentes).where(
+      AsignaturasDocentes.id_asignatura == id_asignatura,
+      AsignaturasDocentes.id_docente == id_docente,
+      AsignaturasDocentes.fecha_eliminacion.is_(None),
+    )
+  ).first()
+  if not vinculado:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="El docente no está vinculado a la asignatura",
+    )
+
+  _validar_colision_seccion(
+    session,
+    id_seccion,
+    id_bloque,
+    periodo_lectivo,
+    dia_semana,
+    excluir_id,
+  )
+  _validar_colision_docente(
+    session,
+    id_docente,
+    id_bloque,
+    periodo_lectivo,
+    dia_semana,
+    excluir_id,
   )
 
+  return seccion, bloque, asignatura, docente
 
-def _a_peticion_horario(
-  horario: Horarios,
-  grado: Grados,
-  asignatura: Asignaturas,
-  docente: Docentes,
-) -> PeticionHorario:
+
+def _horario_dto(horario: Horarios) -> PeticionHorario:
+  seccion = horario.seccion
+  grado = seccion.grado
+  bloque = horario.bloque
+
   return PeticionHorario(
     id=horario.id,
-    id_grado=horario.id_grado,
+    id_seccion=horario.id_seccion,
+    id_bloque=horario.id_bloque,
     id_asignatura=horario.id_asignatura,
     id_docente=horario.id_docente,
     periodo_lectivo=horario.periodo_lectivo,
     dia_semana=horario.dia_semana,
-    hora=horario.hora,
-    grado=grado.grado,
-    seccion=grado.seccion,
-    asignatura=asignatura.nombre,
-    docente=f"{docente.nombre} {docente.apellido}",
-  )
-
-
-@router.get("/", response_model=PeticionBloque, status_code=status.HTTP_200_OK)
-def solicitar_asignatura(
-  id_estudiante: int,
-  fecha: date,
-  hora: time,
-  session: Session = Depends(get_session),
-  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
-):
-  # La fecha es la fuente única para el día y el período lectivo. Así el
-  # frontend no tiene que calcular ni enviar el número de día por separado.
-  estudiante = _obtener_registro_activo(
-    session, Estudiantes, id_estudiante, "Estudiante no encontrado"
-  )
-
-  if estudiante.grado_id is None:
-    return PeticionBloque(encontrado=False)
-
-  dia_semana = fecha.isoweekday()
-
-  # Sábado y domingo no tienen bloques en el horario escolar.
-  if dia_semana > 5:
-    return PeticionBloque(encontrado=False)
-
-  statement = select(Horarios).where(
-    Horarios.id_grado == estudiante.grado_id,
-    Horarios.periodo_lectivo == fecha.year,
-    Horarios.dia_semana == dia_semana,
-    Horarios.hora == hora,
-    Horarios.fecha_eliminacion.is_(None),
-  )
-
-  horario = session.exec(statement).first()
-
-  if not horario:
-    return PeticionBloque(encontrado=False)
-
-  return PeticionBloque(
-    encontrado=True,
-    id_horario=horario.id,
-    id_asignatura=horario.id_asignatura,
-    id_docente=horario.id_docente,
+    seccion=f"{grado.nombre} {seccion.letra}",
+    grado=grado.nombre,
+    nivel=grado.nivel,
+    bloque=bloque.nombre,
+    bloque_orden=bloque.orden,
+    hora_inicio=bloque.hora_inicio,
+    hora_fin=bloque.hora_fin,
     asignatura=horario.asignatura.nombre,
-    docente=f"{horario.docente.nombre} {horario.docente.apellido}",
+    docente=nombre_completo(horario.docente),
   )
 
 
-@router.get(
-  "/registros/", response_model=RespuestaPaginada[PeticionHorario]
-)
+@router.get("/registros/", response_model=RespuestaPaginada[PeticionHorario])
 def listar_horarios(
+  id_seccion: int | None = None,
   id_grado: int | None = None,
   id_asignatura: int | None = None,
   id_docente: int | None = None,
+  id_bloque: int | None = None,
   periodo_lectivo: int | None = None,
   dia_semana: int | None = None,
+  nivel: NivelEducativo | None = None,
   paginacion: Paginacion = Depends(),
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
   consulta = filtro_activos(select(Horarios), Horarios)
+  consulta = consulta.join(Secciones, Horarios.id_seccion == Secciones.id)
+  consulta = consulta.join(Grados, Secciones.id_grado == Grados.id)
+  consulta = consulta.join(BloquesHorarios, Horarios.id_bloque == BloquesHorarios.id)
 
+  if nivel is not None:
+    consulta = consulta.where(Grados.nivel == nivel)
+  if id_seccion is not None:
+    consulta = consulta.where(Horarios.id_seccion == id_seccion)
   if id_grado is not None:
-    consulta = consulta.where(Horarios.id_grado == id_grado)
+    consulta = consulta.where(Secciones.id_grado == id_grado)
   if id_asignatura is not None:
     consulta = consulta.where(Horarios.id_asignatura == id_asignatura)
   if id_docente is not None:
     consulta = consulta.where(Horarios.id_docente == id_docente)
+  if id_bloque is not None:
+    consulta = consulta.where(Horarios.id_bloque == id_bloque)
   if periodo_lectivo is not None:
     consulta = consulta.where(Horarios.periodo_lectivo == periodo_lectivo)
   if dia_semana is not None:
     consulta = consulta.where(Horarios.dia_semana == dia_semana)
 
-  consulta = consulta.order_by(Horarios.dia_semana, Horarios.hora)
+  consulta = consulta.order_by(Horarios.dia_semana, BloquesHorarios.orden)
 
   items, total = paginar(session, consulta, paginacion)
 
   return construir_pagina(
-    [
-      _a_peticion_horario(
-        horario,
-        horario.grado,
-        horario.asignatura,
-        horario.docente,
-      )
-      for horario in items
-    ],
-    total,
-    paginacion,
+    [_horario_dto(horario) for horario in items], total, paginacion
   )
 
 
@@ -222,13 +266,9 @@ def obtener_horario(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
-  horario = _obtener_registro_activo(
-    session, Horarios, horario_id, "Horario no encontrado"
-  )
+  horario = _obtener_activo(session, Horarios, horario_id, "Horario no encontrado")
 
-  return _a_peticion_horario(
-    horario, horario.grado, horario.asignatura, horario.docente
-  )
+  return _horario_dto(horario)
 
 
 @router.post(
@@ -241,28 +281,23 @@ def registrar_horario(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
-  grado, asignatura, docente = _validar_referencias(
+  seccion, bloque, asignatura, docente = _validar_horario(
     session,
-    horario_in.id_grado,
+    horario_in.id_seccion,
+    horario_in.id_bloque,
     horario_in.id_asignatura,
     horario_in.id_docente,
-  )
-
-  _validar_solape(
-    session,
-    horario_in.id_grado,
     horario_in.periodo_lectivo,
     horario_in.dia_semana,
-    horario_in.hora,
   )
 
   nuevo_horario = Horarios(
-    id_grado=horario_in.id_grado,
+    id_seccion=horario_in.id_seccion,
+    id_bloque=horario_in.id_bloque,
     id_asignatura=horario_in.id_asignatura,
     id_docente=horario_in.id_docente,
     periodo_lectivo=horario_in.periodo_lectivo,
     dia_semana=horario_in.dia_semana,
-    hora=horario_in.hora,
   )
 
   session.add(nuevo_horario)
@@ -274,17 +309,16 @@ def registrar_horario(
     ModuloAuditoria.horarios,
     "CREAR",
     (
-      "Se registró un horario "
-      f"{_descripcion_horario(nuevo_horario, grado, asignatura, docente)}."
+      f"Se programó '{asignatura.nombre}' para {seccion.grado.nombre} "
+      f"{seccion.letra} el día {nuevo_horario.dia_semana} en "
+      f"{bloque.nombre} con el docente '{nombre_completo(docente)}'."
     ),
   )
 
   session.commit()
   session.refresh(nuevo_horario)
 
-  return _a_peticion_horario(
-    nuevo_horario, grado, asignatura, docente
-  )
+  return _horario_dto(nuevo_horario)
 
 
 @router.put("/registros/{horario_id}", response_model=PeticionHorario)
@@ -294,66 +328,35 @@ def actualizar_horario(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
-  horario_db = _obtener_registro_activo(
-    session, Horarios, horario_id, "Horario no encontrado"
-  )
-  datos_actualizar = horario_in.model_dump(
-    exclude_unset=True, exclude_none=True
-  )
+  horario_db = _obtener_activo(session, Horarios, horario_id, "Horario no encontrado")
+  datos_actualizar = horario_in.model_dump(exclude_unset=True, exclude_none=True)
 
   if not datos_actualizar:
-    return _a_peticion_horario(
-      horario_db,
-      horario_db.grado,
-      horario_db.asignatura,
-      horario_db.docente,
-    )
+    return _horario_dto(horario_db)
 
   valores_finales = {
-    "id_grado": datos_actualizar.get("id_grado", horario_db.id_grado),
-    "id_asignatura": datos_actualizar.get(
-      "id_asignatura", horario_db.id_asignatura
-    ),
-    "id_docente": datos_actualizar.get(
-      "id_docente", horario_db.id_docente
-    ),
+    "id_seccion": datos_actualizar.get("id_seccion", horario_db.id_seccion),
+    "id_bloque": datos_actualizar.get("id_bloque", horario_db.id_bloque),
+    "id_asignatura": datos_actualizar.get("id_asignatura", horario_db.id_asignatura),
+    "id_docente": datos_actualizar.get("id_docente", horario_db.id_docente),
     "periodo_lectivo": datos_actualizar.get(
       "periodo_lectivo", horario_db.periodo_lectivo
     ),
-    "dia_semana": datos_actualizar.get(
-      "dia_semana", horario_db.dia_semana
-    ),
-    "hora": datos_actualizar.get("hora", horario_db.hora),
+    "dia_semana": datos_actualizar.get("dia_semana", horario_db.dia_semana),
   }
 
-  grado, asignatura, docente = _validar_referencias(
+  seccion, bloque, asignatura, docente = _validar_horario(
     session,
-    valores_finales["id_grado"],
+    valores_finales["id_seccion"],
+    valores_finales["id_bloque"],
     valores_finales["id_asignatura"],
     valores_finales["id_docente"],
-  )
-
-  _validar_solape(
-    session,
-    valores_finales["id_grado"],
     valores_finales["periodo_lectivo"],
     valores_finales["dia_semana"],
-    valores_finales["hora"],
     excluir_id=horario_id,
   )
 
-  cambios = {
-    campo: valor
-    for campo, valor in valores_finales.items()
-    if getattr(horario_db, campo) != valor
-  }
-
-  if not cambios:
-    return _a_peticion_horario(
-      horario_db, grado, asignatura, docente
-    )
-
-  for campo, valor in cambios.items():
+  for campo, valor in valores_finales.items():
     setattr(horario_db, campo, valor)
 
   session.add(horario_db)
@@ -365,35 +368,26 @@ def actualizar_horario(
     ModuloAuditoria.horarios,
     "ACTUALIZAR",
     (
-      "Se actualizó el horario "
-      f"{_descripcion_horario(horario_db, grado, asignatura, docente)}."
+      f"Se actualizó el horario de '{asignatura.nombre}' para "
+      f"{seccion.grado.nombre} {seccion.letra} el día "
+      f"{horario_db.dia_semana} en {bloque.nombre} con el docente "
+      f"'{nombre_completo(docente)}'."
     ),
   )
 
   session.commit()
   session.refresh(horario_db)
 
-  return _a_peticion_horario(horario_db, grado, asignatura, docente)
+  return _horario_dto(horario_db)
 
 
-@router.delete(
-  "/registros/{horario_id}", status_code=status.HTTP_204_NO_CONTENT
-)
+@router.delete("/registros/{horario_id}", status_code=status.HTTP_204_NO_CONTENT)
 def eliminar_horario(
   horario_id: int,
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ) -> None:
-  horario_db = _obtener_registro_activo(
-    session, Horarios, horario_id, "Horario no encontrado"
-  )
-
-  descripcion = _descripcion_horario(
-    horario_db,
-    horario_db.grado,
-    horario_db.asignatura,
-    horario_db.docente,
-  )
+  horario_db = _obtener_activo(session, Horarios, horario_id, "Horario no encontrado")
 
   marcar_eliminado(session, horario_db)
   session.flush()
@@ -403,7 +397,83 @@ def eliminar_horario(
     usuario_actual.id,
     ModuloAuditoria.horarios,
     "ELIMINAR",
-    f"Se dio de baja el horario {descripcion}.",
+    (
+      f"Se dio de baja el horario #{horario_db.id} de "
+      f"{horario_db.seccion.grado.nombre} {horario_db.seccion.letra}."
+    ),
   )
 
   session.commit()
+
+
+@router.get("/", response_model=PeticionConsultaHorario)
+def consultar_horario_estudiante(
+  id_estudiante: int,
+  fecha: date,
+  id_bloque: int | None = None,
+  hora: time | None = None,
+  session: Session = Depends(get_session),
+  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
+):
+  estudiante = _obtener_activo(
+    session, Estudiantes, id_estudiante, "Estudiante no encontrado"
+  )
+  seccion = estudiante.seccion
+  validar_acceso_nivel(usuario_actual, seccion.grado.nivel)
+
+  if fecha.year != seccion.periodo_lectivo:
+    return PeticionConsultaHorario(encontrado=False)
+
+  dia_semana = fecha.isoweekday()
+  if dia_semana > 5:
+    return PeticionConsultaHorario(encontrado=False)
+
+  if id_bloque is None and hora is None:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="Indica id_bloque o hora para consultar el horario",
+    )
+
+  if id_bloque is None:
+    bloque = session.exec(
+      select(BloquesHorarios).where(
+        BloquesHorarios.tipo == TipoBloqueHorario.academico,
+        BloquesHorarios.hora_inicio <= hora,
+        BloquesHorarios.hora_fin > hora,
+        BloquesHorarios.fecha_eliminacion.is_(None),
+      )
+    ).first()
+    if bloque is None:
+      return PeticionConsultaHorario(encontrado=False)
+  else:
+    bloque = _obtener_activo(
+      session, BloquesHorarios, id_bloque, "Bloque no encontrado"
+    )
+    if bloque.tipo != TipoBloqueHorario.academico:
+      return PeticionConsultaHorario(encontrado=False)
+
+  horario = session.exec(
+    select(Horarios).where(
+      Horarios.id_seccion == seccion.id,
+      Horarios.id_bloque == bloque.id,
+      Horarios.periodo_lectivo == seccion.periodo_lectivo,
+      Horarios.dia_semana == dia_semana,
+      Horarios.fecha_eliminacion.is_(None),
+    )
+  ).first()
+
+  if horario is None:
+    return PeticionConsultaHorario(encontrado=False)
+
+  return PeticionConsultaHorario(
+    encontrado=True,
+    id_horario=horario.id,
+    id_bloque=bloque.id,
+    id_asignatura=horario.id_asignatura,
+    id_docente=horario.id_docente,
+    asignatura=horario.asignatura.nombre,
+    docente=nombre_completo(horario.docente),
+    bloque=bloque.nombre,
+    hora_inicio=bloque.hora_inicio,
+    hora_fin=bloque.hora_fin,
+  )

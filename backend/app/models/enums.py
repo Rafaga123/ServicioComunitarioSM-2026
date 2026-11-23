@@ -14,23 +14,49 @@ class RolesAsignables(str, Enum):
   secretaria = "SECRETARIA"
 
 
+# Nivel educativo al que pertenece un grado, docente o cuenta de usuario
+class NivelEducativo(str, Enum):
+  escuela = "ESCUELA"
+  liceo = "LICEO"
+
+
+# Tipo de tramo dentro de la jornada institucional del liceo
+class TipoBloqueHorario(str, Enum):
+  academico = "ACADEMICO"
+  receso = "RECESO"
+
+
 class ModuloAuditoria(str, Enum):
   usuarios = "USUARIOS"
   estudiantes = "ESTUDIANTES"
   grados = "GRADOS"
+  secciones = "SECCIONES"
   representantes = "REPRESENTANTES"
   docentes = "DOCENTES"
   asignaturas = "ASIGNATURAS"
+  bloques_horarios = "BLOQUES_HORARIOS"
   horarios = "HORARIOS"
+  pases = "PASES"
+  reportes = "REPORTES"
   auditorias = "AUDITORIAS"
+  periodos_lectivos = "PERIODOS_LECTIVOS"
+  documentos = "DOCUMENTOS"
+  cierre_anio = "CIERRE_ANIO"
+
+
+# Tipos de documentos generados como PDFs de listados institucionales
+class TipoDocumento(str, Enum):
+  nominas = "nominas"
+  representantes = "representantes"
+  horarios = "horarios"
 
 
 # Enum para los tipos de reglamento
 class Reglamentos(str, Enum):
-  lopnna = "LOPNNA" # Ley Orgánica para la protección de niños, niñas y adolescentes
-  loe = "LOE"       # Ley Orgánica de Educación
-  cbv = "CBV"       # Constitución de la República Bolivariana de Venezuela
-  nc = "NC"         # Nuestra Carta
+  lopnna = "LOPNNA"  # Ley Orgánica para la protección de niños, niñas y adolescentes
+  loe = "LOE"  # Ley Orgánica de Educación
+  cbv = "CBV"  # Constitución de la República Bolivariana de Venezuela
+  nc = "NC"  # Nuestra Carta
 
 
 # Enum para la gravedad de un reporte
@@ -49,5 +75,3 @@ class CategoriaReportes(str, Enum):
 class TipoPase(str, Enum):
   salida = "SALIDA"
   entrada = "ENTRADA"
-  
-

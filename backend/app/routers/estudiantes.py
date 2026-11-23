@@ -10,18 +10,89 @@ from app.core.paginacion import (
   filtro_texto,
   paginar,
 )
-from app.models.db import Estudiantes, Usuarios
-from app.models.enums import ModuloAuditoria, RolesUsuario
+from app.models.db import (
+  Estudiantes,
+  Grados,
+  Representantes,
+  Secciones,
+  Usuarios,
+)
+from app.models.enums import ModuloAuditoria, NivelEducativo, RolesUsuario
 from app.models.schemas import ActualizarEstudiante, CrearEstudiante, PeticionEstudiante
 from app.models.session import get_session
 from app.utils.auditoria import registrar_auditoria
-from app.utils.security import obtener_usuario_actual, requerir_roles
+from app.utils.nombres import nombre_completo
+from app.utils.security import (
+  obtener_usuario_actual,
+  requerir_roles,
+  resolver_nivel,
+  validar_acceso_nivel,
+)
 from app.utils.soft_delete import marcar_eliminado
 
 router = APIRouter(prefix="/estudiantes", tags=["Estudiantes"])
 
 
-# Registrar a un Estudiante nuevo
+def _obtener_estudiante_activo(session: Session, estudiante_id: int) -> Estudiantes:
+  estudiante = session.get(Estudiantes, estudiante_id)
+
+  if not estudiante or estudiante.fecha_eliminacion is not None:
+    raise HTTPException(
+      status_code=status.HTTP_404_NOT_FOUND, detail="Estudiante no encontrado"
+    )
+
+  return estudiante
+
+
+def _obtener_seccion_activa(session: Session, seccion_id: int) -> Secciones:
+  seccion = session.get(Secciones, seccion_id)
+
+  if not seccion or seccion.fecha_eliminacion is not None:
+    raise HTTPException(
+      status_code=status.HTTP_404_NOT_FOUND, detail="Sección no encontrada"
+    )
+
+  return seccion
+
+
+def _obtener_representante_activo(
+  session: Session, representante_id: int
+) -> Representantes:
+  representante = session.get(Representantes, representante_id)
+
+  if not representante or representante.fecha_eliminacion is not None:
+    raise HTTPException(
+      status_code=status.HTTP_404_NOT_FOUND, detail="Representante no encontrado"
+    )
+
+  return representante
+
+
+def _estudiante_dto(estudiante: Estudiantes) -> PeticionEstudiante:
+  seccion = estudiante.seccion
+  grado = seccion.grado
+  representante = estudiante.representante
+
+  return PeticionEstudiante(
+    id=estudiante.id,
+    id_seccion=estudiante.id_seccion,
+    id_representante=estudiante.id_representante,
+    cedula_estudiantil=estudiante.cedula_estudiantil,
+    primer_nombre=estudiante.primer_nombre,
+    segundo_nombre=estudiante.segundo_nombre,
+    primer_apellido=estudiante.primer_apellido,
+    segundo_apellido=estudiante.segundo_apellido,
+    fecha_nacimiento=estudiante.fecha_nacimiento,
+    nivel=grado.nivel,
+    id_grado=seccion.id_grado,
+    grado_numero=grado.numero,
+    grado_nombre=grado.nombre,
+    seccion_letra=seccion.letra,
+    periodo_lectivo=seccion.periodo_lectivo,
+    representante=nombre_completo(representante) if representante else None,
+  )
+
+
 @router.post(
   "/", response_model=PeticionEstudiante, status_code=status.HTTP_201_CREATED
 )
@@ -40,8 +111,15 @@ def registrar_estudiante(
       detail="Ya existe un estudiante con está cédula",
     )
 
+  seccion = _obtener_seccion_activa(session, estudiante_in.id_seccion)
+  validar_acceso_nivel(usuario_actual, seccion.grado.nivel)
+
+  if estudiante_in.id_representante is not None:
+    _obtener_representante_activo(session, estudiante_in.id_representante)
+
   nuevo_estudiante = Estudiantes(
-    grado_id=estudiante_in.grado_id,
+    id_seccion=estudiante_in.id_seccion,
+    id_representante=estudiante_in.id_representante,
     cedula_estudiantil=estudiante_in.cedula_estudiantil,
     primer_nombre=estudiante_in.primer_nombre,
     segundo_nombre=estudiante_in.segundo_nombre,
@@ -58,42 +136,56 @@ def registrar_estudiante(
     usuario_actual.id,
     ModuloAuditoria.estudiantes,
     "CREAR",
-    (
-      f"Se registró al estudiante '{nuevo_estudiante.primer_nombre} "
-      f"{nuevo_estudiante.primer_apellido}' con cédula "
-      f"{nuevo_estudiante.cedula_estudiantil}."
-    ),
+    f"Se registró al estudiante '{nombre_completo(nuevo_estudiante)}' "
+    f"con cédula {nuevo_estudiante.cedula_estudiantil}.",
   )
 
   session.commit()
   session.refresh(nuevo_estudiante)
 
-  return nuevo_estudiante
+  return _estudiante_dto(nuevo_estudiante)
 
 
-# Pedir un listado de Estudiantes
 @router.get("/", response_model=RespuestaPaginada[PeticionEstudiante])
 def listar_estudiantes(
   paginacion: Paginacion = Depends(),
+  nivel: NivelEducativo | None = None,
+  id_grado: int | None = None,
+  id_seccion: int | None = None,
+  periodo_lectivo: int | None = None,
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
   consulta = filtro_activos(select(Estudiantes), Estudiantes)
+  consulta = consulta.join(Secciones, Estudiantes.id_seccion == Secciones.id)
+  consulta = consulta.join(Grados, Secciones.id_grado == Grados.id)
+
+  nivel = resolver_nivel(usuario_actual, nivel)
+  if nivel is not None:
+    consulta = consulta.where(Grados.nivel == nivel)
+  if id_grado is not None:
+    consulta = consulta.where(Secciones.id_grado == id_grado)
+  if id_seccion is not None:
+    consulta = consulta.where(Estudiantes.id_seccion == id_seccion)
+  if periodo_lectivo is not None:
+    consulta = consulta.where(Secciones.periodo_lectivo == periodo_lectivo)
 
   items, total = paginar(session, consulta, paginacion)
 
-  return construir_pagina(items, total, paginacion)
+  return construir_pagina([_estudiante_dto(e) for e in items], total, paginacion)
 
 
-# Buscar Estudiantes listado
 @router.get("/buscar/", response_model=RespuestaPaginada[PeticionEstudiante])
 def buscar_estudiantes(
-  termino: str,  # Lo que el usuario escribe en el buscador (cédula, nombre, etc.)
+  termino: str,
   paginacion: PaginacionBusqueda = Depends(),
+  nivel: NivelEducativo | None = None,
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
   consulta = filtro_activos(select(Estudiantes), Estudiantes)
+  consulta = consulta.join(Secciones, Estudiantes.id_seccion == Secciones.id)
+  consulta = consulta.join(Grados, Secciones.id_grado == Grados.id)
   consulta = filtro_texto(
     consulta,
     termino,
@@ -102,31 +194,27 @@ def buscar_estudiantes(
     Estudiantes.primer_apellido,
   )
 
+  nivel = resolver_nivel(usuario_actual, nivel)
+  if nivel is not None:
+    consulta = consulta.where(Grados.nivel == nivel)
+
   items, total = paginar(session, consulta, paginacion)
 
-  return construir_pagina(items, total, paginacion)
+  return construir_pagina([_estudiante_dto(e) for e in items], total, paginacion)
 
 
-# Solicitar a un Estudiante especifico por ID
 @router.get("/{estudiante_id}", response_model=PeticionEstudiante)
 def obtener_estudiante(
   estudiante_id: int,
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
-  # session.get es la forma más rápida de buscar por Primary Key (ID)
-  estudiante = session.get(Estudiantes, estudiante_id)
+  estudiante = _obtener_estudiante_activo(session, estudiante_id)
+  validar_acceso_nivel(usuario_actual, estudiante.seccion.grado.nivel)
 
-  # Verificamos que exista y que no esté eliminado lógicamente
-  if not estudiante or estudiante.fecha_eliminacion is not None:
-    raise HTTPException(
-      status_code=status.HTTP_404_NOT_FOUND, detail="Estudiante no encontrado"
-    )
-
-  return estudiante
+  return _estudiante_dto(estudiante)
 
 
-# Actualizar a un Estudiante
 @router.put("/{estudiante_id}", response_model=PeticionEstudiante)
 def actualizar_estudiante(
   estudiante_id: int,
@@ -134,14 +222,18 @@ def actualizar_estudiante(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
-  estudiante_db = session.get(Estudiantes, estudiante_id)
+  estudiante_db = _obtener_estudiante_activo(session, estudiante_id)
 
-  if not estudiante_db or estudiante_db.fecha_eliminacion is not None:
-    raise HTTPException(
-      status_code=status.HTTP_404_NOT_FOUND, detail="Estudiante no encontrado"
-    )
+  if "id_seccion" in estudiante_in.model_fields_set:
+    nueva_seccion = _obtener_seccion_activa(session, estudiante_in.id_seccion)
+    validar_acceso_nivel(usuario_actual, nueva_seccion.grado.nivel)
 
-  # Si se intenta cambiar la cédula, verificamos que no choque con otro estudiante
+  if (
+    "id_representante" in estudiante_in.model_fields_set
+    and estudiante_in.id_representante is not None
+  ):
+    _obtener_representante_activo(session, estudiante_in.id_representante)
+
   if (
     estudiante_in.cedula_estudiantil
     and estudiante_in.cedula_estudiantil != estudiante_db.cedula_estudiantil
@@ -155,13 +247,11 @@ def actualizar_estudiante(
         detail="La nueva cédula ya está registrada en otro estudiante",
       )
 
-  # Extraemos solo los campos que el frontend realmente envió (ignora los nulos)
   datos_actualizar = estudiante_in.model_dump(exclude_unset=True)
 
   if not datos_actualizar:
-    return estudiante_db
+    return _estudiante_dto(estudiante_db)
 
-  # Aplicamos los cambios al objeto de la base de datos
   for key, value in datos_actualizar.items():
     setattr(estudiante_db, key, value)
 
@@ -173,37 +263,35 @@ def actualizar_estudiante(
     usuario_actual.id,
     ModuloAuditoria.estudiantes,
     "ACTUALIZAR",
-    (
-      f"Se actualizaron los datos del estudiante "
-      f"'{estudiante_db.primer_nombre} {estudiante_db.primer_apellido}' "
-      f"con cédula {estudiante_db.cedula_estudiantil}."
-    ),
+    f"Se actualizaron los datos del estudiante "
+    f"'{nombre_completo(estudiante_db)}' "
+    f"con cédula {estudiante_db.cedula_estudiantil}.",
   )
 
   session.commit()
   session.refresh(estudiante_db)
 
-  return estudiante_db
+  return _estudiante_dto(estudiante_db)
 
 
-# "Eliminar" a un Estudiante por ID (Soft Delete aplicado)
 @router.delete("/{estudiante_id}", status_code=status.HTTP_204_NO_CONTENT)
 def eliminar_estudiante(
   estudiante_id: int,
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ) -> None:
-  estudiante_db = session.get(Estudiantes, estudiante_id)
+  estudiante_db = _obtener_estudiante_activo(session, estudiante_id)
 
-  if not estudiante_db or estudiante_db.fecha_eliminacion is not None:
-    raise HTTPException(
-      status_code=status.HTTP_404_NOT_FOUND, detail="Estudiante no encontrado"
-    )
-
-  # SOFT DELETE: No borramos la fila, solo le ponemos fecha de eliminación.
-  # Así preservamos el historial para auditorías y reportes antiguos.
   marcar_eliminado(session, estudiante_db)
+  session.flush()
+
+  registrar_auditoria(
+    session,
+    usuario_actual.id,
+    ModuloAuditoria.estudiantes,
+    "ELIMINAR",
+    f"Se dio de baja al estudiante '{nombre_completo(estudiante_db)}' "
+    f"con cédula {estudiante_db.cedula_estudiantil}.",
+  )
 
   session.commit()
-
-  # Un status 204 significa que la operación fue un éxito pero no hay contenido que devolver

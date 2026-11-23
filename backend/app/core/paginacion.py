@@ -45,9 +45,7 @@ def filtro_texto(consulta, termino: str, *campos):
     return consulta
 
   patron = f"%{termino}%"
-  condiciones = [
-    func.unaccent(campo).ilike(func.unaccent(patron)) for campo in campos
-  ]
+  condiciones = [func.unaccent(campo).ilike(func.unaccent(patron)) for campo in campos]
 
   return consulta.where(or_(*condiciones))
 
@@ -63,9 +61,7 @@ def paginar(session: Session, consulta, paginacion: Paginacion) -> tuple[list, i
   ).one()
 
   # La consulta original conserva su orden y se recorta a la página pedida.
-  items = session.exec(
-    consulta.offset(paginacion.offset).limit(paginacion.size)
-  ).all()
+  items = session.exec(consulta.offset(paginacion.offset).limit(paginacion.size)).all()
   return list(items), total
 
 

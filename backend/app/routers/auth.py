@@ -34,7 +34,11 @@ def iniciar_sesion(
       headers={"WWW-Authenticate": "Bearer"},
     )
 
-  datos_token = {"sub": str(usuario_db.id), "rol": usuario_db.rol.value}
+  datos_token = {
+    "sub": str(usuario_db.id),
+    "rol": usuario_db.rol.value,
+    "nivel": usuario_db.nivel.value if usuario_db.nivel else None,
+  }
 
   token_jwt = crear_token_acceso(datos_token)
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
 from app.core.paginacion import (
@@ -9,37 +9,54 @@ from app.core.paginacion import (
   paginar,
 )
 from app.models.db import Grados, Usuarios
-from app.models.enums import RolesUsuario
-from app.models.schemas import CrearGrado, PeticionGrado
+from app.models.enums import NivelEducativo
+from app.models.schemas import PeticionGrado
 from app.models.session import get_session
-from app.utils.security import obtener_usuario_actual, requerir_roles
+from app.utils.security import (
+  obtener_usuario_actual,
+  resolver_nivel,
+  validar_acceso_nivel,
+)
 
 router = APIRouter(prefix="/grados", tags=["Grados"])
 
 
-@router.post("/", response_model=PeticionGrado, status_code=status.HTTP_201_CREATED)
-def registrar_grado(
-  grado_in: CrearGrado,
-  session: Session = Depends(get_session),
-  usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
-):
-  nuevo_grado = Grados(grado=grado_in.grado, seccion=grado_in.seccion)
-  session.add(nuevo_grado)
-  session.commit()
-  session.refresh(nuevo_grado)
+def _obtener_grado_activo(session: Session, grado_id: int) -> Grados:
+  grado = session.get(Grados, grado_id)
 
-  return nuevo_grado
+  if not grado or grado.fecha_eliminacion is not None:
+    raise HTTPException(
+      status_code=status.HTTP_404_NOT_FOUND, detail="Grado no encontrado"
+    )
+
+  return grado
 
 
 @router.get("/", response_model=RespuestaPaginada[PeticionGrado])
 def listar_grados(
   paginacion: Paginacion = Depends(),
+  nivel: NivelEducativo | None = None,
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
-  # Traemos todos los grados activos
   consulta = filtro_activos(select(Grados), Grados)
+
+  nivel = resolver_nivel(usuario_actual, nivel)
+  if nivel is not None:
+    consulta = consulta.where(Grados.nivel == nivel)
 
   items, total = paginar(session, consulta, paginacion)
 
   return construir_pagina(items, total, paginacion)
+
+
+@router.get("/{grado_id}", response_model=PeticionGrado)
+def obtener_grado(
+  grado_id: int,
+  session: Session = Depends(get_session),
+  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
+):
+  grado = _obtener_grado_activo(session, grado_id)
+  validar_acceso_nivel(usuario_actual, grado.nivel)
+
+  return grado

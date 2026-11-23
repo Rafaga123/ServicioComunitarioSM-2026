@@ -9,7 +9,7 @@ from sqlmodel import Session
 
 from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, SECRET_KEY
 from app.models.db import Usuarios
-from app.models.enums import RolesUsuario
+from app.models.enums import NivelEducativo, RolesUsuario
 from app.models.session import get_session
 
 
@@ -98,3 +98,81 @@ def requerir_roles(*roles: RolesUsuario):
     return usuario_actual
 
   return dependencia
+
+
+# Nivel que debe aplicarse como filtro en las consultas.
+# El administrador no se limita a un nivel (None = ambos).
+def nivel_efectivo(usuario: Usuarios) -> NivelEducativo | None:
+  if usuario.rol == RolesUsuario.administrador:
+    return None
+
+  return usuario.nivel
+
+
+# Resuelve el nivel para filtrar consultas.
+# El administrador puede pedir cualquier nivel o ninguno; los operadores
+# quedan restringidos a su propio nivel aunque pidan otro por query string.
+def resolver_nivel(
+  usuario: Usuarios, nivel_solicitado: NivelEducativo | None
+) -> NivelEducativo | None:
+  if usuario.rol == RolesUsuario.administrador:
+    return nivel_solicitado
+
+  if usuario.nivel is None:
+    raise HTTPException(
+      status_code=status.HTTP_403_FORBIDDEN,
+      detail="La cuenta no tiene un nivel educativo asignado",
+    )
+
+  if nivel_solicitado is not None:
+    validar_acceso_nivel(usuario, nivel_solicitado)
+
+  return usuario.nivel
+
+
+# Solo el administrador gestiona catálogos y operaciones estructurales
+def requerir_admin(
+  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
+) -> Usuarios:
+  if usuario_actual.rol != RolesUsuario.administrador:
+    raise HTTPException(
+      status_code=status.HTTP_403_FORBIDDEN,
+      detail="Solo el administrador puede realizar esta acción",
+    )
+
+  return usuario_actual
+
+
+# Coordinador y secretaria operan únicamente dentro de su nivel
+def requerir_operador(
+  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
+) -> Usuarios:
+  if usuario_actual.rol not in (
+    RolesUsuario.coordinador,
+    RolesUsuario.secretaria,
+  ):
+    raise HTTPException(
+      status_code=status.HTTP_403_FORBIDDEN,
+      detail="No tienes permisos para realizar esta acción",
+    )
+
+  if usuario_actual.nivel is None:
+    raise HTTPException(
+      status_code=status.HTTP_403_FORBIDDEN,
+      detail="La cuenta no tiene un nivel educativo asignado",
+    )
+
+  return usuario_actual
+
+
+# Verifica que un operador solo acceda a registros de su nivel.
+# El administrador siempre tiene acceso.
+def validar_acceso_nivel(usuario: Usuarios, nivel: NivelEducativo | None) -> None:
+  if usuario.rol == RolesUsuario.administrador:
+    return
+
+  if nivel is None or usuario.nivel != nivel:
+    raise HTTPException(
+      status_code=status.HTTP_403_FORBIDDEN,
+      detail="No tienes acceso a registros de otro nivel educativo",
+    )
