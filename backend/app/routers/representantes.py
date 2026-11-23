@@ -154,6 +154,16 @@ def eliminar_representante(
 ) -> None:
   representante_db = _obtener_representante_activo(session, representante_id)
 
+  consulta = select(Estudiantes).where(
+    Estudiantes.id_representante == representante_id,
+    Estudiantes.fecha_eliminacion.is_(None),
+  )
+  if session.exec(consulta).first():
+    raise HTTPException(
+      status_code=status.HTTP_409_CONFLICT,
+      detail="El representante tiene estudiantes asignados",
+    )
+
   marcar_eliminado(session, representante_db)
   session.flush()
 
@@ -181,13 +191,13 @@ def vincular_estudiante_representante(
   representante = _obtener_representante_activo(session, representante_id)
   estudiante = _obtener_estudiante_activo(session, estudiante_id)
 
-  if representante in estudiante.representantes:
+  if estudiante.id_representante == representante.id:
     raise HTTPException(
       status_code=status.HTTP_400_BAD_REQUEST,
       detail="El representante ya está vinculado a este estudiante",
     )
 
-  estudiante.representantes.append(representante)
+  estudiante.id_representante = representante.id
 
   session.add(estudiante)
   session.flush()
@@ -223,18 +233,15 @@ def desvincular_estudiante_representante(
   usuario_actual: Usuarios = Depends(requerir_admin),
 ) -> None:
   estudiante = _obtener_estudiante_activo(session, estudiante_id)
-  representante = next(
-    (rep for rep in estudiante.representantes if rep.id == representante_id),
-    None,
-  )
 
-  if representante is None:
+  if estudiante.id_representante != representante_id:
     raise HTTPException(
       status_code=status.HTTP_404_NOT_FOUND,
       detail="El representante no está vinculado a este estudiante",
     )
 
-  estudiante.representantes.remove(representante)
+  representante = _obtener_representante_activo(session, representante_id)
+  estudiante.id_representante = None
 
   session.add(estudiante)
   session.flush()
