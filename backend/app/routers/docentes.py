@@ -8,13 +8,23 @@ from app.core.paginacion import (
   filtro_activos,
   paginar,
 )
-from app.models.db import Docentes, Usuarios
-from app.models.enums import ModuloAuditoria, RolesUsuario
+from app.models.db import (
+  AsignaturasDocentes,
+  Docentes,
+  Horarios,
+  Secciones,
+  Usuarios,
+)
+from app.models.enums import ModuloAuditoria, NivelEducativo, RolesUsuario
 from app.models.schemas import ActualizarDocente, CrearDocente, PeticionDocente
 from app.models.session import get_session
 from app.utils.auditoria import registrar_auditoria
 from app.utils.nombres import nombre_completo
-from app.utils.security import obtener_usuario_actual, requerir_roles
+from app.utils.security import (
+  obtener_usuario_actual,
+  requerir_roles,
+  resolver_nivel,
+)
 from app.utils.soft_delete import marcar_eliminado
 
 router = APIRouter(prefix="/docentes", tags=["Docentes"])
@@ -32,13 +42,50 @@ def _obtener_docente_activo(session: Session, docente_id: int) -> Docentes:
   return docente
 
 
+def _validar_docente_sin_dependencias(session: Session, docente_id: int) -> None:
+  consulta = select(Secciones).where(
+    Secciones.id_docente_titular == docente_id,
+    Secciones.fecha_eliminacion.is_(None),
+  )
+  if session.exec(consulta).first():
+    raise HTTPException(
+      status_code=status.HTTP_409_CONFLICT,
+      detail="El docente es titular de una sección activa; cambia primero la titularidad",
+    )
+
+  consulta = select(Horarios).where(
+    Horarios.id_docente == docente_id,
+    Horarios.fecha_eliminacion.is_(None),
+  )
+  if session.exec(consulta).first():
+    raise HTTPException(
+      status_code=status.HTTP_409_CONFLICT,
+      detail="El docente tiene horarios activos",
+    )
+
+  consulta = select(AsignaturasDocentes).where(
+    AsignaturasDocentes.id_docente == docente_id,
+    AsignaturasDocentes.fecha_eliminacion.is_(None),
+  )
+  if session.exec(consulta).first():
+    raise HTTPException(
+      status_code=status.HTTP_409_CONFLICT,
+      detail="El docente tiene asignaturas vinculadas",
+    )
+
+
 @router.get("/", response_model=RespuestaPaginada[PeticionDocente])
 def listar_docentes(
   paginacion: Paginacion = Depends(),
+  nivel: NivelEducativo | None = None,
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
   consulta = filtro_activos(select(Docentes), Docentes)
+
+  nivel = resolver_nivel(usuario_actual, nivel)
+  if nivel is not None:
+    consulta = consulta.where(Docentes.nivel == nivel)
 
   items, total = paginar(session, consulta, paginacion)
 
@@ -76,6 +123,7 @@ def registrar_docente(
     primer_apellido=docente_in.primer_apellido,
     segundo_apellido=docente_in.segundo_apellido,
     cedula=docente_in.cedula,
+    nivel=docente_in.nivel,
   )
 
   session.add(nuevo_docente)
@@ -121,6 +169,9 @@ def actualizar_docente(
         detail="La nueva cédula ya está registrada en otro docente",
       )
 
+  if "nivel" in datos_actualizar and datos_actualizar["nivel"] != docente_db.nivel:
+    _validar_docente_sin_dependencias(session, docente_id)
+
   cambios = {
     campo: valor
     for campo, valor in datos_actualizar.items()
@@ -158,6 +209,7 @@ def eliminar_docente(
   usuario_actual: Usuarios = Depends(requerir_admin),
 ) -> None:
   docente_db = _obtener_docente_activo(session, docente_id)
+  _validar_docente_sin_dependencias(session, docente_id)
 
   marcar_eliminado(session, docente_db)
   session.flush()
