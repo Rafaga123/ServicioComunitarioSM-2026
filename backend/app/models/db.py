@@ -229,6 +229,11 @@ class Estudiantes(EsquemaBase, table=True):
 
   fecha_nacimiento: NaiveDatetime
 
+  # Para estudiantes del 5to Año al cerrar el año: marca de egreso y, de
+  # paso, deja de contarse como activo en las listas (los 5to Año dejan de
+  # estar en secciones que se promueven).
+  fecha_egreso: NaiveDatetime | None = Field(default=None)
+
   seccion: Secciones = Relationship(back_populates="estudiantes")
   representante: Representantes | None = Relationship(back_populates="estudiantes")
   pases: list["Pases"] = Relationship(back_populates="estudiante")

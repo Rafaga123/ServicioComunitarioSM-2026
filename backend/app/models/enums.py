@@ -41,6 +41,7 @@ class ModuloAuditoria(str, Enum):
   auditorias = "AUDITORIAS"
   periodos_lectivos = "PERIODOS_LECTIVOS"
   documentos = "DOCUMENTOS"
+  cierre_anio = "CIERRE_ANIO"
 
 
 # Tipos de documentos generados como PDFs de listados institucionales

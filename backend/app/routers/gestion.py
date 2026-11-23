@@ -19,10 +19,13 @@ from app.models.enums import ModuloAuditoria, NivelEducativo, RolesUsuario
 from app.models.schemas import (
   ActualizarPeriodoLectivo,
   CrearPeriodoLectivo,
+  PeticionCierreAnio,
   PeticionPeriodoLectivo,
   PeticionResumenGestion,
+  SolicitudCierreAnio,
 )
 from app.models.session import get_session
+from app.services.cierre import cerrar_anio as cerrar_anio_servicio
 from app.utils.auditoria import registrar_auditoria
 from app.utils.security import (
   obtener_usuario_actual,
@@ -324,4 +327,24 @@ def obtener_resumen_gestion(
     horarios=_contar_horarios(session, nivel),
     pases=_contar_pases(session, nivel),
     reportes=_contar_reportes(session, nivel),
+  )
+
+
+@router.post("/cerrar-anio", response_model=PeticionCierreAnio)
+def cerrar_anio(
+  peticion: SolicitudCierreAnio,
+  session: Session = Depends(get_session),
+  usuario_actual: Usuarios = Depends(
+    requerir_roles(RolesUsuario.administrador)
+  ),
+):
+  """Cierra el periodo actual: genera listados y traspasa estudiantes.
+
+  El periodo siguiente se crea si no existe (activo y vacío de secciones).
+  """
+  return cerrar_anio_servicio(
+    session,
+    usuario_actual,
+    peticion.periodo_actual,
+    peticion.periodo_siguiente,
   )

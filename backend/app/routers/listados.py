@@ -44,7 +44,6 @@ from app.utils.security import (
   validar_acceso_nivel,
 )
 from app.utils.storage import (
-  GRADO_SLUGS,
   guardar_archivo,
   hash_contenido,
   leer_archivo,
@@ -126,25 +125,6 @@ def _resolver_filtros(
   return periodo_obj.anio, nivel, seccion, grado
 
 
-def _ruta_relativa_listado(
-  tipo: TipoDocumento,
-  periodo: int,
-  nivel: NivelEducativo,
-  grado: Grados | None,
-  seccion: Secciones | None,
-  nombre_archivo: str,
-) -> str:
-  """Construye la ruta relativa dentro de STORAGE_ROOT.
-
-  Ejemplo sección: `listados/nominas/LICEO/1er_ano/A/nomina_2027_1er_ano_A.pdf`;
-  general: `listados/nominas/LICEO/general/nomina_2027_LICEO_general.pdf`.
-  """
-  if seccion is not None:
-    slug = GRADO_SLUGS.get(grado.numero, "general")
-    return f"listados/{tipo.value}/{nivel.value}/{slug}/{seccion.letra}/{nombre_archivo}"
-  return f"listados/{tipo.value}/{nivel.value}/general/{nombre_archivo}"
-
-
 def _dto(registro: DocumentosGenerados) -> PeticionDocumentoGenerado:
   grado = registro.grado
   return PeticionDocumentoGenerado(
@@ -195,7 +175,7 @@ def generar_listado(
     seccion=documento.seccion_descripcion,
     periodo_lectivo=periodo,
   )
-  ruta_relativa = _ruta_relativa_listado(
+  ruta_relativa = servicio_listados.ruta_relativa_listado(
     tipo, periodo, nivel, documento.grado, seccion, documento.nombre_archivo
   )
   # Versionado: no sobrescribir un PDF que ya existe.

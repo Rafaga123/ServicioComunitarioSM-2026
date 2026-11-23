@@ -287,3 +287,24 @@ def construir_documento(
     titulo=_titulo(tipo, nivel, grado, seccion),
     seccion_descripcion=descripcion,
   )
+
+
+def ruta_relativa_listado(
+  tipo: TipoDocumento,
+  periodo: int,
+  nivel: NivelEducativo,
+  grado: Grados | None,
+  seccion: Secciones | None,
+  nombre_archivo: str,
+) -> str:
+  """Ruta relativa dentro de STORAGE_ROOT del PDF generado.
+
+  Sección: `listados/nominas/LICEO/1er_ano/A/nomina_2027_1er_ano_A.pdf`.
+  General: `listados/nominas/LICEO/general/nomina_2027_LICEO_general.pdf`.
+  """
+  if seccion is not None:
+    slug = GRADO_SLUGS.get(grado.numero, "general")
+    return (
+      f"listados/{tipo.value}/{nivel.value}/{slug}/{seccion.letra}/{nombre_archivo}"
+    )
+  return f"listados/{tipo.value}/{nivel.value}/general/{nombre_archivo}"

@@ -557,6 +557,26 @@ class PeticionReporte(SQLModel):
 # ====
 # Esquemas para Listados (PDFs generados por tipo)
 # ====
+class SolicitudCierreAnio(SQLModel):
+  periodo_actual: int = Field(ge=2000)
+  periodo_siguiente: int = Field(ge=2000)
+
+
+class SolicitudCierreAnio(SQLModel):
+  periodo_actual: int = Field(ge=2000)
+  periodo_siguiente: int = Field(ge=2000)
+
+
+class PeticionCierreAnio(SQLModel):
+  periodo_cerrado: int
+  periodo_activado: int
+  documentos_generados: int
+  estudiantes_promovidos: int
+  egresados: int
+  secciones_creadas: int
+  asignaturas_creadas: int
+
+
 class SolicitudListado(SQLModel):
   """Filtros para generar un listado PDF.
 
