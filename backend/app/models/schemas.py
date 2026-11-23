@@ -353,15 +353,19 @@ class PeticionHorario(SQLModel):
   docente: str | None = None
 
 
-# Compatibilidad temporal con el autocompletado actual. La Fase 5
-# reescribe horarios y este esquema desaparece.
-class PeticionBloque(SQLModel):
+# Respuesta del autocompletado: resuelve la sección del estudiante y el
+# bloque institucional, sin usar una hora suelta como clave del horario.
+class PeticionConsultaHorario(SQLModel):
   encontrado: bool
   id_horario: int | None = None
+  id_bloque: int | None = None
   id_asignatura: int | None = None
   id_docente: int | None = None
   asignatura: str | None = None
   docente: str | None = None
+  bloque: str | None = None
+  hora_inicio: time | None = None
+  hora_fin: time | None = None
 
 
 # ====
