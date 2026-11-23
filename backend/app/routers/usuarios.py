@@ -9,7 +9,12 @@ from app.core.paginacion import (
   paginar,
 )
 from app.models.db import Usuarios
-from app.models.enums import ModuloAuditoria, RolesUsuario
+from app.models.enums import (
+  ModuloAuditoria,
+  NivelEducativo,
+  RolesAsignables,
+  RolesUsuario,
+)
 from app.models.schemas import (
   ActualizarUsuario,
   CambiarClave,
@@ -22,6 +27,7 @@ from app.utils.security import (
   obtener_hash_clave,
   obtener_usuario_actual,
   requerir_roles,
+  resolver_nivel,
   verificar_clave,
 )
 from app.utils.soft_delete import marcar_eliminado
@@ -41,22 +47,42 @@ def _obtener_usuario_activo(session: Session, usuario_id: int) -> Usuarios:
   return usuario
 
 
+def _validar_combinacion_rol_nivel(
+  rol: RolesAsignables | RolesUsuario | None,
+  nivel: NivelEducativo | None,
+) -> None:
+  if rol is None:
+    return
+
+  if rol in (RolesUsuario.coordinador, RolesUsuario.secretaria) and nivel is None:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="Los roles de coordinador y secretaria requieren un nivel educativo",
+    )
+
+
 @router.get("/", response_model=RespuestaPaginada[PeticionUsuario])
 def listar_usuarios(
   paginacion: Paginacion = Depends(),
+  nivel: NivelEducativo | None = None,
+  rol: RolesUsuario | None = None,
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
   consulta = filtro_activos(select(Usuarios), Usuarios)
+
+  nivel = resolver_nivel(usuario_actual, nivel)
+  if nivel is not None:
+    consulta = consulta.where(Usuarios.nivel == nivel)
+  if rol is not None:
+    consulta = consulta.where(Usuarios.rol == rol)
 
   items, total = paginar(session, consulta, paginacion)
 
   return construir_pagina(items, total, paginacion)
 
 
-@router.post(
-  "/", response_model=PeticionUsuario, status_code=status.HTTP_201_CREATED
-)
+@router.post("/", response_model=PeticionUsuario, status_code=status.HTTP_201_CREATED)
 def registrar_usuario(
   usuario_in: CrearUsuario,
   session: Session = Depends(get_session),
@@ -70,10 +96,13 @@ def registrar_usuario(
       detail="Ya existe un usuario con ese nombre",
     )
 
+  _validar_combinacion_rol_nivel(usuario_in.rol, usuario_in.nivel)
+
   nuevo_usuario = Usuarios(
     nombre=usuario_in.nombre,
     clave=obtener_hash_clave(usuario_in.clave),
     rol=RolesUsuario(usuario_in.rol.value),
+    nivel=usuario_in.nivel,
   )
 
   session.add(nuevo_usuario)
@@ -145,20 +174,20 @@ def actualizar_usuario(
   if usuario_db.rol == RolesUsuario.administrador:
     raise HTTPException(
       status_code=status.HTTP_400_BAD_REQUEST,
-      detail=(
-        "El administrador se gestiona mediante la transferencia de rol"
-      ),
+      detail=("El administrador se gestiona mediante la transferencia de rol"),
     )
 
   datos_actualizar = usuario_in.model_dump(exclude_unset=True, exclude_none=True)
 
+  _validar_combinacion_rol_nivel(
+    datos_actualizar.get("rol", usuario_db.rol),
+    datos_actualizar.get("nivel", usuario_db.nivel),
+  )
+
   if "rol" in datos_actualizar:
     datos_actualizar["rol"] = RolesUsuario(datos_actualizar["rol"].value)
 
-  if (
-    "nombre" in datos_actualizar
-    and datos_actualizar["nombre"] != usuario_db.nombre
-  ):
+  if "nombre" in datos_actualizar and datos_actualizar["nombre"] != usuario_db.nombre:
     statement = select(Usuarios).where(
       Usuarios.nombre == datos_actualizar["nombre"],
       Usuarios.id != usuario_id,
@@ -213,10 +242,7 @@ def eliminar_usuario(
   if usuario_db.rol == RolesUsuario.administrador:
     raise HTTPException(
       status_code=status.HTTP_400_BAD_REQUEST,
-      detail=(
-        "El administrador no puede darse de baja; "
-        "transfiere el rol primero"
-      ),
+      detail=("El administrador no puede darse de baja; transfiere el rol primero"),
     )
 
   marcar_eliminado(session, usuario_db)
@@ -248,6 +274,7 @@ def transferir_admin(
     )
 
   nuevo_admin.rol = RolesUsuario.administrador
+  nuevo_admin.nivel = None
 
   session.add(nuevo_admin)
   marcar_eliminado(session, usuario_actual)
