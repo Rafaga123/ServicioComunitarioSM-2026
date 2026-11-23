@@ -8,8 +8,8 @@ from app.core.paginacion import (
   filtro_activos,
   paginar,
 )
-from app.models.db import Estudiantes, Representantes, Usuarios
-from app.models.enums import ModuloAuditoria, RolesUsuario
+from app.models.db import Estudiantes, Grados, Representantes, Secciones, Usuarios
+from app.models.enums import ModuloAuditoria, NivelEducativo, RolesUsuario
 from app.models.schemas import (
   ActualizarRepresentante,
   CrearRepresentante,
@@ -18,11 +18,47 @@ from app.models.schemas import (
 from app.models.session import get_session
 from app.utils.auditoria import registrar_auditoria
 from app.utils.nombres import nombre_completo
-from app.utils.security import obtener_usuario_actual, requerir_roles
+from app.utils.security import (
+  obtener_usuario_actual,
+  requerir_roles,
+  resolver_nivel,
+)
 from app.utils.soft_delete import marcar_eliminado
 
 router = APIRouter(prefix="/representantes", tags=["Representantes"])
 requerir_admin = requerir_roles(RolesUsuario.administrador)
+
+
+def _validar_acceso_representante(
+  session: Session, usuario: Usuarios, representante: Representantes
+) -> None:
+  if usuario.rol == RolesUsuario.administrador:
+    return
+
+  if usuario.nivel is None:
+    raise HTTPException(
+      status_code=status.HTTP_403_FORBIDDEN,
+      detail="La cuenta no tiene un nivel educativo asignado",
+    )
+
+  tiene_estudiante_nivel = session.exec(
+    select(Estudiantes.id)
+    .join(Secciones, Estudiantes.id_seccion == Secciones.id)
+    .join(Grados, Secciones.id_grado == Grados.id)
+    .where(
+      Estudiantes.id_representante == representante.id,
+      Estudiantes.fecha_eliminacion.is_(None),
+      Secciones.fecha_eliminacion.is_(None),
+      Grados.fecha_eliminacion.is_(None),
+      Grados.nivel == usuario.nivel,
+    )
+  ).first()
+
+  if tiene_estudiante_nivel is None:
+    raise HTTPException(
+      status_code=status.HTTP_403_FORBIDDEN,
+      detail="No tienes acceso a representantes de otro nivel educativo",
+    )
 
 
 def _obtener_representante_activo(
@@ -87,10 +123,26 @@ def registrar_representante(
 @router.get("/", response_model=RespuestaPaginada[PeticionRepresentante])
 def listar_representantes(
   paginacion: Paginacion = Depends(),
+  nivel: NivelEducativo | None = None,
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  nivel = resolver_nivel(usuario_actual, nivel)
   consulta = filtro_activos(select(Representantes), Representantes)
+
+  if nivel is not None:
+    consulta = (
+      consulta.join(Estudiantes, Estudiantes.id_representante == Representantes.id)
+      .join(Secciones, Estudiantes.id_seccion == Secciones.id)
+      .join(Grados, Secciones.id_grado == Grados.id)
+      .where(
+        Estudiantes.fecha_eliminacion.is_(None),
+        Secciones.fecha_eliminacion.is_(None),
+        Grados.fecha_eliminacion.is_(None),
+        Grados.nivel == nivel,
+      )
+      .distinct()
+    )
 
   items, total = paginar(session, consulta, paginacion)
 
@@ -103,7 +155,10 @@ def obtener_representante(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
-  return _obtener_representante_activo(session, representante_id)
+  representante = _obtener_representante_activo(session, representante_id)
+  _validar_acceso_representante(session, usuario_actual, representante)
+
+  return representante
 
 
 @router.put("/{representante_id}", response_model=PeticionRepresentante)
