@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 
 // --- LISTA REACTIVA DE USUARIOS ---
 const usuarios = ref([
-  { id: 1, usuario: 'rtelles', rol: 'Control de Estudio', estado: 'Activo', ultimaConexion: 'Hoy, 08:15 AM' },
+  { id: 1, usuario: 'rtelles', rol: 'Coordinacion', estado: 'Activo', ultimaConexion: 'Hoy, 08:15 AM' },
   { id: 2, usuario: 'mvillanueva', rol: 'Secretaria', estado: 'Activo', ultimaConexion: 'Hoy, 09:40 AM' },
   { id: 3, usuario: 'kvarela', rol: 'Admin', estado: 'Activo', ultimaConexion: 'Hoy, 10:05 AM' }
 ])
@@ -143,7 +143,7 @@ const guardarEdicion = () => {
         >
           <option value="">Todos</option>
           <option value="Admin">Admin</option>
-          <option value="Control de Estudio">Control de Estudio</option>
+          <option value="Coordinacion">Coordinación</option>
           <option value="Secretaria">Secretaria</option>
         </select>
       </div>
@@ -200,7 +200,7 @@ const guardarEdicion = () => {
                   <span
                     :class="{
                       'bg-blue-100 text-blue-800': user.rol === 'Admin',
-                      'bg-amber-100 text-amber-800': user.rol === 'Control de Estudio',
+                      'bg-amber-100 text-amber-800': user.rol === 'Coordinacion',
                       'bg-purple-100 text-purple-800': user.rol === 'Secretaria'
                     }"
                     class="px-3 py-0.5 rounded-full text-xs font-medium"
@@ -307,7 +307,7 @@ const guardarEdicion = () => {
             >
               <option value="" disabled>Seleccione un rol</option>
               <option value="Admin">Admin</option>
-              <option value="Control de Estudio">Control de Estudio</option>
+              <option value="Coordinacion">Coordinación</option>
               <option value="Secretaria">Secretaria</option>
             </select>
           </div>
@@ -396,7 +396,7 @@ const guardarEdicion = () => {
                 class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600"
               >
                 <option value="Admin">Admin</option>
-                <option value="Control de Estudio">Control de Estudio</option>
+                <option value="Coordinacion">Coordinación</option>
                 <option value="Secretaria">Secretaria</option>
               </select>
             </div>
