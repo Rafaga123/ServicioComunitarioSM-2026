@@ -470,7 +470,7 @@ def subir_pase_archivo(
     session,
     usuario_actual.id,
     ModuloAuditoria.pases,
-    "SUBIR_ARCHIVO",
+    "SUBIR ARCHIVO",
     (
       f"Subió el adjunto '{nombre_base}' ({len(contenido)} bytes) "
       f"del pase #{pase.id} de '{nombre_completo(estudiante)}'."
@@ -498,7 +498,7 @@ def descargar_pase_archivo(
     session,
     usuario_actual.id,
     ModuloAuditoria.pases,
-    "DESCARGAR_ARCHIVO",
+    "DESCARGAR ARCHIVO",
     (
       f"Descargó el adjunto '{pase.archivo_nombre}' "
       f"del pase #{pase.id} de '{nombre_completo(pase.estudiante)}'."
@@ -533,7 +533,7 @@ def quitar_pase_archivo(
     session,
     usuario_actual.id,
     ModuloAuditoria.pases,
-    "QUITAR_ARCHIVO",
+    "QUITAR ARCHIVO",
     f"Quitó el adjunto del pase #{pase.id} de '{nombre_completo(estudiante)}'.",
   )
 

@@ -1,6 +1,6 @@
 # Handoff: API completa del backend para el Frontend
 
-> Actualizado el 23-11-2026 (`backend-dev`, Fases 1–6 completadas: 46 paths / 83 operaciones; aún sin push)
+> Actualizado el 24-11-2026 (`backend-dev`, Fases 1–6 completadas: 47 paths / 84 operaciones; aún sin push)
 > Base: `backend/` (FastAPI). URL base: `import.meta.env.VITE_API_URL ?? "http://localhost:8000/api"`
 > Auth: `Authorization: Bearer <JWT>` (Bearer en header, CORS: `allow_origins=["*"]`, `allow_credentials=False`).
 > Fechas de entrada: ISO **sin zona horaria**; el backend las normaliza a Caracas (America/Caracas) por su cuenta.
@@ -15,11 +15,15 @@
 |---|---|---|
 | `POST /api/auth/login` | body `application/x-www-form-urlencoded`: `username` (nombre del Usuario), `password` | Devuelve `200 {access_token, token_type: "bearer"}`. `401` si credenciales incorrectas. |
 | `GET /api/auth/me` | — | Devuelve el `PeticionUsuario` del usuario del token. |
+| `POST /api/auth/logout` | Bearer token | `204`. Registra `CIERRE DE SESIÓN` en auditorías. El token sigue vivo hasta `exp`: **el frontend debe borrarlo de localStorage**. |
 
 - El JWT es HS256, firmado con `SECRET_KEY`, expira en `ACCESS_TOKEN_EXPIRE_MINUTES` (defecto 360 min).
-- Claims del token: `sub` (string con el id del usuario), `rol`, `nivel` (nulo si no hay).
-- `Content-Type` de todos los POST: `application/json` (excepto uploads multipart).
-- El login correcto registra una auditoría con `modulo: "USUARIOS"`, `accion: "LOGIN"` y el nombre del usuario en `descripcion`.
+- Claims del token: `sub` (string con el id del usuario), `rol`, `nivel` (nulo si no hay), `exp` (epoch seconds).
+- Token vencido → `401` con `detail: "La sesión ha expirado. Inicia sesión nuevamente."` y `WWW-Authenticate: Bearer error="invalid_token", error_description="token expirado"`. Token inválido → `401` con `detail: "No se pudieron validar las credenciales (token inválido)"`.
+- `Content-Type` de todos los POST: `application/json` (excepto login `x-www-form-urlencoded` y uploads multipart).
+- Login correcto: auditoría `modulo: "USUARIOS"`, `accion: "INICIO DE SESIÓN"`.
+- Cierre de sesión: auditoría `modulo: "USUARIOS"`, `accion: "CIERRE DE SESIÓN"`.
+- Textos de auditoría (`modulo`, `accion`, `descripcion`) son legibles: `_` → espacio y `ano`/`anio` → `año`. Ejemplos: `SUBIR_ARCHIVO` → `SUBIR ARCHIVO`, `BLOQUES_HORARIOS` → `BLOQUES HORARIOS`, `1er_ano` → `1er año`. Las rutas y claves de la API no cambian.
 
 ### 1.2 Paginación (listados)
 
@@ -41,7 +45,7 @@ Todos los GET que devuelven lista tienen respuesta estándar:
 | `201` | POST creado |
 | `204` | DELETE/PUT sin contenido de retorno |
 | `400` | Validación de datos (campo, rango, duplicado) |
-| `401` | Token inválido/expirado (opcionalmente `WWW-Authenticate: Bearer`) |
+| `401` | Token inválido o expirado. El frontend debe limpiar la sesión local y redirigir al login; el `detail` distingue expiración de token inválido. |
 | `403` | Sin rol/nivel permitido |
 | `404` | Registro no encontrado |
 | `409` | Conflicto (dependencias, duplicado de nota) |
@@ -496,3 +500,36 @@ Consulte las columnas `id_*`, `periodo_lectivo`, `fecha_*` y los campos `*_apoyo
 - `Consulta horario`: no usar hora suelta; requiere `id_bloque` o `hora` (400 si ambos null).
 - `cedula` de docente y `cedula_estudiantil`: únicas activas por separado.
 - El id del usuario de auditoría = token `sub` (cambia si se re-autentica).
+
+---
+
+## 11. Pendientes / notas para el compañero de frontend
+
+> Esta rama (`backend-dev`) no modifica `frontend/src`. Son anotaciones para la rama `frontend-dev`.
+
+### 11.1 Sesión, logout y expiración del JWT
+
+- Botón **Cerrar sesión**: llamar `POST /api/auth/logout` con el Bearer token **antes** de borrar `localStorage.token`. El backend audita el cierre; si solo se borra el token local no queda auditoría.
+- El JWT es stateless: el endpoint de logout **no revoca** el token. Es obligatorio eliminar el token local y limpiar el estado reactivo de `auth.js`.
+- `api.js` ya limpia token y redirige al recibir cualquier `401` (`apiFetch` y `apiDescargar`). Mantener ese comportamiento; el `detail` del backend ahora distingue `"La sesión ha expirado..."` de token inválido.
+- El `exp` del token viaja en el claim `exp` (epoch seconds). Para que la sesión se cierre **sin esperar una petición**, agregar en frontend un temporizador o control en `visibilitychange/focus` que compare `exp * 1000 <= Date.now()` y ejecute el mismo limpiado de sesión. `sincronizarSesion()` de `auth.js` solo lo revisa al cargar el módulo.
+- Opcional: al iniciar la app llamar `GET /api/auth/me` para validar el token contra el backend (cuenta dada de baja, rol/nivel cambiado). Un `401` ya dispara el cierre local.
+
+### 11.2 Listados y botones de exportar (aún sin UI)
+
+El backend ya expone todo; falta conectar botones en frontend:
+
+- `POST /api/listados/{tipo}` con `tipo ∈ nominas|representantes|horarios|docentes`. Body `SolicitudListado`: `nivel`, `periodo_lectivo`, `id_grado`, `id_seccion`. `horarios` exige `id_seccion` de LICEO; `docentes` es general por nivel.
+- `GET /api/listados/documentos?tipo=&periodo_lectivo=&nivel=&id_grado=&id_seccion=&offset=&size=` → historial paginado (admin).
+- `GET /api/listados/documentos/{documento_id}/archivo` → usar `apiDescargar` (attachment PDF).
+- `GET /api/listados/documentos/paquete?tipo=&periodo_lectivo=` → ZIP (admin).
+- Sugerencia: en la vista de gestión, un botón «Generar PDF» por sección para nóminas/representantes/horarios y uno por nivel para docentes; luego una tabla con «Descargar» y «Descargar paquete».
+
+### 11.3 Auditorías visibles
+
+- No hace falta enviar texto desde el frontend: el backend normaliza los textos al guardar (`SUBIR ARCHIVO`, `CIERRE AÑO`, `2026-2027`, `1er año`, etc.).
+- Las auditorías históricas se normalizaron con `python -m scripts.normalizar_textos_auditoria` (ejecutado en esta rama).
+
+### 11.4 Otros pendientes menores
+
+- El listado general de docentes de ESCUELA muestra `Grado/Sección = -` mientras no haya `id_docente_titular` cargado en las secciones. No bloquea el PDF.

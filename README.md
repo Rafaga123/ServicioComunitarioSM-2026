@@ -2,7 +2,7 @@
 
 API REST para la gestión académica y disciplinaria de una escuela y un liceo. Está construida con **FastAPI + SQLModel + PostgreSQL** y separa la información por nivel educativo (`ESCUELA` / `LICEO`).
 
-> **Estado actual:** Fases 1–6 completadas en `backend-dev`. El backend expone **14 routers**, **46 rutas** y **83 operaciones** documentadas en OpenAPI (verificado con `app.openapi()`). El contrato detallado para el frontend está en [`docs/ENTREGA_FRONTEND.md`](docs/ENTREGA_FRONTEND.md).
+> **Estado actual:** Fases 1–6 completadas en `backend-dev`. El backend expone **14 routers**, **47 rutas** y **84 operaciones** documentadas en OpenAPI (verificado con `app.openapi()`; la ruta nueva es `POST /api/auth/logout`). El contrato detallado para el frontend está en [`docs/ENTREGA_FRONTEND.md`](docs/ENTREGA_FRONTEND.md).
 >
 > **Importante:** no hay migraciones (Alembic). `create_all()` **no altera** tablas existentes: para esquemas antiguos se usa `python -m scripts.cargar_datos_prueba --recrear-tablas`, que hace `drop_all()` antes de cargar y por eso es destructivo. Sin ese flag, la BD se crea/actualiza desde la semilla sin borrar datos.
 
@@ -180,6 +180,8 @@ ServicioComunitarioSM-2026/
 │   ├── scripts/
 │   │   ├── cargar_datos_prueba.py # Cargador único de nóminas + usuarios
 │   │   ├── crear_admin.py         # Administrador inicial
+│   │   ├── normalizar_textos_auditoria.py  # Backfill de textos legibles
+│   │   ├── regenerar_horarios_pdf.py       # Reemplaza los PDF de horarios
 │   │   ├── excel.py / generar_sql.py / sembrar_horarios.py  # Generadores
 │   │   └── nominas/               # Export original (ignorado por Git)
 │   ├── .env.example
@@ -227,10 +229,11 @@ Todas las rutas protegidas esperan:
 Authorization: Bearer <access_token>
 ```
 
-El token incluye `sub` (id del usuario), `rol` y `nivel`. En cada petición el servidor vuelve a leer el usuario desde la BD, así que una baja o un cambio de rol surten efecto sin esperar a que expire el token.
+El token incluye `sub` (id del usuario), `rol`, `nivel` y `exp` (epoch seconds). En cada petición el servidor vuelve a leer el usuario desde la BD, así que una baja o un cambio de rol surten efecto sin esperar a que expire el token.
 
-- `401`: token ausente, inválido o expirado.
+- `401`: token ausente, inválido o expirado. El `detail` distingue `La sesión ha expirado. Inicia sesión nuevamente.` de `No se pudieron validar las credenciales (token inválido)`. En ambos casos el frontend debe limpiar la sesión local.
 - `403`: token válido, pero sin permisos o sin acceso al nivel solicitado.
+- `POST /api/auth/logout` auditoriza el cierre de sesión, pero **no revoca** el JWT: el frontend también debe eliminar el token almacenado.
 - No hay refresh token ni endpoint de logout/revocación por ahora.
 
 ### 4.3 Paginación
@@ -282,7 +285,7 @@ Los valores viajan en **MAYÚSCULA** por la API. En PostgreSQL se guardan con el
 | `NivelGravedad` | `LEVE`, `GRAVE` |
 | `CategoriaReportes` | `CONDUCTUAL`, `ACADEMICO` |
 | `Reglamentos` | `LOPNNA`, `LOE`, `CBV`, `NC` |
-| `ModuloAuditoria` | `USUARIOS`, `ESTUDIANTES`, `GRADOS`, `SECCIONES`, `REPRESENTANTES`, `DOCENTES`, `ASIGNATURAS`, `BLOQUES_HORARIOS`, `HORARIOS`, `PASES`, `REPORTES`, `AUDITORIAS` |
+| `ModuloAuditoria` | `USUARIOS`, `ESTUDIANTES`, `GRADOS`, `SECCIONES`, `REPRESENTANTES`, `DOCENTES`, `ASIGNATURAS`, `BLOQUES HORARIOS`, `HORARIOS`, `PERIODOS LECTIVOS`, `PASES`, `REPORTES`, `AUDITORIAS`, `DOCUMENTOS`, `CIERRE AÑO` |
 
 ### 4.6 Errores
 
@@ -376,7 +379,7 @@ Los `422` usan el formato estándar de FastAPI:
 
 ## 6. Endpoints
 
-> Esta sección lista las **83 operaciones** de la API. Los schemas completos, ejemplos y códigos de respuesta están en `/docs` y `/openapi.json`; el contrato de integración está en `docs/ENTREGA_FRONTEND.md`.
+> Esta sección lista las **84 operaciones** de la API. Los schemas completos, ejemplos y códigos de respuesta están en `/docs` y `/openapi.json`; el contrato de integración está en `docs/ENTREGA_FRONTEND.md`.
 
 ### 6.1 Salud
 
@@ -391,6 +394,7 @@ Los `422` usan el formato estándar de FastAPI:
 | --- | --- | --- | --- |
 | POST | `/api/auth/login` | Público | Form-data `username` y `password`. Devuelve `access_token` y `token_type` |
 | GET | `/api/auth/me` | Autenticado | Devuelve `id`, `nombre`, `rol` y `nivel` del usuario actual |
+| POST | `/api/auth/logout` | Autenticado | `204`; registra `CIERRE DE SESIÓN`. No revoca el token: borrarlo en el cliente |
 
 Ejemplo de respuesta de `/api/auth/me`:
 
@@ -905,9 +909,15 @@ Cada operación de escritura registra automáticamente una auditoría con:
 
 - `usuario_id`
 - `modulo` (`USUARIOS`, `ESTUDIANTES`, `SECCIONES`, `PASES`, `REPORTES`, etc.)
-- `accion` (`CREAR`, `ACTUALIZAR`, `ELIMINAR`, `CAMBIAR_CLAVE`, `TRANSFERIR_ADMIN`, etc.)
+- `accion` (`CREAR`, `ACTUALIZAR`, `ELIMINAR`, `CAMBIAR CLAVE`, `TRANSFERIR ADMIN`, `SUBIR ARCHIVO`, `INICIO DE SESIÓN`, `CIERRE DE SESIÓN`, etc.)
 - `descripcion`
 - `fecha_creacion`
+
+Los textos visibles se normalizan al guardar: `_` → espacio y `ano`/`anio` → `año` (`BLOQUES HORARIOS`, `CIERRE AÑO`, `1er año`). Para normalizar auditorías antiguas:
+
+```powershell
+python -m scripts.normalizar_textos_auditoria
+```
 
 ---
 
@@ -1174,6 +1184,8 @@ headers: {
 }
 ```
 
+Para cerrar sesión, llama `POST /api/auth/logout` con el Bearer token y después borra el token local. Un `401` (expirado o inválido) también debe limpiar la sesión en el cliente. Las notas detalladas para `frontend-dev` están en [`docs/ENTREGA_FRONTEND.md`](docs/ENTREGA_FRONTEND.md), sección 11.
+
 ### 10.3 Ejemplo de listado paginado
 
 ```http
@@ -1252,7 +1264,7 @@ Con el frontend servido desde el mismo backend y el mismo puerto, las peticiones
 - **No hay Docker/compose** ni instalador `.exe` todavía.
 - La subida de archivos admite solo imágenes; no hay vista previa ni borrado físico de adjuntos.
 - El frontend aún no está conectado; este README describe solo el backend.
-- La carpeta `backend/scripts/` contiene scripts auxiliares (`generar_sql.py`, `excel.py`, `sembrar_horarios.py`, `crear_admin.py`, `cargar_datos_prueba.py`) que no forman parte del contrato de la API. Los datos sensibles de nóminas están solo en `backend/scripts/nominas/`, ignorada por Git.
+- La carpeta `backend/scripts/` contiene scripts auxiliares (`generar_sql.py`, `excel.py`, `sembrar_horarios.py`, `crear_admin.py`, `cargar_datos_prueba.py`, `normalizar_textos_auditoria.py`, `regenerar_horarios_pdf.py`) que no forman parte del contrato de la API. Los datos sensibles de nóminas están solo en `backend/scripts/nominas/`, ignorada por Git.
 
 ---
 

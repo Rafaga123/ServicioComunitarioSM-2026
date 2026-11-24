@@ -193,7 +193,16 @@ def construir_pdf_horarios(
     fontSize=8,
     leading=10,
     alignment=TA_CENTER,
-    textColor=colors.whitesmoke,
+    textColor=colors.white,
+  )
+  estilo_fila_periodo = ParagraphStyle(
+    "FilaPeriodoHorario",
+    parent=estilos["BodyText"],
+    fontName="Helvetica",
+    fontSize=7.5,
+    leading=9,
+    alignment=TA_CENTER,
+    textColor=colors.white,
   )
   estilo_celda = ParagraphStyle(
     "CeldaHorario",
@@ -221,11 +230,17 @@ def construir_pdf_horarios(
       raise ValueError("Cada fila del horario debe tener hora y cinco días")
 
   fila_periodo = [
-    Paragraph(f"<b>Periodo:</b> {_texto_parrafo(cabecera['periodo'])}", estilo_celda),
+    Paragraph(
+      f"<b>Periodo:</b> {_texto_parrafo(cabecera['periodo'])}", estilo_fila_periodo
+    ),
     "",
-    Paragraph(f"<b>Curso:</b> {_texto_parrafo(cabecera['curso'])}", estilo_celda),
+    Paragraph(
+      f"<b>Curso:</b> {_texto_parrafo(cabecera['curso'])}", estilo_fila_periodo
+    ),
     "",
-    Paragraph(f"<b>Sección:</b> {_texto_parrafo(cabecera['seccion'])}", estilo_celda),
+    Paragraph(
+      f"<b>Sección:</b> {_texto_parrafo(cabecera['seccion'])}", estilo_fila_periodo
+    ),
     "",
   ]
   fila_dias = [

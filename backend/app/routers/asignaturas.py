@@ -422,7 +422,7 @@ def vincular_docente(
     session,
     usuario_actual.id,
     ModuloAuditoria.asignaturas,
-    "VINCULAR_DOCENTE",
+    "VINCULAR DOCENTE",
     (
       f"Se vinculó al docente '{nombre_completo(docente)}' "
       f"con la asignatura '{asignatura.nombre}'."
@@ -472,7 +472,7 @@ def desvincular_docente(
     session,
     usuario_actual.id,
     ModuloAuditoria.asignaturas,
-    "DESVINCULAR_DOCENTE",
+    "DESVINCULAR DOCENTE",
     (
       f"Se desvinculó el docente '{nombre_completo(docente)}' "
       f"de la asignatura '{asignatura.nombre}'."
