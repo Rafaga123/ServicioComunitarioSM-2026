@@ -1,29 +1,10 @@
-import re
-
 from sqlmodel import Session, select
 
 from app.models.db import Auditorias
 from app.models.enums import ModuloAuditoria
+from app.utils.texto import texto_legible
 
-
-def texto_legible(valor: object) -> str:
-  """Convierte texto técnico a texto visible legible.
-
-  Reglas aplicadas a auditorías: `_` → espacio y `ano`/`anio` → `año`
-  (respetando mayúsculas). No toca rutas ni campos de la API.
-  """
-  texto = str(valor or "").replace("_", " ")
-
-  def reemplazar_año(conincidencia: re.Match[str]) -> str:
-    palabra = conincidencia.group(0)
-    if palabra.isupper():
-      return "AÑO"
-    if palabra[:1].isupper():
-      return "Año"
-    return "año"
-
-  texto = re.sub(r"\b(?:ano|anio)\b", reemplazar_año, texto, flags=re.IGNORECASE)
-  return re.sub(r"\s+", " ", texto).strip()
+__all__ = ["registrar_auditoria", "normalizar_auditorias_existentes", "texto_legible"]
 
 
 def registrar_auditoria(

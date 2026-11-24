@@ -381,7 +381,7 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
 - **Subida** (`POST /api/pases/{id}/archivo`, `POST /api/reportes/{id}/archivo`):
   - Campo multipart: `archivo` (campo pela).
   - Validación (400): extensión ∉ {jpg, jpeg, png, webp}; MIME ∉ {image/jpeg, image/jpg, image/png, image/webp}; tamaño > `ARCHIVOS_MAX_BYTES` (5 MB).
-  - Nombre base sanitizado (sin nulos/dirs/`..`), ≤100 chars.
+  - Nombre base sanitizado (sin nulos/dirs/`..`), ≤100 chars y legible: `_` → espacio y `ano`/`anio` → `año`. Ejemplo: `evidencia_anio_2026.png` → `evidencia año 2026.png`. Es el `archivo_nombre` que se devuelve y se usa al descargar.
   - Ruta relativa generada: `{etiqueta}/{pases|reportes}/{nivel_lower}/{slug_grado}/{letra_upper}/estudiante-{id}/{id_registro}_{uuid8}.{ext}` (slugs: 1→`1er_grado`, 7→`1er_ano`, ...). La etiqueta del periodo activo `2026` es `2026-2027`.
   - `archivo_url` en la respuesta = esa ruta relativa; también `archivo_mime`, `archivo_tamano` (bytes), `archivo_hash` (SHA-256 hex), `archivo_subido_por` (id del usuario), `archivo_fecha` (Caracas).
 - **Descarga**: solo por `GET /api/{pases,reportes}/{id}/archivo`. `?inline=true` → `Content-Disposition: inline`; por defecto `attachment`. 409 si el archivo físico no existe.

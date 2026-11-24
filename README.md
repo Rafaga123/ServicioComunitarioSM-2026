@@ -999,6 +999,7 @@ python -m scripts.normalizar_textos_auditoria
 
 - Solo imágenes JPG/JPEG/PNG/WebP, máximo 5 MB.
 - La subida es multipart con el campo `archivo`; `archivo_url` es solo de lectura.
+- El nombre visible `archivo_nombre` se formatea (`_` → espacio, `ano`/`anio` → `año`); el archivo físico conserva su nombre UUID por seguridad.
 - Al desvincular con `DELETE /{id}/archivo` se limpia la metadata, pero el archivo físico permanece en `STORAGE_ROOT`.
 
 ### 7.11 Estructura física

@@ -20,6 +20,7 @@ from app.core.config import ARCHIVOS_MAX_BYTES, STORAGE_ROOT
 from app.models.enums import NivelEducativo
 from app.utils.fechas import ahora_caracas
 from app.utils.periodos import etiqueta_periodo
+from app.utils.texto import texto_legible
 
 # MIME permitidos para adjuntos de pases y reportes (solo imágenes).
 MIME_PERMITIDOS = {
@@ -100,6 +101,8 @@ def ruta_relativa_imagen(
 def validar_upload(archivo: UploadFile) -> tuple[str, str, str, bytes]:
   """Valida un adjunto subido y devuelve (nombre_base, ext, mime, contenido).
 
+  El `nombre_base` es seguro y legible (sin `_`, con `año`). La ruta física
+  sigue siendo un UUID para evitar colisiones y exposición del nombre original.
   Rechaza tamaños, MIME o extensiones fuera del allowlist.
   """
   nombre = archivo.filename or "archivo"
@@ -115,7 +118,8 @@ def validar_upload(archivo: UploadFile) -> tuple[str, str, str, bytes]:
   if mime not in MIME_PERMITIDOS:
     raise ValueError("Tipo de archivo no permitido; solo imágenes")
 
-  return _sanitizar_nombre(nombre), extension.lstrip("."), mime, contenido
+  nombre_legible = texto_legible(_sanitizar_nombre(nombre))
+  return nombre_legible, extension.lstrip("."), mime, contenido
 
 
 def nombre_unico(ruta_relativa: str, nombre_archivo: str) -> str:
