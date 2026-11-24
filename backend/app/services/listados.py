@@ -20,7 +20,7 @@ from app.models.db import (
   Representantes,
   Secciones,
 )
-from app.models.enums import NivelEducativo, TipoDocumento
+from app.models.enums import NivelEducativo, TipoBloqueHorario, TipoDocumento
 from app.utils.nombres import nombre_completo
 from app.utils.periodos import etiqueta_periodo
 from app.utils.storage import GRADO_SLUGS
@@ -45,6 +45,9 @@ class DocumentoListado:
   col_anchos: list[float]
   titulo: str
   seccion_descripcion: str | None
+  horario_cabecera: dict[str, str] | None = None
+  horario_filas: list[list[str]] | None = None
+  horario_docentes: list[tuple[str, str]] | None = None
 
 
 def _nombre_archivo(
@@ -170,6 +173,51 @@ def _filas_horarios_seccion(session: Session, seccion: Secciones) -> list[list[s
     ]
     for h in horarios
   ]
+
+
+def _datos_horarios(
+  session: Session, seccion: Secciones, periodo: int
+) -> tuple[dict[str, str], list[list[str]], list[tuple[str, str]]]:
+  """Devuelve cabecera, malla de 10 bloques y docentes de una sección."""
+  bloques = session.exec(
+    select(BloquesHorarios)
+    .where(BloquesHorarios.fecha_eliminacion.is_(None))
+    .order_by(BloquesHorarios.orden)
+  ).all()
+  horarios = session.exec(
+    select(Horarios).where(
+      Horarios.id_seccion == seccion.id,
+      Horarios.fecha_eliminacion.is_(None),
+    )
+  ).all()
+  por_bloque_dia = {(h.id_bloque, h.dia_semana): h for h in horarios}
+
+  filas: list[list[str]] = []
+  for bloque in bloques:
+    hora = f"{bloque.hora_inicio.strftime('%H:%M')}-{bloque.hora_fin.strftime('%H:%M')}"
+    if bloque.tipo == TipoBloqueHorario.receso:
+      celdas = ["RECESO"] * 5
+    else:
+      celdas = []
+      for dia in range(1, 6):
+        horario = por_bloque_dia.get((bloque.id, dia))
+        celdas.append(horario.asignatura.nombre if horario is not None else "")
+    filas.append([hora, *celdas])
+
+  vistos: set[tuple[str, str]] = set()
+  docentes: list[tuple[str, str]] = []
+  for horario in sorted(horarios, key=lambda h: h.asignatura.nombre):
+    clave = (horario.asignatura.nombre, nombre_completo(horario.docente))
+    if clave not in vistos:
+      vistos.add(clave)
+      docentes.append(clave)
+
+  cabecera = {
+    "periodo": etiqueta_periodo(periodo),
+    "curso": seccion.grado.nombre,
+    "seccion": seccion.letra.upper(),
+  }
+  return cabecera, filas, docentes
 
 
 # =====
@@ -322,6 +370,14 @@ def construir_documento(
     encabezados = HEADERS_GENERAL[tipo]
     col_anchos = COL_ANCHOS_GENERAL[tipo]
 
+  cabecera_horario = None
+  filas_horario = None
+  docentes_horario = None
+  if tipo == TipoDocumento.horarios and seccion is not None:
+    cabecera_horario, filas_horario, docentes_horario = _datos_horarios(
+      session, seccion, periodo
+    )
+
   return DocumentoListado(
     seccion_id=seccion.id if seccion else None,
     grado_id=grado.id if grado else None,
@@ -332,6 +388,9 @@ def construir_documento(
     col_anchos=col_anchos,
     titulo=_titulo(tipo, periodo, nivel, grado, seccion),
     seccion_descripcion=descripcion,
+    horario_cabecera=cabecera_horario,
+    horario_filas=filas_horario,
+    horario_docentes=docentes_horario,
   )
 
 

@@ -4,7 +4,7 @@ from io import BytesIO
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
@@ -151,6 +151,126 @@ def construir_pdf(
     ]
   )
   elementos.append(tabla)
+
+  doc.build(elementos)
+  return buffer.getvalue()
+
+
+def construir_pdf_horarios(
+  cabecera: dict[str, str],
+  filas: list[list[str]],
+  docentes: list[tuple[str, str]],
+) -> bytes:
+  """Construye el PDF del horario de una sección de liceo.
+
+  Tabla de 12 filas: periodo/curso/sección, días, y los 10 bloques de la
+  jornada. Las filas de receso muestran «RECESO» en las columnas de los días.
+  Al final se lista «Materia: Docente» para cada asignatura de la sección.
+  """
+  buffer = BytesIO()
+  ancho_util = letter[0] - MARGEN_IZQUIERDO - MARGEN
+  doc = SimpleDocTemplate(
+    buffer,
+    pagesize=letter,
+    leftMargin=MARGEN_IZQUIERDO,
+    rightMargin=MARGEN,
+    topMargin=MARGEN,
+    bottomMargin=MARGEN,
+  )
+  estilos = getSampleStyleSheet()
+  estilo_titulo = ParagraphStyle(
+    "TituloHorario",
+    parent=estilos["BodyText"],
+    fontName="Helvetica-Bold",
+    fontSize=12,
+    leading=14,
+    alignment=TA_CENTER,
+  )
+  estilo_encabezado = ParagraphStyle(
+    "EncabezadoHorario",
+    parent=estilos["BodyText"],
+    fontName="Helvetica-Bold",
+    fontSize=8,
+    leading=10,
+    alignment=TA_CENTER,
+    textColor=colors.whitesmoke,
+  )
+  estilo_celda = ParagraphStyle(
+    "CeldaHorario",
+    parent=estilos["BodyText"],
+    fontName="Helvetica",
+    fontSize=7.5,
+    leading=9,
+    alignment=TA_CENTER,
+  )
+  estilo_izquierda = ParagraphStyle(
+    "CeldaDocente",
+    parent=estilo_celda,
+    alignment=TA_LEFT,
+  )
+  estilo_titulo_seccion = ParagraphStyle(
+    "TituloDocentes",
+    parent=estilos["BodyText"],
+    fontName="Helvetica-Bold",
+    fontSize=9,
+    leading=11,
+  )
+
+  for fila in filas:
+    if len(fila) != 6:
+      raise ValueError("Cada fila del horario debe tener hora y cinco días")
+
+  fila_periodo = [
+    Paragraph(f"<b>Periodo:</b> {_texto_parrafo(cabecera['periodo'])}", estilo_celda),
+    "",
+    Paragraph(f"<b>Curso:</b> {_texto_parrafo(cabecera['curso'])}", estilo_celda),
+    "",
+    Paragraph(f"<b>Sección:</b> {_texto_parrafo(cabecera['seccion'])}", estilo_celda),
+    "",
+  ]
+  fila_dias = [
+    Paragraph(_texto_parrafo(dia), estilo_encabezado)
+    for dia in ("Hora", "LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES")
+  ]
+  filas_tabla = [fila_periodo, fila_dias] + [
+    [Paragraph(_texto_parrafo(celda), estilo_celda) for celda in fila] for fila in filas
+  ]
+
+  ancho_hora = 2.2 * cm
+  ancho_dia = (ancho_util - ancho_hora) / 5
+  tabla = Table(filas_tabla, colWidths=[ancho_hora] + [ancho_dia] * 5)
+  estilo_tabla = [
+    ("SPAN", (0, 0), (1, 0)),
+    ("SPAN", (2, 0), (3, 0)),
+    ("SPAN", (4, 0), (5, 0)),
+    ("BACKGROUND", (0, 0), (-1, 1), colors.HexColor("#1b2a47")),
+    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ("TOPPADDING", (0, 0), (-1, -1), 4),
+    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#c4ced6")),
+  ]
+  for indice, fila in enumerate(filas, start=2):
+    if any("RECESO" in celda.upper() for celda in fila[1:]):
+      estilo_tabla.append(
+        ("BACKGROUND", (0, indice), (-1, indice), colors.HexColor("#f2ead8"))
+      )
+  tabla.setStyle(estilo_tabla)
+
+  elementos = [
+    Paragraph(f"{INSTITUCION_NOMBRE} — HORARIO DE CLASES", estilo_titulo),
+    Spacer(1, 10),
+    tabla,
+    Spacer(1, 14),
+    Paragraph("Docentes:", estilo_titulo_seccion),
+    Spacer(1, 4),
+  ]
+  for materia, docente in docentes:
+    elementos.append(
+      Paragraph(
+        f"{_texto_parrafo(materia)}: {_texto_parrafo(docente)}", estilo_izquierda
+      )
+    )
 
   doc.build(elementos)
   return buffer.getvalue()

@@ -334,7 +334,7 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
   - Reglas:
     - `id_seccion`: el periodo del listado = `seccion.periodo_lectivo`; si el cliente pide otro, 400.
     - `id_grado` sin sección: nivel del grado; 400 si nivel conflicts.
-    - `horarios` requieren `id_seccion` (400 sin sección).
+    - `horarios` requieren `id_seccion` de **liceo** (400 sin sección o si la sección es de ESCUELA).
     - `periodo_lectivo` opcional: si se omite se usa el activo; 400 si no hay activo y no se indicó uno. Si se envía, **debe existir** (`_validar_periodo_lectivo`: 404 "Periodo lectivo no encontrado").
     - Nivel para listados generales: debe indicar (400 "Necesita indicar nivel para listados generales").
     - Validación de acceso por nivel del usuario.
@@ -358,6 +358,7 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
   - Título general: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/ESCUELA general` (equivalente para `representantes` y `horarios`).
   - Línea de metadatos, sin comillas: `ESCUELA • 1er Grado U • 2026-2027`.
 - Los representantes de ESCUELA cargados desde el PDF original solo tienen teléfono (no nombre): en la columna `Representante` del PDF se muestra `-`. Los representantes de LICEO conservan sus nombres reales.
+- PDF de `horarios` (solo LICEO): encabezado `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — HORARIO DE CLASES`; tabla de 12 filas (periodo/curso/sección, `Hora | LUNES | MARTES | MIERCOLES | JUEVES | VIERNES`, y los 10 bloques de la jornada). Los recesos muestran `RECESO` en las columnas de los días. Después se lista `Docentes:` con una línea `Materia: Docente` por cada asignatura de esa sección.
 
 ---
 

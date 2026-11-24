@@ -31,7 +31,7 @@ from app.models.schemas import PeticionCierreAnio
 from app.services import listados as servicio_listados
 from app.utils.auditoria import registrar_auditoria
 from app.utils.fechas import ahora_caracas
-from app.utils.pdf import construir_pdf
+from app.utils.pdf import construir_pdf, construir_pdf_horarios
 from app.utils.periodos import etiqueta_periodo
 from app.utils.storage import hash_contenido, nombre_unico, ruta_absoluta
 
@@ -200,16 +200,26 @@ def _guardar_doc_staged(
   documento = servicio_listados.construir_documento(
     tipo, periodo, nivel, grado, seccion, session
   )
-  pdf = construir_pdf(
-    documento.titulo,
-    documento.encabezados,
-    documento.filas,
-    col_anchos=documento.col_anchos,
-    nivel=nivel.value if nivel else None,
-    grado=None,
-    seccion=documento.seccion_descripcion,
-    periodo_lectivo=etiqueta_periodo(periodo),
-  )
+  if tipo == TipoDocumento.horarios:
+    assert documento.horario_cabecera is not None
+    assert documento.horario_filas is not None
+    assert documento.horario_docentes is not None
+    pdf = construir_pdf_horarios(
+      documento.horario_cabecera,
+      documento.horario_filas,
+      documento.horario_docentes,
+    )
+  else:
+    pdf = construir_pdf(
+      documento.titulo,
+      documento.encabezados,
+      documento.filas,
+      col_anchos=documento.col_anchos,
+      nivel=nivel.value if nivel else None,
+      grado=None,
+      seccion=documento.seccion_descripcion,
+      periodo_lectivo=etiqueta_periodo(periodo),
+    )
   ruta_relativa = servicio_listados.ruta_relativa_listado(
     tipo, periodo, nivel, documento.grado, seccion, documento.nombre_archivo
   )

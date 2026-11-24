@@ -884,11 +884,12 @@ Generar un listado:
 o, sin sección: `{ "nivel": "ESCUELA", "periodo_lectivo": 2026 }`.
 
 - `periodo_lectivo` es opcional: por defecto se usa el activo (400 si no hay activo y no se indicó uno).
-- `horarios` requiere `id_seccion`; los listados generales requieren `nivel`.
+- `horarios` requiere `id_seccion` de **liceo** (400 si la sección es de ESCUELA); los listados generales requieren `nivel`.
 - Los PDF usan hoja carta, margen izquierdo de 4 cm y 3 cm en los demás lados.
 - La ruta incluye el periodo lectivo: `periodo_lectivo/2026-2027/listados/nominas/ESCUELA/1er_grado/U/nomina_2026-2027_1er_grado_U.pdf` (si ya existe, se agrega `_v2`, `_v3`, …).
 - Título: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/1er Grado "U"`. Metadatos: `ESCUELA • 1er Grado U • 2026-2027`.
 - Los representantes de ESCUELA del export original solo tienen teléfono; en la columna `Representante` se muestra `-`. Los de LICEO conservan su nombre real.
+- PDF de `horarios`: tabla de 12 filas (periodo/curso/sección, `Hora | LUNES | ... | VIERNES` y 10 bloques; los recesos dicen `RECESO`), seguida de `Docentes:` con `Materia: Docente` de esa sección.
 
 ### 6.16 Auditorías (`/api/auditorias`)
 
