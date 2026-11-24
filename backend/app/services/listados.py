@@ -323,7 +323,12 @@ def _filas_representantes_general(
 def _filas_docentes_general(
   session: Session, periodo: int, nivel: NivelEducativo
 ) -> list[list[str]]:
-  """Lista activa de docentes de un nivel con sus asignaturas del periodo."""
+  """Lista activa de docentes de un nivel con su detalle del periodo.
+
+  En LICEO se muestran las asignaturas con el año correspondiente para no
+  repetir `Matemática` de varios grados como si fuera la misma línea. En
+  ESCUELA se muestran los grados/secciones donde el docente es titular.
+  """
   docentes = session.exec(
     select(Docentes)
     .where(
@@ -337,25 +342,53 @@ def _filas_docentes_general(
 
   filas: list[list[str]] = []
   for docente in docentes:
-    asignaturas = session.exec(
-      select(Asignaturas)
-      .join(Horarios, Horarios.id_asignatura == Asignaturas.id)
-      .where(
-        Horarios.id_docente == docente.id,
-        Horarios.periodo_lectivo == periodo,
-        Horarios.fecha_eliminacion.is_(None),
-        Asignaturas.fecha_eliminacion.is_(None),
+    if docente.id is None:
+      continue
+
+    detalle = "-"
+    if nivel == NivelEducativo.liceo:
+      asignaturas = session.exec(
+        select(Asignaturas)
+        .join(Horarios, Horarios.id_asignatura == Asignaturas.id)
+        .join(Grados, Asignaturas.id_grado == Grados.id)
+        .where(
+          Horarios.id_docente == docente.id,
+          Horarios.periodo_lectivo == periodo,
+          Horarios.fecha_eliminacion.is_(None),
+          Asignaturas.periodo_lectivo == periodo,
+          Asignaturas.fecha_eliminacion.is_(None),
+          Grados.fecha_eliminacion.is_(None),
+        )
+        .order_by(Grados.numero, Asignaturas.nombre)
+      ).all()
+      vistos: set[tuple[str, str]] = set()
+      etiquetas: list[str] = []
+      for asignatura in asignaturas:
+        etiqueta = f"{asignatura.nombre} {asignatura.grado.nombre}"
+        clave = (asignatura.nombre, asignatura.grado.nombre)
+        if clave in vistos:
+          continue
+        vistos.add(clave)
+        etiquetas.append(etiqueta)
+      detalle = ", ".join(etiquetas) or "-"
+    else:
+      secciones = session.exec(
+        select(Secciones)
+        .join(Grados, Secciones.id_grado == Grados.id)
+        .where(
+          Secciones.id_docente_titular == docente.id,
+          Secciones.periodo_lectivo == periodo,
+          Secciones.fecha_eliminacion.is_(None),
+          Grados.fecha_eliminacion.is_(None),
+        )
+        .order_by(Grados.numero, Secciones.letra)
+      ).all()
+      detalle = (
+        "; ".join(f'{seccion.grado.nombre} "{seccion.letra}"' for seccion in secciones)
+        or "-"
       )
-      .distinct()
-      .order_by(Asignaturas.nombre)
-    ).all()
-    filas.append(
-      [
-        docente.cedula,
-        nombre_completo(docente),
-        ", ".join(a.nombre for a in asignaturas) or "-",
-      ]
-    )
+
+    filas.append([docente.cedula, nombre_completo(docente), detalle])
   return filas
 
 
@@ -434,6 +467,8 @@ def construir_documento(
     descripcion = "general"
     filas = FILAS_GENERAL[tipo](session, periodo, nivel)
     encabezados = HEADERS_GENERAL[tipo]
+    if tipo == TipoDocumento.docentes and nivel == NivelEducativo.escuela:
+      encabezados = ["Cédula", "Docente", "Grado/Sección"]
     col_anchos = COL_ANCHOS_GENERAL[tipo]
 
   cabecera_horario = None
@@ -482,7 +517,4 @@ def ruta_relativa_listado(
       f"{etiqueta}/listados/{tipo.value}/{nivel.value}/{slug}/"
       f"{seccion.letra}/{nombre_archivo}"
     )
-  return (
-    f"{etiqueta}/listados/{tipo.value}/{nivel.value}/general/"
-    f"{nombre_archivo}"
-  )
+  return f"{etiqueta}/listados/{tipo.value}/{nivel.value}/general/{nombre_archivo}"

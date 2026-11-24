@@ -4,6 +4,7 @@ Uso (desde la carpeta backend/ con el entorno virtual activo):
 
     python -m scripts.cargar_datos_prueba
     python -m scripts.cargar_datos_prueba --clave "OtraClave2026!"
+    python -m scripts.cargar_datos_prueba --solo-reclasificar-docentes
     python -m scripts.cargar_datos_prueba --recrear-tablas
 
 Los datos sensibles viven solo en scripts/nominas/ (carpeta ignorada por Git).
@@ -21,7 +22,14 @@ from sqlmodel import Session, SQLModel, select
 
 import app.models.enums as en
 from app.core.semilla import sembrar_datos
-from app.models.db import Usuarios
+from app.models.db import (
+  AsignaturasDocentes,
+  Docentes,
+  Grados,
+  Horarios,
+  Secciones,
+  Usuarios,
+)
 from app.models.session import create_db_tables, engine
 from app.utils.security import obtener_hash_clave
 from scripts.sembrar_horarios import sembrar_horarios_desde_json
@@ -71,6 +79,63 @@ def cargar_horarios(
   return sembrar_horarios_desde_json(session, datos, actualizar_existentes)
 
 
+def reclasificar_docentes_sin_materias(session: Session) -> dict[str, int]:
+  """Pasa a ESCUELA los docentes de LICEO sin asignaturas ni horarios activos.
+
+  Se ejecuta después de cargar los horarios para que los vínculos ya existan.
+  Es idempotente: los docentes ya reclasificados no se cuentan de nuevo.
+  """
+  contadores = {
+    "reclasificados": 0,
+    "omitidos_por_titularidad_liceo": 0,
+  }
+  docentes = session.exec(
+    select(Docentes).where(
+      Docentes.nivel == en.NivelEducativo.liceo,
+      Docentes.fecha_eliminacion.is_(None),
+    )
+  ).all()
+
+  for docente in docentes:
+    if docente.id is None:
+      continue
+
+    vinculos = session.exec(
+      select(AsignaturasDocentes).where(
+        AsignaturasDocentes.id_docente == docente.id,
+        AsignaturasDocentes.fecha_eliminacion.is_(None),
+      )
+    ).first()
+    horarios = session.exec(
+      select(Horarios).where(
+        Horarios.id_docente == docente.id,
+        Horarios.fecha_eliminacion.is_(None),
+      )
+    ).first()
+    titular_liceo = session.exec(
+      select(Secciones)
+      .join(Grados, Secciones.id_grado == Grados.id)
+      .where(
+        Secciones.id_docente_titular == docente.id,
+        Secciones.fecha_eliminacion.is_(None),
+        Grados.fecha_eliminacion.is_(None),
+        Grados.nivel == en.NivelEducativo.liceo,
+      )
+    ).first()
+
+    if titular_liceo is not None:
+      contadores["omitidos_por_titularidad_liceo"] += 1
+      continue
+    if vinculos is not None or horarios is not None:
+      continue
+
+    docente.nivel = en.NivelEducativo.escuela
+    contadores["reclasificados"] += 1
+
+  session.commit()
+  return contadores
+
+
 def crear_usuarios_prueba(session: Session, clave: str) -> dict[str, int]:
   contadores = {"creados": 0, "existentes": 0}
   for nombre, rol, nivel in USUARIOS_PRUEBA:
@@ -113,12 +178,14 @@ def cargar_datos_prueba(
   grados, bloques = sembrar_datos(session)
   inserciones = ejecutar_seed(session, ruta_sql)
   horarios = cargar_horarios(session, ruta_json, actualizar_horarios)
+  docentes = reclasificar_docentes_sin_materias(session)
   usuarios = crear_usuarios_prueba(session, clave)
 
   return {
     "catalogo": {"grados_nuevos": grados, "bloques_nuevos": bloques},
     "sql_inserciones": inserciones,
     "horarios": horarios,
+    "docentes": docentes,
     "usuarios": usuarios,
   }
 
@@ -140,16 +207,36 @@ def main() -> None:
     help="No sobreescribe asignatura/docente de horarios ya existentes.",
   )
   parser.add_argument(
+    "--solo-reclasificar-docentes",
+    action="store_true",
+    help="Pasa a ESCUELA los docentes sin asignaturas ni horarios activos y sale.",
+  )
+  parser.add_argument(
     "--recrear-tablas",
     action="store_true",
     help="ADVERTENCIA: borra todas las tablas y sus datos antes de cargar.",
   )
   args = parser.parse_args()
 
+  if args.solo_reclasificar_docentes and args.recrear_tablas:
+    parser.error(
+      "--solo-reclasificar-docentes no puede combinarse con --recrear-tablas"
+    )
+
   if args.recrear_tablas:
     print("ADVERTENCIA: --recrear-tablas borra todas las tablas y sus datos.")
     SQLModel.metadata.drop_all(engine)
   create_db_tables()
+
+  if args.solo_reclasificar_docentes:
+    with Session(engine) as session:
+      docentes = reclasificar_docentes_sin_materias(session)
+    print(
+      f"Docentes: {docentes['reclasificados']} reclasificados a ESCUELA, "
+      f"{docentes['omitidos_por_titularidad_liceo']} omitidos por titularidad de LICEO"
+    )
+    return
+
   with Session(engine) as session:
     resumen = cargar_datos_prueba(
       session,
@@ -161,6 +248,7 @@ def main() -> None:
 
   catalogo = resumen["catalogo"]
   horarios = resumen["horarios"]
+  docentes = resumen["docentes"]
   usuarios = resumen["usuarios"]
   print(
     f"Catálogo base: {catalogo['grados_nuevos']} grados y "
@@ -174,6 +262,10 @@ def main() -> None:
     f"{horarios['horarios_creados']} horarios creados, "
     f"{horarios['horarios_actualizados']} actualizados, "
     f"{horarios['horarios_existentes']} ya existentes"
+  )
+  print(
+    f"Docentes: {docentes['reclasificados']} reclasificados a ESCUELA, "
+    f"{docentes['omitidos_por_titularidad_liceo']} omitidos por titularidad de LICEO"
   )
   print(
     f"Usuarios: {usuarios['creados']} creados, {usuarios['existentes']} ya existían"

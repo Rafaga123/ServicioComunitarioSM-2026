@@ -890,7 +890,7 @@ o, sin sección: `{ "nivel": "ESCUELA", "periodo_lectivo": 2026 }`.
 - Título: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/1er Grado "U"`. Metadatos: `ESCUELA • 1er Grado U • 2026-2027`.
 - Los representantes de ESCUELA del export original solo tienen teléfono; en la columna `Representante` se muestra `-`. Los de LICEO conservan su nombre real.
 - PDF de `horarios`: tabla de 12 filas (periodo/curso/sección, `Hora | LUNES | ... | VIERNES` y los bloques `7:00-7:40`, `7:40-8:20`, `8:20-8:40` (RECESO), `8:40-9:20`, `9:20-10:00`, `10:10-10:10` (RECESO), `10:10-10:50`, `10:10-11:30`, `11:30-12:10`, `12:10-12:40`), seguida de `Docentes:` con `Materia: Docente` de esa sección.
-- PDF de `docentes`: columnas `Cédula | Docente | Asignaturas`; una fila por docente activo del nivel, con las materias del periodo lectivo (o `-` si no tiene).
+- PDF de `docentes`: columnas `Cédula | Docente | Asignaturas` en LICEO y `Cédula | Docente | Grado/Sección` en ESCUELA; una fila por docente activo del nivel. En LICEO se incluye el año de cada materia (`Matemática 1er Año`) y se deduplica por materia+año; en ESCUELA se listan los grados/secciones donde es titular (o `-` si no tiene).
 
 ### 6.16 Auditorías (`/api/auditorias`)
 
@@ -1061,7 +1061,13 @@ Carga completa en un solo comando, desde `backend/` y con la configuración de `
 .\.venv\Scripts\python.exe -m scripts.cargar_datos_prueba
 ```
 
-El cargador crea las tablas y la semilla base si faltan, y ejecuta en orden jerárquico: periodo → docentes → secciones → representantes → estudiantes → asignaturas → vínculos docentes → horarios → usuarios. Es idempotente: puede ejecutarse las veces que haga falta sin duplicar registros. Acepta `--sql`, `--json`, `--clave`, `--no-actualizar-horarios` y `--recrear-tablas`.
+El cargador crea las tablas y la semilla base si faltan, y ejecuta en orden jerárquico: periodo → docentes → secciones → representantes → estudiantes → asignaturas → vínculos docentes → horarios → reclasificación de docentes sin materias → usuarios. Es idempotente: puede ejecutarse las veces que haga falta sin duplicar registros. Acepta `--sql`, `--json`, `--clave`, `--no-actualizar-horarios`, `--solo-reclasificar-docentes` y `--recrear-tablas`.
+
+La reclasificación pasa a `ESCUELA` los docentes activos de `LICEO` que no tienen vínculos de asignatura ni horarios activos y no son titulares de una sección de liceo. Para aplicar solo ese ajuste sin recargar el resto:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.cargar_datos_prueba --solo-reclasificar-docentes
+```
 
 Si la base viene de una versión anterior del esquema, `create_all()` no agrega columnas a tablas ya existentes (por ejemplo, falta `estudiantes.fecha_egreso`). Para esos casos, y **solo cuando la base pueda perderse**, usar:
 
