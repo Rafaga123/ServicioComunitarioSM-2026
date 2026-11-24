@@ -676,6 +676,7 @@ Crear horario:
 Reglas:
 
 - Solo secciones de **liceo**.
+- El período del horario debe existir y no estar cerrado (`400` al crear o editar).
 - El período del horario debe coincidir con el `periodo_lectivo` de la sección.
 - Solo bloques `ACADEMICO`.
 - La asignatura debe pertenecer al grado de la sección.
@@ -1214,19 +1215,14 @@ Con el frontend servido desde el mismo backend y el mismo puerto, las peticiones
 
 ## 11. Pendientes y limitaciones conocidas
 
-### 11.1 Fase 5 (pendiente)
-
-- Guard de año en `app/routers/horarios.py` para reforzar la coherencia del período en altas/ediciones.
-- Registrar la auditoría de login usando `ModuloAuditoria.usuarios` (el inicio de sesión hoy no genera auditoría).
-
-### 11.2 Entrega y mantenimiento (pendiente)
+### 11.1 Entrega y mantenimiento (pendiente)
 
 - Revisión final del frontend contra `docs/ENTREGA_FRONTEND.md`.
 - Purgar del historial de Git los archivos antiguos con cédulas (`backend/scripts/docentes.sql`, `backend/scripts/horarios_liceo_2026.json`): requiere autorización explícita porque reescribe commits.
 - Push de `backend-dev` a `origin/backend-dev`: solo con autorización explícita.
 - Suite formal de `pytest` (hoy los smokes son temporales y se borran) y documentación de despliegue/empaquetado.
 
-### 11.3 Limitaciones actuales
+### 11.2 Limitaciones actuales
 
 - **No hay Alembic ni migraciones.** `create_all()` no altera tablas existentes; para esquemas viejos se usa `--recrear-tablas` (destructivo).
 - **No hay logout ni revocación de JWT.** El token dura 360 minutos por defecto.

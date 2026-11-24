@@ -19,6 +19,7 @@
 - El JWT es HS256, firmado con `SECRET_KEY`, expira en `ACCESS_TOKEN_EXPIRE_MINUTES` (defecto 360 min).
 - Claims del token: `sub` (string con el id del usuario), `rol`, `nivel` (nulo si no hay).
 - `Content-Type` de todos los POST: `application/json` (excepto uploads multipart).
+- El login correcto registra una auditoría con `modulo: "USUARIOS"`, `accion: "LOGIN"` y el nombre del usuario en `descripcion`.
 
 ### 1.2 Paginación (listados)
 
@@ -225,6 +226,7 @@ Orden: `dia_semana`, luego `bloque.orden`.
 
 Validaciones de negocio (código):
 - Solo secciones de LICEO.
+- El periodo debe existir y no estar cerrado: `400 "El periodo lectivo no existe o está cerrado"` al crear o editar.
 - `seccion.periodo_lectivo == periodo_lectivo`.
 - Solo bloques académicos.
 - `asignatura.id_grado == seccion.id_grado` y `asignatura.periodo_lectivo == periodo_lectivo`.
@@ -354,6 +356,7 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
 
 - `GET /api/auditorias/` (admin) → paginado `PeticionAuditoria = { id, usuario_id, usuario?, modulo, accion, descripcion, fecha_creacion }`. Filtros: `usuario` (ilike en nombre), `modulo` (ilike), `accion` (ilike), `fecha` (date). Orden: `fecha_creacion desc`.
 - `GET /api/auditorias/{id}` → `PeticionAuditoria`.
+- Los inicios de sesión correctos aparecen como `modulo: "USUARIOS"`, `accion: "LOGIN"`; el `usuario_id` es el mismo valor del claim `sub` del token.
 
 ---
 

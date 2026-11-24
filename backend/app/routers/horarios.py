@@ -18,6 +18,7 @@ from app.models.db import (
   Estudiantes,
   Grados,
   Horarios,
+  PeriodosLectivos,
   Secciones,
   Usuarios,
 )
@@ -55,6 +56,22 @@ def _obtener_activo(session: Session, modelo, registro_id: int, mensaje: str):
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=mensaje)
 
   return registro
+
+
+def _validar_periodo(session: Session, periodo_lectivo: int) -> PeriodosLectivos:
+  periodo = session.exec(
+    select(PeriodosLectivos).where(
+      PeriodosLectivos.anio == periodo_lectivo,
+      PeriodosLectivos.fecha_eliminacion.is_(None),
+    )
+  ).first()
+  if not periodo or periodo.cerrado:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="El periodo lectivo no existe o está cerrado",
+    )
+
+  return periodo
 
 
 def _validar_colision_seccion(
@@ -283,6 +300,7 @@ def registrar_horario(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  _validar_periodo(session, horario_in.periodo_lectivo)
   seccion, bloque, asignatura, docente = _validar_horario(
     session,
     horario_in.id_seccion,
@@ -347,6 +365,7 @@ def actualizar_horario(
     "dia_semana": datos_actualizar.get("dia_semana", horario_db.dia_semana),
   }
 
+  _validar_periodo(session, valores_finales["periodo_lectivo"])
   seccion, bloque, asignatura, docente = _validar_horario(
     session,
     valores_finales["id_seccion"],
