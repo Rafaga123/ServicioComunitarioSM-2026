@@ -3,7 +3,7 @@
 Los adjuntos se guardan físicamente bajo STORAGE_ROOT con rutas relativas
 estándar:
 
-    periodo_lectivo/{etiqueta}/{pases|reportes}/{nivel}/{grado_slug}/{letra}/estudiante-{id}/archivo.{ext}
+    {etiqueta}/{pases|reportes}/{nivel}/{grado_slug}/{letra}/estudiante-{id}/archivo.{ext}
 
 donde `etiqueta` es `2026-2027` para el año lectivo 2026. Se devuelven como
 `archivo_url` en los DTO (RFC-style: ruta relativa).
@@ -87,7 +87,6 @@ def ruta_relativa_imagen(
   slug_grado = GRADO_SLUGS.get(grado_numero, f"grado_{grado_numero}")
   nombre_archivo = f"{registro_id}_{uuid.uuid4().hex[:8]}.{extension}"
   return Path(
-    "periodo_lectivo",
     etiqueta_periodo(periodo_lectivo),
     _sanitizar_nombre(carpeta),
     nivel.value.lower(),

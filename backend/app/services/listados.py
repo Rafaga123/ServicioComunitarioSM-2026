@@ -472,17 +472,17 @@ def ruta_relativa_listado(
 
   El periodo lectivo es la primera carpeta y usa su etiqueta legible.
 
-  Sección: `periodo_lectivo/2026-2027/listados/nominas/LICEO/1er_ano/A/nomina_2026-2027_1er_ano_A.pdf`.
-  General: `periodo_lectivo/2026-2027/listados/nominas/LICEO/general/nomina_2026-2027_LICEO_general.pdf`.
+  Sección: `2026-2027/listados/nominas/LICEO/1er_ano/A/nomina_2026-2027_1er_ano_A.pdf`.
+  General: `2026-2027/listados/nominas/LICEO/general/nomina_2026-2027_LICEO_general.pdf`.
   """
   etiqueta = etiqueta_periodo(periodo)
   if seccion is not None:
     slug = GRADO_SLUGS.get(grado.numero, "general")
     return (
-      f"periodo_lectivo/{etiqueta}/listados/{tipo.value}/{nivel.value}/{slug}/"
+      f"{etiqueta}/listados/{tipo.value}/{nivel.value}/{slug}/"
       f"{seccion.letra}/{nombre_archivo}"
     )
   return (
-    f"periodo_lectivo/{etiqueta}/listados/{tipo.value}/{nivel.value}/general/"
+    f"{etiqueta}/listados/{tipo.value}/{nivel.value}/general/"
     f"{nombre_archivo}"
   )

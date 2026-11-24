@@ -886,7 +886,7 @@ o, sin sección: `{ "nivel": "ESCUELA", "periodo_lectivo": 2026 }`.
 - `periodo_lectivo` es opcional: por defecto se usa el activo (400 si no hay activo y no se indicó uno).
 - `horarios` requiere `id_seccion` de **liceo** (400 si la sección es de ESCUELA); `docentes` es general por nivel (400 con `id_seccion` o `id_grado`); los demás listados generales requieren `nivel`.
 - Los PDF usan hoja carta, margen izquierdo de 4 cm y 3 cm en los demás lados.
-- La ruta incluye el periodo lectivo: `periodo_lectivo/2026-2027/listados/nominas/ESCUELA/1er_grado/U/nomina_2026-2027_1er_grado_U.pdf` (si ya existe, se agrega `_v2`, `_v3`, …).
+- La ruta incluye el periodo lectivo: `2026-2027/listados/nominas/ESCUELA/1er_grado/U/nomina_2026-2027_1er_grado_U.pdf` (si ya existe, se agrega `_v2`, `_v3`, …).
 - Título: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/1er Grado "U"`. Metadatos: `ESCUELA • 1er Grado U • 2026-2027`.
 - Los representantes de ESCUELA del export original solo tienen teléfono; en la columna `Representante` se muestra `-`. Los de LICEO conservan su nombre real.
 - PDF de `horarios`: tabla de 12 filas (periodo/curso/sección, `Hora | LUNES | ... | VIERNES` y los bloques `7:00-7:40`, `7:40-8:20`, `8:20-8:40` (RECESO), `8:40-9:20`, `9:20-10:00`, `10:10-10:10` (RECESO), `10:10-10:50`, `10:10-11:30`, `11:30-12:10`, `12:10-12:40`), seguida de `Docentes:` con `Materia: Docente` de esa sección.
@@ -996,7 +996,7 @@ Cada operación de escritura registra automáticamente una auditoría con:
 Todo se guarda bajo `STORAGE_ROOT` (`C:\sistema` por defecto):
 
 ```text
-periodo_lectivo/2026-2027/
+2026-2027/
 ├─ pases/{nivel}/{grado}/{letra}/estudiante-{id}/archivo.ext
 ├─ reportes/{nivel}/{grado}/{letra}/estudiante-{id}/archivo.ext
 └─ listados/{nominas|representantes|horarios|docentes}/{nivel}/{grado|general}/{letra}/archivo.pdf
