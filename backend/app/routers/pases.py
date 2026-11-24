@@ -314,7 +314,6 @@ def registrar_pase(
     fecha=pase_in.fecha,
     periodo_lectivo=estudiante.seccion.periodo_lectivo,
     autorizador=autorizador,
-    archivo_url=pase_in.archivo_url,
   )
 
   session.add(nuevo_pase)
@@ -349,7 +348,7 @@ def actualizar_pase(
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(estudiante))
 
   datos_actualizar = pase_in.model_dump(exclude_unset=True)
-  campos_opcionales = {"id_docente", "id_asignatura", "autorizador", "archivo_url"}
+  campos_opcionales = {"id_docente", "id_asignatura", "autorizador"}
   datos_actualizar = {
     campo: valor
     for campo, valor in datos_actualizar.items()

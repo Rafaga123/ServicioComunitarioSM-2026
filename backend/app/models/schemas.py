@@ -24,18 +24,6 @@ def _normalizar_fecha_caracas(fecha: datetime) -> datetime:
   return normalizar_fecha(fecha)
 
 
-def _validar_ruta_relativa(valor: str | None) -> str | None:
-  """Valida que archivo_url sea una ruta relativa segura dentro de STORAGE_ROOT."""
-  if valor is None:
-    return valor
-  valor = valor.replace("\\", "/").strip()
-  if not valor or valor.startswith("/"):
-    raise ValueError("La ruta debe ser relativa al directorio de almacenamiento")
-  if any(parte in ("", ".", "..") for parte in valor.split("/")):
-    raise ValueError("La ruta debe ser una ruta relativa segura")
-  return valor
-
-
 def validar_bloque_horario(
   tipo: en.TipoBloqueHorario,
   numero: int | None,
@@ -396,12 +384,6 @@ class CrearPase(SQLModel):
   motivo: str = Field(min_length=1)
   fecha: datetime
   autorizador: str | None = None
-  archivo_url: str | None = None
-
-  @field_validator("archivo_url")
-  @classmethod
-  def validar_archivo_url(cls, valor: str | None) -> str | None:
-    return _validar_ruta_relativa(valor)
 
   @field_validator("fecha")
   @classmethod
@@ -416,12 +398,6 @@ class ActualizacionPase(SQLModel):
   motivo: str | None = Field(default=None, min_length=1)
   fecha: datetime | None = None
   autorizador: str | None = None
-  archivo_url: str | None = None
-
-  @field_validator("archivo_url")
-  @classmethod
-  def validar_archivo_url(cls, valor: str | None) -> str | None:
-    return _validar_ruta_relativa(valor)
 
   @field_validator("fecha")
   @classmethod
@@ -488,12 +464,6 @@ class CrearReporte(SQLModel):
   nivel_gravedad: en.NivelGravedad = en.NivelGravedad.leve
   categoria: en.CategoriaReportes
   fecha: datetime
-  archivo_url: str | None = None
-
-  @field_validator("archivo_url")
-  @classmethod
-  def validar_archivo_url(cls, valor: str | None) -> str | None:
-    return _validar_ruta_relativa(valor)
 
   @field_validator("fecha")
   @classmethod
@@ -511,12 +481,6 @@ class ActualizarReporte(SQLModel):
   nivel_gravedad: en.NivelGravedad | None = None
   categoria: en.CategoriaReportes | None = None
   fecha: datetime | None = None
-  archivo_url: str | None = None
-
-  @field_validator("archivo_url")
-  @classmethod
-  def validar_archivo_url(cls, valor: str | None) -> str | None:
-    return _validar_ruta_relativa(valor)
 
   @field_validator("fecha")
   @classmethod
