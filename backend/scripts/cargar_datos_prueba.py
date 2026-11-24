@@ -4,6 +4,7 @@ Uso (desde la carpeta backend/ con el entorno virtual activo):
 
     python -m scripts.cargar_datos_prueba
     python -m scripts.cargar_datos_prueba --clave "OtraClave2026!"
+    python -m scripts.cargar_datos_prueba --recrear-tablas
 
 Los datos sensibles viven solo en scripts/nominas/ (carpeta ignorada por Git).
 """
@@ -16,7 +17,7 @@ import os
 import re
 from pathlib import Path
 
-from sqlmodel import Session, select
+from sqlmodel import Session, SQLModel, select
 
 import app.models.enums as en
 from app.core.semilla import sembrar_datos
@@ -28,7 +29,7 @@ from scripts.sembrar_horarios import sembrar_horarios_desde_json
 RUTA_NOMINAS = Path(__file__).with_name("nominas")
 RUTA_SQL = RUTA_NOMINAS / "00_todo_seed.sql"
 RUTA_JSON = RUTA_NOMINAS / "horarios_liceo_2026.json"
-CLAVE_PRUEBA_DEFECTO = "Prueba2026!"
+CLAVE_PRUEBA_DEFECTO = "Prueba123*"
 
 USUARIOS_PRUEBA = (
   ("admin_prueba", en.RolesUsuario.administrador, None),
@@ -43,9 +44,7 @@ def ejecutar_seed(session: Session, ruta_sql: Path) -> int:
   lineas = [
     linea
     for linea in contenido.splitlines(keepends=True)
-    if not re.match(
-      r"^\s*(SET\s+client_encoding|BEGIN;|COMMIT;)", linea, re.IGNORECASE
-    )
+    if not re.match(r"^\s*(SET\s+client_encoding|BEGIN;|COMMIT;)", linea, re.IGNORECASE)
   ]
   sql = "".join(lineas)
   # Ejecutar sentencia por sentencia funciona igual en psycopg y en SQLite (smokes).
@@ -109,9 +108,7 @@ def cargar_datos_prueba(
   """Carga todo en orden de dependencias. Puede ejecutarse las veces que haga falta."""
   faltantes = [str(r) for r in (ruta_sql, ruta_json) if not r.is_file()]
   if faltantes:
-    raise FileNotFoundError(
-      "Faltan datos locales de nóminas: " + ", ".join(faltantes)
-    )
+    raise FileNotFoundError("Faltan datos locales de nóminas: " + ", ".join(faltantes))
 
   grados, bloques = sembrar_datos(session)
   inserciones = ejecutar_seed(session, ruta_sql)
@@ -135,15 +132,23 @@ def main() -> None:
   parser.add_argument(
     "--clave",
     default=os.getenv("CLAVE_PRUEBA", CLAVE_PRUEBA_DEFECTO),
-    help="Clave de los usuarios de prueba (defecto: Prueba2026!)",
+    help="Clave de los usuarios de prueba (defecto: Prueba123*)",
   )
   parser.add_argument(
     "--no-actualizar-horarios",
     action="store_true",
     help="No sobreescribe asignatura/docente de horarios ya existentes.",
   )
+  parser.add_argument(
+    "--recrear-tablas",
+    action="store_true",
+    help="ADVERTENCIA: borra todas las tablas y sus datos antes de cargar.",
+  )
   args = parser.parse_args()
 
+  if args.recrear_tablas:
+    print("ADVERTENCIA: --recrear-tablas borra todas las tablas y sus datos.")
+    SQLModel.metadata.drop_all(engine)
   create_db_tables()
   with Session(engine) as session:
     resumen = cargar_datos_prueba(
@@ -157,8 +162,10 @@ def main() -> None:
   catalogo = resumen["catalogo"]
   horarios = resumen["horarios"]
   usuarios = resumen["usuarios"]
-  print(f"Catálogo base: {catalogo['grados_nuevos']} grados y "
-        f"{catalogo['bloques_nuevos']} bloques nuevos")
+  print(
+    f"Catálogo base: {catalogo['grados_nuevos']} grados y "
+    f"{catalogo['bloques_nuevos']} bloques nuevos"
+  )
   print(f"SQL: {resumen['sql_inserciones']} INSERT ejecutados (idempotente)")
   print(
     "Horarios: "
@@ -169,8 +176,7 @@ def main() -> None:
     f"{horarios['horarios_existentes']} ya existentes"
   )
   print(
-    f"Usuarios: {usuarios['creados']} creados, "
-    f"{usuarios['existentes']} ya existían"
+    f"Usuarios: {usuarios['creados']} creados, {usuarios['existentes']} ya existían"
   )
   print("Carga finalizada. Clave de prueba documentada en README (sección 8.3).")
 

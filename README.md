@@ -941,9 +941,17 @@ Carga completa en un solo comando, desde `backend/` y con la configuración de `
 .\.venv\Scripts\python.exe -m scripts.cargar_datos_prueba
 ```
 
-El cargador crea las tablas y la semilla base si faltan, y ejecuta en orden jerárquico: periodo → docentes → secciones → representantes → estudiantes → asignaturas → vínculos docentes → horarios → usuarios. Es idempotente: puede ejecutarse las veces que haga falta sin duplicar registros. Acepta `--sql`, `--json`, `--clave` y `--no-actualizar-horarios`.
+El cargador crea las tablas y la semilla base si faltan, y ejecuta en orden jerárquico: periodo → docentes → secciones → representantes → estudiantes → asignaturas → vínculos docentes → horarios → usuarios. Es idempotente: puede ejecutarse las veces que haga falta sin duplicar registros. Acepta `--sql`, `--json`, `--clave`, `--no-actualizar-horarios` y `--recrear-tablas`.
 
-Usuarios creados por el cargador (todos con la clave de prueba `Prueba2026!`, sobreescribible con `--clave` o la variable `CLAVE_PRUEBA`):
+Si la base viene de una versión anterior del esquema, `create_all()` no agrega columnas a tablas ya existentes (por ejemplo, falta `estudiantes.fecha_egreso`). Para esos casos, y **solo cuando la base pueda perderse**, usar:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.cargar_datos_prueba --recrear-tablas
+```
+
+Ese flag hace `drop_all()` antes de crear las tablas y cargar; borra todos los datos de las 15 tablas.
+
+Usuarios creados por el cargador (todos con la clave de prueba `Prueba123*`, sobreescribible con `--clave` o la variable `CLAVE_PRUEBA`):
 
 | Usuario | Rol | Nivel |
 | --- | --- | --- |
