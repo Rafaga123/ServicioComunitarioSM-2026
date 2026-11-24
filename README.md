@@ -889,7 +889,7 @@ o, sin sección: `{ "nivel": "ESCUELA", "periodo_lectivo": 2026 }`.
 - La ruta incluye el periodo lectivo: `periodo_lectivo/2026-2027/listados/nominas/ESCUELA/1er_grado/U/nomina_2026-2027_1er_grado_U.pdf` (si ya existe, se agrega `_v2`, `_v3`, …).
 - Título: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/1er Grado "U"`. Metadatos: `ESCUELA • 1er Grado U • 2026-2027`.
 - Los representantes de ESCUELA del export original solo tienen teléfono; en la columna `Representante` se muestra `-`. Los de LICEO conservan su nombre real.
-- PDF de `horarios`: tabla de 12 filas (periodo/curso/sección, `Hora | LUNES | ... | VIERNES` y 10 bloques; los recesos dicen `RECESO`), seguida de `Docentes:` con `Materia: Docente` de esa sección.
+- PDF de `horarios`: tabla de 12 filas (periodo/curso/sección, `Hora | LUNES | ... | VIERNES` y los bloques `7:00-7:40`, `7:40-8:20`, `8:20-8:40` (RECESO), `8:40-9:20`, `9:20-10:00`, `10:10-10:10` (RECESO), `10:10-10:50`, `10:10-11:30`, `11:30-12:10`, `12:10-12:40`), seguida de `Docentes:` con `Materia: Docente` de esa sección.
 - PDF de `docentes`: columnas `Cédula | Docente | Asignaturas`; una fila por docente activo del nivel, con las materias del periodo lectivo (o `-` si no tiene).
 
 ### 6.16 Auditorías (`/api/auditorias`)

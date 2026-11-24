@@ -359,7 +359,7 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
   - Título general: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/ESCUELA general` (equivalente para `representantes` y `horarios`).
   - Línea de metadatos, sin comillas: `ESCUELA • 1er Grado U • 2026-2027`.
 - Los representantes de ESCUELA cargados desde el PDF original solo tienen teléfono (no nombre): en la columna `Representante` del PDF se muestra `-`. Los representantes de LICEO conservan sus nombres reales.
-- PDF de `horarios` (solo LICEO): encabezado `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — HORARIO DE CLASES`; tabla de 12 filas (periodo/curso/sección, `Hora | LUNES | MARTES | MIERCOLES | JUEVES | VIERNES`, y los 10 bloques de la jornada). Los recesos muestran `RECESO` en las columnas de los días. Después se lista `Docentes:` con una línea `Materia: Docente` por cada asignatura de esa sección.
+- PDF de `horarios` (solo LICEO): encabezado `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — HORARIO DE CLASES`; tabla de 12 filas (periodo/curso/sección, `Hora | LUNES | MARTES | MIERCOLES | JUEVES | VIERNES`, y los bloques `7:00-7:40`, `7:40-8:20`, `8:20-8:40` (RECESO), `8:40-9:20`, `9:20-10:00`, `10:10-10:10` (RECESO), `10:10-10:50`, `10:10-11:30`, `11:30-12:10`, `12:10-12:40`). Los recesos muestran `RECESO` en las columnas de los días. Después se lista `Docentes:` con una línea `Materia: Docente` por cada asignatura de esa sección.
 - PDF de `docentes`: columnas `Cédula | Docente | Asignaturas`; una fila por docente activo del nivel con las asignaturas del periodo (o `-` cuando no tiene).
 
 ---

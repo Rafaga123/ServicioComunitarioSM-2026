@@ -27,6 +27,21 @@ from app.utils.storage import GRADO_SLUGS
 
 DIAS_SEMANA = {1: "Lunes", 2: "Martes", 3: "Miércoles", 4: "Jueves", 5: "Viernes"}
 
+# Etiquetas solicitadas para la malla impresa del liceo (se respetan tal cual,
+# aunque difieran de la hora almacenada en `bloques_horarios`).
+HORAS_MALLA_LICEO = {
+  1: "7:00-7:40",
+  2: "7:40-8:20",
+  3: "8:20-8:40",
+  4: "8:40-9:20",
+  5: "9:20-10:00",
+  6: "10:10-10:10",
+  7: "10:10-10:50",
+  8: "10:10-11:30",
+  9: "11:30-12:10",
+  10: "12:10-12:40",
+}
+
 TITULOS_DOCUMENTO = {
   TipoDocumento.nominas: "Listado de estudiantes",
   TipoDocumento.representantes: "Listado de representantes",
@@ -180,7 +195,11 @@ def _filas_horarios_seccion(session: Session, seccion: Secciones) -> list[list[s
 def _datos_horarios(
   session: Session, seccion: Secciones, periodo: int
 ) -> tuple[dict[str, str], list[list[str]], list[tuple[str, str]]]:
-  """Devuelve cabecera, malla de 10 bloques y docentes de una sección."""
+  """Devuelve cabecera, malla de 10 bloques y docentes de una sección.
+
+  Las etiquetas de hora son las definidas en `HORAS_MALLA_LICEO`; la
+  asignación de materias por día/bloque se toma de los horarios activos.
+  """
   bloques = session.exec(
     select(BloquesHorarios)
     .where(BloquesHorarios.fecha_eliminacion.is_(None))
@@ -196,7 +215,10 @@ def _datos_horarios(
 
   filas: list[list[str]] = []
   for bloque in bloques:
-    hora = f"{bloque.hora_inicio.strftime('%H:%M')}-{bloque.hora_fin.strftime('%H:%M')}"
+    hora = HORAS_MALLA_LICEO.get(
+      bloque.orden,
+      f"{bloque.hora_inicio.strftime('%H:%M')}-{bloque.hora_fin.strftime('%H:%M')}",
+    )
     if bloque.tipo == TipoBloqueHorario.receso:
       celdas = ["RECESO"] * 5
     else:
