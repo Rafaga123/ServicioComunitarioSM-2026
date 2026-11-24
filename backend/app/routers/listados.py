@@ -167,6 +167,8 @@ def generar_listado(
       raise HTTPException(400, "Los horarios requieren sección")
     if seccion.grado.nivel != NivelEducativo.liceo:
       raise HTTPException(400, "Los horarios solo aplican a secciones de liceo")
+  if tipo == TipoDocumento.docentes and (seccion is not None or grado is not None):
+    raise HTTPException(400, "El listado de docentes es general por nivel")
 
   documento = servicio_listados.construir_documento(
     tipo, periodo, nivel, grado, seccion, session

@@ -287,7 +287,7 @@ Validaciones (400):
 - Si el periodo siguiente no existe: se crea (activo, sin secciones). Si ya existe cerrado: 400. Si ya tiene secciones: 400.
 
 Efectos (orden):
-1. Genera y guarda PDFs por **sección activa** del periodo actual: nóminas y representantes para todas las secciones; horarios solo para las de LICEO. Los PDFs se preparan en staging y se mueven al destino solo si toda la operación tiene éxito; si falla, se revierten. Se registran en `DocumentosGenerados` (`GET /api/listados/documentos`).
+1. Genera y guarda PDFs por **sección activa** del periodo actual: nóminas y representantes para todas las secciones; horarios solo para las de LICEO. También genera el listado general de docentes por nivel. Los PDFs se preparan en staging y se mueven al destino solo si toda la operación tiene éxito; si falla, se revierten. Se registran en `DocumentosGenerados` (`GET /api/listados/documentos`).
 2. Traspaso de estudiantes activos: 6to Grado → 1er Año; grados intermedios → siguiente grado; 5to Año → egreso (`fecha_egreso`).
 3. Crea en el periodo siguiente **solo las combinaciones grado+letra que existían**, sin docentes titulares; copia los nombres de asignaturas de liceo del periodo actual, sin docentes.
 4. Cierra el periodo actual (`cerrado=true`) y desactiva otro activo; activa el periodo siguiente.
@@ -330,11 +330,12 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
 
 ### 3.15 Listados (PDFs de nóminas, representantes, horarios)
 
-- `POST /api/listados/{tipo}` — `tipo ∈ {nominas, representantes, horarios}` (strings minúsculas de `TipoDocumento`). Body `SolicitudListado = { periodo_lectivo?: int, nivel?: NivelEducativo, id_grado?: int, id_seccion?: int }` → `201 PeticionDocumentoGenerado`.
+- `POST /api/listados/{tipo}` — `tipo ∈ {nominas, representantes, horarios, docentes}` (strings minúsculas de `TipoDocumento`). Body `SolicitudListado = { periodo_lectivo?: int, nivel?: NivelEducativo, id_grado?: int, id_seccion?: int }` → `201 PeticionDocumentoGenerado`.
   - Reglas:
     - `id_seccion`: el periodo del listado = `seccion.periodo_lectivo`; si el cliente pide otro, 400.
     - `id_grado` sin sección: nivel del grado; 400 si nivel conflicts.
     - `horarios` requieren `id_seccion` de **liceo** (400 sin sección o si la sección es de ESCUELA).
+    - `docentes` es general por nivel: 400 si se envía `id_seccion` o `id_grado`.
     - `periodo_lectivo` opcional: si se omite se usa el activo; 400 si no hay activo y no se indicó uno. Si se envía, **debe existir** (`_validar_periodo_lectivo`: 404 "Periodo lectivo no encontrado").
     - Nivel para listados generales: debe indicar (400 "Necesita indicar nivel para listados generales").
     - Validación de acceso por nivel del usuario.
@@ -349,7 +350,7 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
   periodo_lectivo/2026-2027/
   ├─ pases/{nivel}/{grado}/{letra}/estudiante-{id}/archivo.ext
   ├─ reportes/{nivel}/{grado}/{letra}/estudiante-{id}/archivo.ext
-  └─ listados/{nominas|representantes|horarios}/{nivel}/{grado}/{letra}/archivo.pdf
+  └─ listados/{nominas|representantes|horarios|docentes}/{nivel}/{grado|general}/{letra}/archivo.pdf
   ```
 
 - Ejemplo de PDF: `periodo_lectivo/2026-2027/listados/nominas/LICEO/1er_ano/A/nomina_2026-2027_1er_ano_A.pdf` (general: `periodo_lectivo/2026-2027/listados/nominas/LICEO/general/nomina_2026-2027_LICEO_general.pdf`). Si el nombre ya existe se usa `_v2`, `_v3`, etc.
@@ -359,6 +360,7 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
   - Línea de metadatos, sin comillas: `ESCUELA • 1er Grado U • 2026-2027`.
 - Los representantes de ESCUELA cargados desde el PDF original solo tienen teléfono (no nombre): en la columna `Representante` del PDF se muestra `-`. Los representantes de LICEO conservan sus nombres reales.
 - PDF de `horarios` (solo LICEO): encabezado `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — HORARIO DE CLASES`; tabla de 12 filas (periodo/curso/sección, `Hora | LUNES | MARTES | MIERCOLES | JUEVES | VIERNES`, y los 10 bloques de la jornada). Los recesos muestran `RECESO` en las columnas de los días. Después se lista `Docentes:` con una línea `Materia: Docente` por cada asignatura de esa sección.
+- PDF de `docentes`: columnas `Cédula | Docente | Asignaturas`; una fila por docente activo del nivel con las asignaturas del periodo (o `-` cuando no tiene).
 
 ---
 
@@ -473,7 +475,7 @@ Consulte las columnas `id_*`, `periodo_lectivo`, `fecha_*` y los campos `*_apoyo
 
 - Grados: `1-6` = `ESCUELA`, `7-11` = `LICEO` (`CheckConstraint`).
 - Horarios y bloques académicos (1-8): **solo secciones de LICEO**.
-- Nóminas, representantes y horarios en listados: se generan por sección activa; horarios solo de secciones de liceo.
+- Nóminas, representantes y horarios en listados: se generan por sección activa; horarios solo de secciones de liceo. Docentes se genera de forma general por nivel.
 
 ---
 

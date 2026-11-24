@@ -31,6 +31,7 @@ TITULOS_DOCUMENTO = {
   TipoDocumento.nominas: "Listado de estudiantes",
   TipoDocumento.representantes: "Listado de representantes",
   TipoDocumento.horarios: "Horario de clases",
+  TipoDocumento.docentes: "Listado de docentes",
 }
 
 
@@ -61,6 +62,7 @@ def _nombre_archivo(
     "nominas": "nomina",
     "representantes": "representantes",
     "horarios": "horario",
+    "docentes": "docentes",
   }[tipo.value]
   etiqueta = etiqueta_periodo(periodo)
   if grado is not None and seccion is not None:
@@ -296,6 +298,45 @@ def _filas_representantes_general(
   return filas
 
 
+def _filas_docentes_general(
+  session: Session, periodo: int, nivel: NivelEducativo
+) -> list[list[str]]:
+  """Lista activa de docentes de un nivel con sus asignaturas del periodo."""
+  docentes = session.exec(
+    select(Docentes)
+    .where(
+      Docentes.nivel == nivel,
+      Docentes.fecha_eliminacion.is_(None),
+    )
+    .order_by(
+      Docentes.primer_apellido, Docentes.primer_nombre, Docentes.cedula, Docentes.id
+    )
+  ).all()
+
+  filas: list[list[str]] = []
+  for docente in docentes:
+    asignaturas = session.exec(
+      select(Asignaturas)
+      .join(Horarios, Horarios.id_asignatura == Asignaturas.id)
+      .where(
+        Horarios.id_docente == docente.id,
+        Horarios.periodo_lectivo == periodo,
+        Horarios.fecha_eliminacion.is_(None),
+        Asignaturas.fecha_eliminacion.is_(None),
+      )
+      .distinct()
+      .order_by(Asignaturas.nombre)
+    ).all()
+    filas.append(
+      [
+        docente.cedula,
+        nombre_completo(docente),
+        ", ".join(a.nombre for a in asignaturas) or "-",
+      ]
+    )
+  return filas
+
+
 FILAS_POR_SECCION: dict[
   TipoDocumento, Callable[[Session, Secciones], list[list[str]]]
 ] = {
@@ -309,6 +350,7 @@ FILAS_GENERAL: dict[
 ] = {
   TipoDocumento.nominas: _filas_nominas_general,
   TipoDocumento.representantes: _filas_representantes_general,
+  TipoDocumento.docentes: _filas_docentes_general,
 }
 
 HEADERS_SECCION: dict[TipoDocumento, list[str]] = {
@@ -333,6 +375,7 @@ HEADERS_GENERAL: dict[TipoDocumento, list[str]] = {
     "Teléfono",
   ],
   TipoDocumento.representantes: ["Representante", "Teléfono", "Estudiantes asociados"],
+  TipoDocumento.docentes: ["Cédula", "Docente", "Asignaturas"],
 }
 
 COL_ANCHOS_SECCION: dict[TipoDocumento, list[float]] = {
@@ -344,6 +387,7 @@ COL_ANCHOS_SECCION: dict[TipoDocumento, list[float]] = {
 COL_ANCHOS_GENERAL: dict[TipoDocumento, list[float]] = {
   TipoDocumento.nominas: [2.3, 3.4, 2.6, 3.5, 2.4],
   TipoDocumento.representantes: [5.0, 2.8, 6.4],
+  TipoDocumento.docentes: [2.8, 5.0, 6.4],
 }
 
 

@@ -2,8 +2,8 @@
 
 Flujo de `POST /api/gestion/cerrar-anio`:
 1. Validar periodo actual (activo) y periodo siguiente (¿existe? crear).
-2. Generar PDFs de listados (nóminas/representantes/horarios-liceo) en RAM
-   y guardarlos en staging.
+2. Generar PDFs de listados (nóminas/representantes/horarios-liceo por sección
+   y docentes generales por nivel) en RAM y guardarlos en staging.
 3. Mover los archivos staging → destino final en STORAGE_ROOT.
 4. En una sola transacción: insertar los `DocumentosGenerados` y ejecutar el
    traspaso de estudiantes (6to Año→egreso, grados intermedios→siguiente).
@@ -248,6 +248,53 @@ def _guardar_doc_staged(
   return registro
 
 
+def _guardar_doc_general_staged(
+  session: Session,
+  usuario: object,
+  tipo: TipoDocumento,
+  periodo: int,
+  nivel: NivelEducativo,
+  staging_root: Path,
+) -> DocumentosGenerados:
+  """Prepara un PDF general por nivel (p. ej. el listado de docentes)."""
+  documento = servicio_listados.construir_documento(
+    tipo, periodo, nivel, None, None, session
+  )
+  pdf = construir_pdf(
+    documento.titulo,
+    documento.encabezados,
+    documento.filas,
+    col_anchos=documento.col_anchos,
+    nivel=nivel.value,
+    seccion=documento.seccion_descripcion,
+    periodo_lectivo=etiqueta_periodo(periodo),
+  )
+  ruta_relativa = servicio_listados.ruta_relativa_listado(
+    tipo, periodo, nivel, None, None, documento.nombre_archivo
+  )
+  nombre_archivo = nombre_unico(ruta_relativa, documento.nombre_archivo)
+  ruta_relativa = ruta_relativa.replace(documento.nombre_archivo, nombre_archivo)
+
+  staging_file = staging_root / ruta_relativa
+  staging_file.parent.mkdir(parents=True, exist_ok=True)
+  staging_file.write_bytes(pdf)
+
+  registro = DocumentosGenerados(
+    tipo=tipo,
+    periodo_lectivo=periodo,
+    nivel=nivel,
+    nombre_archivo=nombre_archivo,
+    ruta_relativa=ruta_relativa,
+    hash=hash_contenido(pdf),
+    tamano=len(pdf),
+    mime="application/pdf",
+    fecha_generacion=ahora_caracas(),
+    generado_por=usuario.id,
+  )
+  session.add(registro)
+  return registro
+
+
 def cerrar_anio(
   session: Session,
   usuario,
@@ -317,6 +364,19 @@ def cerrar_anio(
             staging_root,
           )
         )
+
+    # 1b. Listado general de docentes por nivel.
+    for nivel in (NivelEducativo.escuela, NivelEducativo.liceo):
+      documentos.append(
+        _guardar_doc_general_staged(
+          session,
+          usuario,
+          TipoDocumento.docentes,
+          pa.anio,
+          nivel,
+          staging_root,
+        )
+      )
 
     # 2. Mover archivos de staging al destino final.
     for doc in documentos:

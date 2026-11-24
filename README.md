@@ -862,7 +862,7 @@ Reglas de conteo:
 Devuelve `200` con `{ periodo_cerrado, periodo_activado, documentos_generados, estudiantes_promovidos, egresados, secciones_creadas, asignaturas_creadas }`.
 
 - El período actual debe estar activo y abierto; el siguiente debe ser mayor y no tener secciones creadas.
-- Genera PDFs de nóminas y representantes para todas las secciones, y de horarios solo para las de LICEO. Se preparan en staging y se mueven solo si toda la operación tiene éxito; si falla, se revierten.
+- Genera PDFs de nóminas y representantes para todas las secciones, de horarios solo para las de LICEO y un listado general de docentes por nivel. Se preparan en staging y se mueven solo si toda la operación tiene éxito; si falla, se revierten.
 - Traspasa estudiantes al siguiente grado (6to Grado → 1er Año) y marca el egreso en 5to Año mediante `fecha_egreso` (solo lectura en la API normal).
 - Replica las combinaciones grado+letra existentes sin docentes titulares y copia los nombres de asignaturas de liceo sin docentes.
 
@@ -870,7 +870,7 @@ Devuelve `200` con `{ periodo_cerrado, periodo_activado, documentos_generados, e
 
 | Método | Ruta | Acceso | Descripción |
 | --- | --- | --- | --- |
-| POST | `/api/listados/{tipo}` | Autenticado (según nivel) | Genera un PDF (`tipo`: `nominas`, `representantes` u `horarios`). Devuelve `201` |
+| POST | `/api/listados/{tipo}` | Autenticado (según nivel) | Genera un PDF (`tipo`: `nominas`, `representantes`, `horarios` o `docentes`). Devuelve `201` |
 | GET | `/api/listados/documentos` | Admin | Lista documentos generados. Filtros: `tipo`, `periodo_lectivo`, `nivel`, `id_grado`, `id_seccion` |
 | GET | `/api/listados/documentos/{documento_id}/archivo` | Autenticado | Descarga el PDF |
 | GET | `/api/listados/documentos/paquete` | Admin | Descarga un ZIP con todos los PDFs de un tipo y período |
@@ -884,12 +884,13 @@ Generar un listado:
 o, sin sección: `{ "nivel": "ESCUELA", "periodo_lectivo": 2026 }`.
 
 - `periodo_lectivo` es opcional: por defecto se usa el activo (400 si no hay activo y no se indicó uno).
-- `horarios` requiere `id_seccion` de **liceo** (400 si la sección es de ESCUELA); los listados generales requieren `nivel`.
+- `horarios` requiere `id_seccion` de **liceo** (400 si la sección es de ESCUELA); `docentes` es general por nivel (400 con `id_seccion` o `id_grado`); los demás listados generales requieren `nivel`.
 - Los PDF usan hoja carta, margen izquierdo de 4 cm y 3 cm en los demás lados.
 - La ruta incluye el periodo lectivo: `periodo_lectivo/2026-2027/listados/nominas/ESCUELA/1er_grado/U/nomina_2026-2027_1er_grado_U.pdf` (si ya existe, se agrega `_v2`, `_v3`, …).
 - Título: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/1er Grado "U"`. Metadatos: `ESCUELA • 1er Grado U • 2026-2027`.
 - Los representantes de ESCUELA del export original solo tienen teléfono; en la columna `Representante` se muestra `-`. Los de LICEO conservan su nombre real.
 - PDF de `horarios`: tabla de 12 filas (periodo/curso/sección, `Hora | LUNES | ... | VIERNES` y 10 bloques; los recesos dicen `RECESO`), seguida de `Docentes:` con `Materia: Docente` de esa sección.
+- PDF de `docentes`: columnas `Cédula | Docente | Asignaturas`; una fila por docente activo del nivel, con las materias del periodo lectivo (o `-` si no tiene).
 
 ### 6.16 Auditorías (`/api/auditorias`)
 
@@ -998,7 +999,7 @@ Todo se guarda bajo `STORAGE_ROOT` (`C:\sistema` por defecto):
 periodo_lectivo/2026-2027/
 ├─ pases/{nivel}/{grado}/{letra}/estudiante-{id}/archivo.ext
 ├─ reportes/{nivel}/{grado}/{letra}/estudiante-{id}/archivo.ext
-└─ listados/{nominas|representantes|horarios}/{nivel}/{grado}/{letra}/archivo.pdf
+└─ listados/{nominas|representantes|horarios|docentes}/{nivel}/{grado|general}/{letra}/archivo.pdf
 ```
 
 La BD sigue guardando el año como entero (`2026`); la etiqueta `2026-2027` se deriva para rutas, nombres de archivo, títulos y metadatos.
@@ -1238,7 +1239,7 @@ Con el frontend servido desde el mismo backend y el mismo puerto, las peticiones
 
 ### 11.2 Limitaciones actuales
 
-- **No hay Alembic ni migraciones.** `create_all()` no altera tablas existentes; para esquemas viejos se usa `--recrear-tablas` (destructivo).
+- **No hay Alembic.** `create_all()` no altera tablas existentes; para cambios de columnas en esquemas viejos se usa `--recrear-tablas` (destructivo). La única migración automática es `ALTER TYPE tipodocumento ADD VALUE IF NOT EXISTS 'docentes'`, ejecutada en el arranque.
 - **No hay logout ni revocación de JWT.** El token dura 360 minutos por defecto.
 - **No hay refresh token.**
 - **No hay endpoint de restauración** de registros dados de baja.
