@@ -3,7 +3,7 @@
 Uso (desde la carpeta backend/ con el entorno virtual activo):
 
     python -m scripts.sembrar_horarios
-    python -m scripts.sembrar_horarios --json scripts/horarios_liceo_2026.json --actualizar
+    python -m scripts.sembrar_horarios --json scripts/nominas/horarios_liceo_2026.json --actualizar
 """
 
 from __future__ import annotations
@@ -29,7 +29,10 @@ from app.models.db import (
 from app.models.session import engine, inicializar_base_datos
 from app.utils.fechas import ahora_caracas
 
-RUTA_JSON_DEFECTO = Path(__file__).with_name("horarios_liceo_2026.json")
+# Los datos de nóminas son sensibles y viven solo en local (carpeta ignorada).
+RUTA_JSON_DEFECTO = (
+  Path(__file__).with_name("nominas") / "horarios_liceo_2026.json"
+)
 
 
 def normalizar_cedula(cedula: str) -> str:

@@ -922,6 +922,31 @@ La semilla se ejecuta en cada arranque y es idempotente. No resucita registros d
 | 9 | 7 | Bloque 7 | ACADEMICO | 11:30 | 12:10 |
 | 10 | 8 | Bloque 8 | ACADEMICO | 12:10 | 12:40 |
 
+### 8.3 Datos de prueba locales (nóminas)
+
+`backend/scripts/nominas/` contiene el export original, organizado en `PDFs/` y `Exels/`, con los SQL y JSON en la raíz. Es una carpeta **ignorada por Git** porque incluye nombres y cédulas reales: no debe subirse al repositorio. Un clone nuevo no la trae; hay que copiarla manualmente desde el export local antes de cargar datos de prueba. Los scripts generadores (`excel.py`, `generar_sql.py`) reciben como `--carpeta` la ruta a `nominas/Exels`.
+
+Los SQL de esa carpeta están adaptados al esquema actual:
+
+- cédulas sin el prefijo `V-` (coinciden con el CRUD de docentes y con `sembrar_horarios.py`);
+- periodo lectivo `2026` activo y no cerrado;
+- los grados los crea la semilla de la API, así que los SQL solo insertan secciones;
+- dos estudiantes de 5to Año tienen `fecha_egreso` para probar el detalle de egresados;
+- las 4 colisiones docente+bloque+día del JSON se insertan tal cual vienen en el export;
+- todos los `INSERT` son idempotentes y pueden re-ejecutarse.
+
+Orden de carga desde `backend/` con la BD ya creada por la API:
+
+```powershell
+psql -h <host> -U <usuario> -d <base> -f scripts/nominas/00_todo_seed.sql
+.\.venv\Scripts\python.exe -m scripts.sembrar_horarios
+.\.venv\Scripts\python.exe -m scripts.crear_admin
+```
+
+`sembrar_horarios.py` lee por defecto `scripts/nominas/horarios_liceo_2026.json`; también puede pasarse otra ruta con `--json`.
+
+> Los commits antiguos del repositorio todavía contienen `backend/scripts/docentes.sql` y `backend/scripts/horarios_liceo_2026.json`. Su eliminación del historial quedó pendiente de una decisión explícita.
+
 ---
 
 ## 9. Modelo de datos y orden de carga
@@ -1091,7 +1116,7 @@ Con el frontend servido desde el mismo backend y el mismo puerto, las peticiones
 - **No hay cierre de año todavía**: pases y reportes se conservan, pero la operación masiva es de Fase 6.
 - **No hay Docker/compose** ni instalador `.exe` todavía.
 - El frontend aún no está conectado; este README describe solo el backend.
-- La carpeta `backend/scripts/` contiene scripts auxiliares antiguos (`generar_sql.py`, `excel.py`, `docentes.sql`) que no forman parte del contrato de la API.
+- La carpeta `backend/scripts/` contiene scripts auxiliares (`generar_sql.py`, `excel.py`, `sembrar_horarios.py`, `crear_admin.py`) que no forman parte del contrato de la API. Los datos sensibles de nóminas están solo en `backend/scripts/nominas/`, ignorada por Git.
 
 ---
 
