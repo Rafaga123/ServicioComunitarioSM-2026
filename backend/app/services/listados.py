@@ -66,14 +66,22 @@ def _nombre_archivo(
 
 def _titulo(
   tipo: TipoDocumento,
+  periodo: int,
   nivel: NivelEducativo,
   grado: Grados | None,
   seccion: Secciones | None,
 ) -> str:
   titulo = TITULOS_DOCUMENTO[tipo]
   if seccion is not None and grado is not None:
-    return f"{titulo} — {grado.nombre} {seccion.letra}"
-  return f"{titulo} — {nivel.value} general"
+    return f"{titulo} {periodo}/{grado.nombre} \"{seccion.letra.upper()}\""
+  return f"{titulo} {periodo}/{nivel.value} general"
+
+
+def _nombre_representante(representante: Representantes | None) -> str:
+  """Nombre del representante, o '-' cuando solo se conoce su teléfono."""
+  if representante is None:
+    return "-"
+  return nombre_completo(representante) or "-"
 
 
 # =====
@@ -92,7 +100,7 @@ def _filas_nominas_seccion(session: Session, seccion: Secciones) -> list[list[st
     [
       e.cedula_estudiantil,
       nombre_completo(e),
-      nombre_completo(e.representante) if e.representante else "-",
+      _nombre_representante(e.representante),
       e.representante.telefono if e.representante else "-",
     ]
     for e in estudiantes
@@ -128,7 +136,7 @@ def _filas_representantes_seccion(
     ).all()
     filas.append(
       [
-        nombre_completo(rep),
+        _nombre_representante(rep),
         rep.telefono,
         "; ".join(nombre_completo(e) for e in ests) or "-",
       ]
@@ -185,7 +193,7 @@ def _filas_nominas_general(
       e.cedula_estudiantil,
       nombre_completo(e),
       f"{e.seccion.grado.nombre} {e.seccion.letra}",
-      nombre_completo(e.representante) if e.representante else "-",
+      _nombre_representante(e.representante),
       e.representante.telefono if e.representante else "-",
     ]
     for e in estudiantes
@@ -229,7 +237,7 @@ def _filas_representantes_general(
     ).all()
     filas.append(
       [
-        nombre_completo(rep),
+        _nombre_representante(rep),
         rep.telefono,
         "; ".join(nombre_completo(e) for e in ests) or "-",
       ]
@@ -319,7 +327,7 @@ def construir_documento(
     filas=filas,
     encabezados=encabezados,
     col_anchos=col_anchos,
-    titulo=_titulo(tipo, nivel, grado, seccion),
+    titulo=_titulo(tipo, periodo, nivel, grado, seccion),
     seccion_descripcion=descripcion,
   )
 
