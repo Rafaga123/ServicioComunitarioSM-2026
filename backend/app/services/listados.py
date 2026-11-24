@@ -26,6 +26,12 @@ from app.utils.storage import GRADO_SLUGS
 
 DIAS_SEMANA = {1: "Lunes", 2: "Martes", 3: "Miércoles", 4: "Jueves", 5: "Viernes"}
 
+TITULOS_DOCUMENTO = {
+  TipoDocumento.nominas: "Listado de estudiantes",
+  TipoDocumento.representantes: "Listado de representantes",
+  TipoDocumento.horarios: "Horario de clases",
+}
+
 
 @dataclass
 class DocumentoListado:
@@ -64,9 +70,10 @@ def _titulo(
   grado: Grados | None,
   seccion: Secciones | None,
 ) -> str:
+  titulo = TITULOS_DOCUMENTO[tipo]
   if seccion is not None and grado is not None:
-    return f"{tipo.value} — {grado.nombre} {seccion.letra}"
-  return f"{tipo.value} — {nivel.value} general"
+    return f"{titulo} — {grado.nombre} {seccion.letra}"
+  return f"{titulo} — {nivel.value} general"
 
 
 # =====
@@ -292,13 +299,14 @@ def construir_documento(
   """Resuelve las filas para un listado según tipo, nivel, grado y sección."""
   if seccion is not None:
     nombre_archivo = _nombre_archivo(tipo, periodo, nivel, grado, seccion)
-    descripcion = f"{grado.nombre if grado else nivel.value} {seccion.letra}"
+    # El encabezado del PDF muestra grado y sección en un solo campo.
+    descripcion = f"{grado.nombre if grado else nivel.value} {seccion.letra}".strip()
     filas = FILAS_POR_SECCION[tipo](session, seccion)
     encabezados = HEADERS_SECCION[tipo]
     col_anchos = COL_ANCHOS_SECCION[tipo]
   else:
     nombre_archivo = _nombre_archivo(tipo, periodo, nivel, None, None)
-    descripcion = f"{nivel.value} general"
+    descripcion = "general"
     filas = FILAS_GENERAL[tipo](session, periodo, nivel)
     encabezados = HEADERS_GENERAL[tipo]
     col_anchos = COL_ANCHOS_GENERAL[tipo]
@@ -326,12 +334,15 @@ def ruta_relativa_listado(
 ) -> str:
   """Ruta relativa dentro de STORAGE_ROOT del PDF generado.
 
-  Sección: `listados/nominas/LICEO/1er_ano/A/nomina_2027_1er_ano_A.pdf`.
-  General: `listados/nominas/LICEO/general/nomina_2027_LICEO_general.pdf`.
+  El periodo es una carpeta para separar los listados de cada año.
+
+  Sección: `listados/nominas/2027/LICEO/1er_ano/A/nomina_2027_1er_ano_A.pdf`.
+  General: `listados/nominas/2027/LICEO/general/nomina_2027_LICEO_general.pdf`.
   """
   if seccion is not None:
     slug = GRADO_SLUGS.get(grado.numero, "general")
     return (
-      f"listados/{tipo.value}/{nivel.value}/{slug}/{seccion.letra}/{nombre_archivo}"
+      f"listados/{tipo.value}/{periodo}/{nivel.value}/{slug}/"
+      f"{seccion.letra}/{nombre_archivo}"
     )
-  return f"listados/{tipo.value}/{nivel.value}/general/{nombre_archivo}"
+  return f"listados/{tipo.value}/{periodo}/{nivel.value}/general/{nombre_archivo}"

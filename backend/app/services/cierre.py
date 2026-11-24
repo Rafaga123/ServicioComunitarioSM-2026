@@ -205,7 +205,7 @@ def _guardar_doc_staged(
     documento.filas,
     col_anchos=documento.col_anchos,
     nivel=nivel.value if nivel else None,
-    grado=documento.grado.nombre if documento.grado else None,
+    grado=None,
     seccion=documento.seccion_descripcion,
     periodo_lectivo=periodo,
   )
