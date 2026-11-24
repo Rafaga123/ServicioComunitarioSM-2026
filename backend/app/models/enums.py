@@ -34,14 +34,14 @@ class ModuloAuditoria(str, Enum):
   representantes = "REPRESENTANTES"
   docentes = "DOCENTES"
   asignaturas = "ASIGNATURAS"
-  bloques_horarios = "BLOQUES_HORARIOS"
+  bloques_horarios = "BLOQUES HORARIOS"
   horarios = "HORARIOS"
   pases = "PASES"
   reportes = "REPORTES"
   auditorias = "AUDITORIAS"
-  periodos_lectivos = "PERIODOS_LECTIVOS"
+  periodos_lectivos = "PERIODOS LECTIVOS"
   documentos = "DOCUMENTOS"
-  cierre_anio = "CIERRE_ANIO"
+  cierre_anio = "CIERRE AÑO"
 
 
 # Tipos de documentos generados como PDFs de listados institucionales

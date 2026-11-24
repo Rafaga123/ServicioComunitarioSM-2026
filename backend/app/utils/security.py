@@ -4,7 +4,7 @@ import bcrypt
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jwt.exceptions import InvalidTokenError
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 from sqlmodel import Session
 
 from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, SECRET_KEY
@@ -61,8 +61,15 @@ def obtener_usuario_actual(
 ) -> Usuarios:
   excepcion_credenciales = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
-    detail="No se pudieron validar las credenciales (Token inválido o expirado)",
+    detail="No se pudieron validar las credenciales (token inválido)",
     headers={"WWW-Authenticate": "Bearer"},
+  )
+  excepcion_expirado = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="La sesión ha expirado. Inicia sesión nuevamente.",
+    headers={
+      "WWW-Authenticate": 'Bearer error="invalid_token", error_description="token expirado"'
+    },
   )
 
   try:
@@ -75,6 +82,8 @@ def obtener_usuario_actual(
 
     usuario = session.get(Usuarios, int(usuario_id))
 
+  except ExpiredSignatureError:
+    raise excepcion_expirado
   except (InvalidTokenError, TypeError, ValueError):
     raise excepcion_credenciales
 

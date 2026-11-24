@@ -122,6 +122,29 @@ def _validar_colision_docente(
     )
 
 
+def _validar_docente_titular_otra_seccion(
+  session: Session,
+  id_docente: int,
+  id_seccion: int,
+  periodo_lectivo: int,
+) -> None:
+  """El titular está ocupado con su sección: no puede dar clase en otra."""
+  titularidades = session.exec(
+    select(Secciones).where(
+      Secciones.id_docente_titular == id_docente,
+      Secciones.periodo_lectivo == periodo_lectivo,
+      Secciones.fecha_eliminacion.is_(None),
+    )
+  ).all()
+  if any(seccion.id != id_seccion for seccion in titularidades):
+    raise HTTPException(
+      status_code=status.HTTP_409_CONFLICT,
+      detail=(
+        "El docente es titular de otra sección y no puede impartir clases fuera de ella"
+      ),
+    )
+
+
 def _validar_horario(
   session: Session,
   id_seccion: int,
@@ -174,6 +197,10 @@ def _validar_horario(
       status_code=status.HTTP_400_BAD_REQUEST,
       detail="Solo se pueden asignar docentes de liceo",
     )
+
+  _validar_docente_titular_otra_seccion(
+    session, id_docente, id_seccion, periodo_lectivo
+  )
 
   vinculado = session.exec(
     select(AsignaturasDocentes).where(

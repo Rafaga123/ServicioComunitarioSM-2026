@@ -1,6 +1,6 @@
 # Handoff: API completa del backend para el Frontend
 
-> Actualizado el 23-11-2026 (`backend-dev`, Fases 1–6 completadas: 46 paths / 83 operaciones; aún sin push)
+> Actualizado el 24-11-2026 (`backend-dev`, Fases 1–6 completadas: 47 paths / 84 operaciones; aún sin push)
 > Base: `backend/` (FastAPI). URL base: `import.meta.env.VITE_API_URL ?? "http://localhost:8000/api"`
 > Auth: `Authorization: Bearer <JWT>` (Bearer en header, CORS: `allow_origins=["*"]`, `allow_credentials=False`).
 > Fechas de entrada: ISO **sin zona horaria**; el backend las normaliza a Caracas (America/Caracas) por su cuenta.
@@ -15,11 +15,15 @@
 |---|---|---|
 | `POST /api/auth/login` | body `application/x-www-form-urlencoded`: `username` (nombre del Usuario), `password` | Devuelve `200 {access_token, token_type: "bearer"}`. `401` si credenciales incorrectas. |
 | `GET /api/auth/me` | — | Devuelve el `PeticionUsuario` del usuario del token. |
+| `POST /api/auth/logout` | Bearer token | `204`. Registra `CIERRE DE SESIÓN` en auditorías. El token sigue vivo hasta `exp`: **el frontend debe borrarlo de localStorage**. |
 
 - El JWT es HS256, firmado con `SECRET_KEY`, expira en `ACCESS_TOKEN_EXPIRE_MINUTES` (defecto 360 min).
-- Claims del token: `sub` (string con el id del usuario), `rol`, `nivel` (nulo si no hay).
-- `Content-Type` de todos los POST: `application/json` (excepto uploads multipart).
-- El login correcto registra una auditoría con `modulo: "USUARIOS"`, `accion: "LOGIN"` y el nombre del usuario en `descripcion`.
+- Claims del token: `sub` (string con el id del usuario), `rol`, `nivel` (nulo si no hay), `exp` (epoch seconds).
+- Token vencido → `401` con `detail: "La sesión ha expirado. Inicia sesión nuevamente."` y `WWW-Authenticate: Bearer error="invalid_token", error_description="token expirado"`. Token inválido → `401` con `detail: "No se pudieron validar las credenciales (token inválido)"`.
+- `Content-Type` de todos los POST: `application/json` (excepto login `x-www-form-urlencoded` y uploads multipart).
+- Login correcto: auditoría `modulo: "USUARIOS"`, `accion: "INICIO DE SESIÓN"`.
+- Cierre de sesión: auditoría `modulo: "USUARIOS"`, `accion: "CIERRE DE SESIÓN"`.
+- Textos de auditoría (`modulo`, `accion`, `descripcion`) son legibles: `_` → espacio y `ano`/`anio` → `año`. Ejemplos: `SUBIR_ARCHIVO` → `SUBIR ARCHIVO`, `BLOQUES_HORARIOS` → `BLOQUES HORARIOS`, `1er_ano` → `1er año`. Las rutas y claves de la API no cambian.
 
 ### 1.2 Paginación (listados)
 
@@ -41,7 +45,7 @@ Todos los GET que devuelven lista tienen respuesta estándar:
 | `201` | POST creado |
 | `204` | DELETE/PUT sin contenido de retorno |
 | `400` | Validación de datos (campo, rango, duplicado) |
-| `401` | Token inválido/expirado (opcionalmente `WWW-Authenticate: Bearer`) |
+| `401` | Token inválido o expirado. El frontend debe limpiar la sesión local y redirigir al login; el `detail` distingue expiración de token inválido. |
 | `403` | Sin rol/nivel permitido |
 | `404` | Registro no encontrado |
 | `409` | Conflicto (dependencias, duplicado de nota) |
@@ -125,6 +129,7 @@ Recomendación de campo: `nivel` → filtra secciones/horarios/asignaturas; `num
 **`POST /api/secciones/`** — body `CrearSeccion = { id_grado: int, letra: "A"|"B"|"U", periodo_lectivo: int (≥2000), id_docente_titular?: int|null }` → `201 PeticionSeccion`.
 - `letra` se normaliza a mayúsculas (A/B/U obligatorios).
 - Titular debe ser de ESCUELA (solo se puede nombrar a titular a una sección de escuela con docente de escuela).
+- 409 si el docente ya es titular de otra sección activa del mismo `periodo_lectivo`: `El docente ya es titular de otra sección en este período lectivo`.
 - 400 si ya existe sección activa con ese (grado, letra, periodo_lectivo).
 
 **`PUT /api/secciones/{id}`** — body `ActualizarSeccion = { letra?, periodo_lectivo?, id_docente_titular? }` → `200 PeticionSeccion`.
@@ -232,6 +237,7 @@ Validaciones de negocio (código):
 - `asignatura.id_grado == seccion.id_grado` y `asignatura.periodo_lectivo == periodo_lectivo`.
 - Solo docentes de LICEO y vinculados a la asignatura.
 - Colisión: no puede haber otra clase de la misma sección + bloque + periodo + día, ni de la misma clase del mismo docente + bloque + periodo + día. (409)
+- 409 si el docente es titular de otra sección: `El docente es titular de otra sección y no puede impartir clases fuera de ella`. Puede dar clases en la sección que titula.
 - Rango de bloques: `hora_inicio` ≥ 07:00 y `hora_fin` ≤ 12:40 (400 si fuera); 409 si `orden` duplicado o bloque solapado.
 - Recomendación: desplegables: usar los campos de apoyo (`seccion`, `grado`, `nivel`, `bloque`, `asignatura`, `docente`) de `PeticionHorario`; la malla se construye con `hora_inicio`/`hora_fin` del bloque.
 
@@ -377,7 +383,7 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
 - **Subida** (`POST /api/pases/{id}/archivo`, `POST /api/reportes/{id}/archivo`):
   - Campo multipart: `archivo` (campo pela).
   - Validación (400): extensión ∉ {jpg, jpeg, png, webp}; MIME ∉ {image/jpeg, image/jpg, image/png, image/webp}; tamaño > `ARCHIVOS_MAX_BYTES` (5 MB).
-  - Nombre base sanitizado (sin nulos/dirs/`..`), ≤100 chars.
+  - Nombre base sanitizado (sin nulos/dirs/`..`), ≤100 chars y legible: `_` → espacio y `ano`/`anio` → `año`. Ejemplo: `evidencia_anio_2026.png` → `evidencia año 2026.png`. Es el `archivo_nombre` que se devuelve y se usa al descargar.
   - Ruta relativa generada: `{etiqueta}/{pases|reportes}/{nivel_lower}/{slug_grado}/{letra_upper}/estudiante-{id}/{id_registro}_{uuid8}.{ext}` (slugs: 1→`1er_grado`, 7→`1er_ano`, ...). La etiqueta del periodo activo `2026` es `2026-2027`.
   - `archivo_url` en la respuesta = esa ruta relativa; también `archivo_mime`, `archivo_tamano` (bytes), `archivo_hash` (SHA-256 hex), `archivo_subido_por` (id del usuario), `archivo_fecha` (Caracas).
 - **Descarga**: solo por `GET /api/{pases,reportes}/{id}/archivo`. `?inline=true` → `Content-Disposition: inline`; por defecto `attachment`. 409 si el archivo físico no existe.
@@ -496,3 +502,42 @@ Consulte las columnas `id_*`, `periodo_lectivo`, `fecha_*` y los campos `*_apoyo
 - `Consulta horario`: no usar hora suelta; requiere `id_bloque` o `hora` (400 si ambos null).
 - `cedula` de docente y `cedula_estudiantil`: únicas activas por separado.
 - El id del usuario de auditoría = token `sub` (cambia si se re-autentica).
+
+---
+
+## 11. Pendientes / notas para el compañero de frontend
+
+> Esta rama (`backend-dev`) no modifica `frontend/src`. Son anotaciones para la rama `frontend-dev`.
+
+### 11.1 Sesión, logout y expiración del JWT
+
+- Botón **Cerrar sesión**: llamar `POST /api/auth/logout` con el Bearer token **antes** de borrar `localStorage.token`. El backend audita el cierre; si solo se borra el token local no queda auditoría.
+- El JWT es stateless: el endpoint de logout **no revoca** el token. Es obligatorio eliminar el token local y limpiar el estado reactivo de `auth.js`.
+- `api.js` ya limpia token y redirige al recibir cualquier `401` (`apiFetch` y `apiDescargar`). Mantener ese comportamiento; el `detail` del backend ahora distingue `"La sesión ha expirado..."` de token inválido.
+- El `exp` del token viaja en el claim `exp` (epoch seconds). Para que la sesión se cierre **sin esperar una petición**, agregar en frontend un temporizador o control en `visibilitychange/focus` que compare `exp * 1000 <= Date.now()` y ejecute el mismo limpiado de sesión. `sincronizarSesion()` de `auth.js` solo lo revisa al cargar el módulo.
+- Opcional: al iniciar la app llamar `GET /api/auth/me` para validar el token contra el backend (cuenta dada de baja, rol/nivel cambiado). Un `401` ya dispara el cierre local.
+
+### 11.2 Listados y botones de exportar (aún sin UI)
+
+El backend ya expone todo; falta conectar botones en frontend:
+
+- `POST /api/listados/{tipo}` con `tipo ∈ nominas|representantes|horarios|docentes`. Body `SolicitudListado`: `nivel`, `periodo_lectivo`, `id_grado`, `id_seccion`. `horarios` exige `id_seccion` de LICEO; `docentes` es general por nivel.
+- `GET /api/listados/documentos?tipo=&periodo_lectivo=&nivel=&id_grado=&id_seccion=&offset=&size=` → historial paginado (admin).
+- `GET /api/listados/documentos/{documento_id}/archivo` → usar `apiDescargar` (attachment PDF).
+- `GET /api/listados/documentos/paquete?tipo=&periodo_lectivo=` → ZIP (admin).
+- Sugerencia: en la vista de gestión, un botón «Generar PDF» por sección para nóminas/representantes/horarios y uno por nivel para docentes; luego una tabla con «Descargar» y «Descargar paquete».
+
+### 11.3 Auditorías visibles
+
+- No hace falta enviar texto desde el frontend: el backend normaliza los textos al guardar (`SUBIR ARCHIVO`, `CIERRE AÑO`, `2026-2027`, `1er año`, etc.).
+- Las auditorías históricas se normalizaron con `python -m scripts.normalizar_textos_auditoria` (ejecutado en esta rama).
+
+### 11.4 Titular único por sección
+
+- El backend ya rechaza con `409` asignar el mismo docente como titular de dos secciones del mismo período. En el desplegable de titulares conviene ocultar/inhabilitar los docentes que ya figuran como titulares de otra sección del período elegido (el `detail` del `409` es suficiente si no se quiere filtrar).
+- La regla de negocio es: el titular está ocupado con su sección, por lo que **no puede dar clases en otra sección**. El backend también devuelve `409` al intentar programar un horario con un docente titular de sección distinta; sí puede programarse en la sección que titula.
+- Hoy la API solo permite nombrar titulares en secciones de ESCUELA y los horarios son de LICEO, así que la exclusividad es una defensa para datos cargados directamente o para un futuro cambio de regla.
+
+### 11.5 Otros pendientes menores
+
+- El listado general de docentes de ESCUELA muestra `Grado/Sección = -` mientras no haya `id_docente_titular` cargado en las secciones. No bloquea el PDF.

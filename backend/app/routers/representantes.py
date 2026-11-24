@@ -261,7 +261,7 @@ def vincular_estudiante_representante(
     session,
     usuario_actual.id,
     ModuloAuditoria.representantes,
-    "VINCULAR_ESTUDIANTE",
+    "VINCULAR ESTUDIANTE",
     f"Se vinculó al representante '{nombre_completo(representante)}' "
     f"con el estudiante '{estudiante.primer_nombre} "
     f"{estudiante.primer_apellido}'.",
@@ -305,7 +305,7 @@ def desvincular_estudiante_representante(
     session,
     usuario_actual.id,
     ModuloAuditoria.representantes,
-    "DESVINCULAR_ESTUDIANTE",
+    "DESVINCULAR ESTUDIANTE",
     f"Se desvinculó al representante '{nombre_completo(representante)}' "
     f"del estudiante '{estudiante.primer_nombre} "
     f"{estudiante.primer_apellido}'.",

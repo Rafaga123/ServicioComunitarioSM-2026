@@ -48,7 +48,7 @@ def iniciar_sesion(
     session,
     usuario_db.id,
     ModuloAuditoria.usuarios,
-    "LOGIN",
+    "INICIO DE SESIÓN",
     f"Inicio de sesión del usuario '{usuario_db.nombre}'.",
   )
   session.commit()
@@ -59,3 +59,23 @@ def iniciar_sesion(
 @router.get("/me", response_model=PeticionUsuario)
 def perfil_usuario_actual(usuario_actual: Usuarios = Depends(obtener_usuario_actual)):
   return usuario_actual
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def cerrar_sesion(
+  session: Session = Depends(get_session),
+  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
+):
+  """Registra el cierre de sesión.
+
+  El JWT es stateless: sigue siendo válido hasta su `exp`. El frontend debe
+  eliminar el token localmente además de llamar a este endpoint.
+  """
+  registrar_auditoria(
+    session,
+    usuario_actual.id,
+    ModuloAuditoria.usuarios,
+    "CIERRE DE SESIÓN",
+    f"Cierre de sesión del usuario '{usuario_actual.nombre}'.",
+  )
+  session.commit()
