@@ -11,6 +11,11 @@
 //   GET    /bloques-horarios/?offset=0&size=100&tipo=ACADEMICO
 //          -> bloques institucionales disponibles para programar.
 //
+//   GET    /horarios/?id_estudiante=&fecha=&hora=  (o id_bloque)
+//          -> PeticionConsultaHorario: la clase de la sección del estudiante
+//             para ese día y bloque, con asignatura y docente ya resueltos.
+//          Se usa al registrar un pase para saber a qué clase faltó.
+//
 // Reglas que impone el backend y que el formulario debe respetar:
 // - Solo secciones de Liceo, del mismo período lectivo del horario.
 // - Solo bloques académicos.
@@ -194,4 +199,42 @@ export async function listarBloquesAcademicos() {
   return (data?.items ?? [])
     .map(aBloque)
     .sort((a, b) => a.orden - b.orden)
+}
+
+/**
+ * Clase que cursa el estudiante en una fecha y hora concretas.
+ *
+ * El backend usa el día de la semana de `fecha`, busca el bloque académico que
+ * contenga `hora` y devuelve el horario de la sección del estudiante con la
+ * asignatura y el docente ya resueltos. Si no hay clase (fin de semana, fuera
+ * de bloque o sección sin horario) devuelve `encontrado: false`.
+ *
+ * @param {object} opciones
+ * @param {number} opciones.idEstudiante
+ * @param {string} opciones.fecha YYYY-MM-DD
+ * @param {string} opciones.hora HH:mm
+ */
+export async function consultarHorarioEstudiante({ idEstudiante, fecha, hora }) {
+  const data = await apiFetch('/horarios/', {
+    params: {
+      id_estudiante: Number(idEstudiante),
+      fecha,
+      hora: String(hora ?? '').slice(0, 5),
+    },
+  })
+
+  return {
+    encontrado: Boolean(data?.encontrado),
+    idHorario: data?.id_horario ?? null,
+    idBloque: data?.id_bloque ?? null,
+    idAsignatura: data?.id_asignatura ?? null,
+    idDocente: data?.id_docente ?? null,
+    asignatura: data?.asignatura ?? '',
+    docente: data?.docente ?? '',
+    bloque: data?.bloque ?? '',
+    // El backend serializa `time` con segundos (07:00:00); el formulario
+    // muestra solo HH:mm para mantener el mismo formato del input de hora.
+    horaInicio: String(data?.hora_inicio ?? '').slice(0, 5),
+    horaFin: String(data?.hora_fin ?? '').slice(0, 5),
+  }
 }

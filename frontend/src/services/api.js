@@ -134,3 +134,75 @@ export async function apiFetch(
 
   return data
 }
+
+// Nombre de archivo que envía el backend en Content-Disposition. FastAPI usa
+// `filename*=utf-8''...` para nombres con acentos y `filename="..."` como
+// respaldo; se intentan ambos.
+const nombreDeCabecera = (cabecera) => {
+  const extendido = /filename\*\s*=\s*utf-8''([^;]+)/i.exec(cabecera)
+  if (extendido) {
+    try {
+      return decodeURIComponent(extendido[1].trim())
+    } catch {
+      return extendido[1].trim()
+    }
+  }
+
+  const simple = /filename\s*=\s*"?([^";]+)"?/i.exec(cabecera)
+  return simple ? simple[1].trim() : ''
+}
+
+/**
+ * Descarga un archivo binario de la API (adjuntos de pases y reportes).
+ *
+ * @param {string} path Ruta relativa al prefijo /api.
+ * @param {object} [options]
+ * @param {object} [options.params] Query string (por ejemplo `inline`).
+ * @param {number} [options.timeout] Milisegundos antes de abortar.
+ * @returns {Promise<{blob: Blob, nombre: string, mime: string}>}
+ */
+export async function apiDescargar(path, { params, timeout = 60000 } = {}) {
+  const headers = { Accept: '*/*' }
+  const token = localStorage.getItem('token')
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  let response
+  try {
+    response = await fetch(construirUrl(path, params), {
+      headers,
+      signal:
+        typeof AbortSignal !== 'undefined' && AbortSignal.timeout
+          ? AbortSignal.timeout(timeout)
+          : undefined,
+    })
+  } catch (error) {
+    if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
+      throw new ApiError('El servidor tardó demasiado en responder. Intenta de nuevo.', 0)
+    }
+    throw new ApiError(
+      'No se pudo conectar con el servidor. Verifica que la API esté encendida.',
+      0,
+    )
+  }
+
+  if (!response.ok) {
+    const texto = await response.text()
+    let data = null
+    if (texto) {
+      try {
+        data = JSON.parse(texto)
+      } catch {
+        data = texto
+      }
+    }
+    if (response.status === 401) cerrarSesion()
+    throw new ApiError(extraerMensaje(data, response.status), response.status, data)
+  }
+
+  const blob = await response.blob()
+  return {
+    blob,
+    nombre: nombreDeCabecera(response.headers.get('Content-Disposition') || ''),
+    mime: blob.type,
+  }
+}
