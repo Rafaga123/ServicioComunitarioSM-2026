@@ -47,6 +47,11 @@ yarn-error.log*
 pnpm-debug.log*
 
 # ==========================================
+# DATOS SENSIBLES DE NÓMINAS (solo local, nunca versionar)
+# ==========================================
+backend/scripts/nominas/
+
+# ==========================================
 # EDITORES Y SISTEMA OPERATIVO
 # ==========================================
 .vscode/*

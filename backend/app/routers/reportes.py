@@ -43,6 +43,7 @@ from app.models.schemas import (
 from app.models.session import get_session
 from app.utils.auditoria import registrar_auditoria
 from app.utils.nombres import nombre_completo
+from app.utils.periodos import periodo_lectivo_efectivo
 from app.utils.security import (
   requerir_roles,
   resolver_nivel,
@@ -169,6 +170,7 @@ def listar_reportes(
   consulta = consulta.join(Grados, Secciones.id_grado == Grados.id)
 
   nivel = resolver_nivel(usuario_actual, nivel)
+  periodo_lectivo = periodo_lectivo_efectivo(session, periodo_lectivo)
   if nivel is not None:
     consulta = consulta.where(Grados.nivel == nivel)
   if id_estudiante is not None:
@@ -231,7 +233,6 @@ def registrar_reporte(
     categoria=reporte_in.categoria,
     fecha=reporte_in.fecha,
     periodo_lectivo=estudiante.seccion.periodo_lectivo,
-    archivo_url=reporte_in.archivo_url,
   )
 
   session.add(nuevo_reporte)
@@ -266,7 +267,7 @@ def actualizar_reporte(
   datos_actualizar = {
     campo: valor
     for campo, valor in datos_actualizar.items()
-    if valor is not None or campo in {"id_docente", "archivo_url"}
+    if valor is not None or campo in {"id_docente"}
   }
 
   if not datos_actualizar:
@@ -346,7 +347,8 @@ def subir_reporte_archivo(
 
   seccion = estudiante.seccion
   ruta_relativa = ruta_relativa_imagen(
-    reporte.fecha,
+    seccion.periodo_lectivo,
+    "reportes",
     seccion.grado.numero,
     seccion.letra,
     seccion.grado.nivel,

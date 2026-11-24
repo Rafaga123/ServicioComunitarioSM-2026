@@ -2,9 +2,9 @@
 
 API REST para la gestión académica y disciplinaria de una escuela y un liceo. Está construida con **FastAPI + SQLModel + PostgreSQL** y separa la información por nivel educativo (`ESCUELA` / `LICEO`).
 
-> **Estado actual:** Fase 5.1 completada. El backend expone **14 routers**, **36 rutas** y **68 operaciones** documentadas en OpenAPI. El frontend ya consume la API en Gestión Académica, Usuarios y Auditorías; Pases, Reportes y el panel del usuario todavía usan datos de ejemplo.
+> **Estado actual:** Fases 1–6 completadas en `backend-dev`. El backend expone **14 routers**, **46 rutas** y **83 operaciones** documentadas en OpenAPI (verificado con `app.openapi()`). El contrato detallado para el frontend está en [`docs/ENTREGA_FRONTEND.md`](docs/ENTREGA_FRONTEND.md).
 >
-> **Importante:** la base de datos se crea desde cero con `SQLModel.metadata.create_all()` al arrancar. Todavía **no hay migraciones (Alembic)**. Cualquier cambio de esquema posterior a la carga de datos reales requiere decidir primero cómo migrarlo.
+> **Importante:** no hay migraciones (Alembic). `create_all()` **no altera** tablas existentes: para esquemas antiguos se usa `python -m scripts.cargar_datos_prueba --recrear-tablas`, que hace `drop_all()` antes de cargar y por eso es destructivo. Sin ese flag, la BD se crea/actualiza desde la semilla sin borrar datos.
 
 ---
 
@@ -118,9 +118,11 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 Al arrancar, la API:
 
 1. Crea las extensiones `unaccent` y `pg_trgm`.
-2. Crea las 13 tablas si no existen.
+2. Crea las 15 tablas si no existen.
 3. Carga la semilla de grados y bloques horarios si falta.
 4. Imprime la IP local y las URLs de Swagger.
+
+Para cargar datos de prueba reales (nóminas 2026) y las cuentas de prueba, ver [§ 8.3](#83-datos-de-prueba-locales-nminas).
 
 Direcciones útiles:
 
@@ -158,22 +160,32 @@ ServicioComunitarioSM-2026/
 │   │   │   ├── paginacion.py      # Envelope {items, total, offset, size}
 │   │   │   └── semilla.py         # 11 grados y 10 bloques institucionales
 │   │   ├── models/
-│   │   │   ├── db.py              # 13 tablas SQLModel
+│   │   │   ├── db.py              # 15 tablas SQLModel
 │   │   │   ├── enums.py           # Enums de la API
 │   │   │   ├── schemas.py         # Contratos de entrada/salida
 │   │   │   └── session.py         # Engine, sesión y creación del esquema
 │   │   ├── routers/               # 14 routers (ver sección 6)
+│   │   ├── services/
+│   │   │   ├── cierre.py          # Cierre de año atómico
+│   │   │   └── listados.py        # Generación de PDFs
 │   │   ├── utils/
 │   │   │   ├── auditoria.py       # Registro de auditorías
 │   │   │   ├── fechas.py          # Zona America/Caracas
 │   │   │   ├── nombres.py         # Nombre completo
+│   │   │   ├── pdf.py             # Render de listados (carta)
 │   │   │   ├── security.py        # JWT, roles y filtros por nivel
-│   │   │   └── soft_delete.py     # Borrado lógico
+│   │   │   ├── soft_delete.py     # Borrado lógico
+│   │   │   └── storage.py         # Adjuntos y PDFs (STORAGE_ROOT)
 │   │   └── main.py                # Registro de routers, CORS y /health
 │   ├── scripts/
-│   │   └── crear_admin.py         # Administrador inicial
+│   │   ├── cargar_datos_prueba.py # Cargador único de nóminas + usuarios
+│   │   ├── crear_admin.py         # Administrador inicial
+│   │   ├── excel.py / generar_sql.py / sembrar_horarios.py  # Generadores
+│   │   └── nominas/               # Export original (ignorado por Git)
 │   ├── .env.example
 │   └── requirements.txt
+├── docs/
+│   └── ENTREGA_FRONTEND.md        # Contrato detallado para el frontend
 ├── frontend/                      # Vue 3 + Vite (aún sin conectar a la API)
 └── README.md
 ```
@@ -364,7 +376,7 @@ Los `422` usan el formato estándar de FastAPI:
 
 ## 6. Endpoints
 
-> Esta sección lista las **68 operaciones** de la API. Los schemas completos, ejemplos y códigos de respuesta están en `/docs` y `/openapi.json`.
+> Esta sección lista las **83 operaciones** de la API. Los schemas completos, ejemplos y códigos de respuesta están en `/docs` y `/openapi.json`; el contrato de integración está en `docs/ENTREGA_FRONTEND.md`.
 
 ### 6.1 Salud
 
@@ -664,6 +676,7 @@ Crear horario:
 Reglas:
 
 - Solo secciones de **liceo**.
+- El período del horario debe existir y no estar cerrado (`400` al crear o editar).
 - El período del horario debe coincidir con el `periodo_lectivo` de la sección.
 - Solo bloques `ACADEMICO`.
 - La asignatura debe pertenecer al grado de la sección.
@@ -706,6 +719,11 @@ Acceso: `ADMINISTRADOR`, `COORDINADOR` y `SECRETARIA`. Los operadores quedan lim
 | POST | `/api/pases/` | Crea pase. Devuelve `201` |
 | PUT | `/api/pases/{pase_id}` | Actualiza. Revalida la cuota y el autorizador |
 | DELETE | `/api/pases/{pase_id}` | Baja lógica. Devuelve `204` |
+| POST | `/api/pases/{pase_id}/archivo` | Sube una imagen (multipart `archivo`). Devuelve el pase con metadatos |
+| GET | `/api/pases/{pase_id}/archivo` | Descarga el adjunto (`?inline=true` para mostrarlo) |
+| DELETE | `/api/pases/{pase_id}/archivo` | Desvincula el adjunto; el archivo físico se conserva |
+
+`archivo_url` **no se acepta** en POST/PUT: los adjuntos solo se gestionan con estos tres endpoints.
 
 Crear pase:
 
@@ -744,6 +762,11 @@ Acceso: `ADMINISTRADOR`, `COORDINADOR` y `SECRETARIA`. Los operadores quedan lim
 | POST | `/api/reportes/` | Crea reporte. Devuelve `201` |
 | PUT | `/api/reportes/{reporte_id}` | Actualiza |
 | DELETE | `/api/reportes/{reporte_id}` | Baja lógica. Devuelve `204` |
+| POST | `/api/reportes/{reporte_id}/archivo` | Sube una imagen (multipart `archivo`). Devuelve el reporte con metadatos |
+| GET | `/api/reportes/{reporte_id}/archivo` | Descarga el adjunto (`?inline=true` para mostrarlo) |
+| DELETE | `/api/reportes/{reporte_id}/archivo` | Desvincula el adjunto; el archivo físico se conserva |
+
+Igual que en pases, `archivo_url` **no se acepta** en POST/PUT.
 
 Crear reporte:
 
@@ -774,38 +797,102 @@ Reglas:
 
 ### 6.14 Gestión (`/api/gestion`)
 
+#### Períodos lectivos
+
+| Método | Ruta | Acceso | Descripción |
+| --- | --- | --- | --- |
+| GET | `/api/gestion/periodos` | Admin | Lista períodos (ordenados por año desc) |
+| GET | `/api/gestion/periodos/activo` | Autenticado | Devuelve el período activo o `null` |
+| POST | `/api/gestion/periodos` | Admin | Crea un período (`anio`, `activo`). Devuelve `201` |
+| PATCH | `/api/gestion/periodos/{periodo_id}` | Admin | Activa/desactiva; no permite cerrar ni reactivar un período cerrado |
+
+Crear período:
+
+```json
+{ "anio": 2026, "activo": true }
+```
+
+Reglas: `anio ≥ 2000` y único; activar uno desactiva los demás; `cerrado` solo lo escribe el cierre de año.
+
+#### Resumen
+
 | Método | Ruta | Acceso | Descripción |
 | --- | --- | --- | --- |
 | GET | `/api/gestion/resumen` | Autenticado | Conteos activos para la pantalla de Gestión Académica |
 
-Filtro opcional: `?nivel=ESCUELA` o `?nivel=LICEO` (solo el administrador puede elegir; los operadores quedan atados a su nivel).
+Filtros opcionales: `?nivel=ESCUELA|LICEO` (solo el administrador puede elegir; los operadores quedan atados a su nivel) y `?periodo_lectivo=2026` (por defecto, el activo).
 
 Respuesta:
 
 ```json
 {
   "nivel": null,
-  "representantes": 34,
-  "estudiantes": 512,
-  "secciones": 24,
-  "docentes": 40,
-  "asignaturas": 38,
-  "horarios": 180,
-  "pases": 1200,
-  "reportes": 75
+  "periodo_lectivo": 2026,
+  "representantes": 341,
+  "estudiantes": 359,
+  "secciones": 17,
+  "docentes": 27,
+  "asignaturas": 51,
+  "horarios": 283,
+  "pases": 0,
+  "reportes": 0
 }
 ```
 
 Reglas de conteo:
 
 - Solo registros con `fecha_eliminacion IS NULL`.
-- `docentes` usa su columna directa `nivel`.
-- `secciones`, `estudiantes`, `horarios` y `asignaturas` se filtran por `sección → grado → nivel`.
+- Con período activo, todos los contadores se filtran por ese año, excepto `docentes`, que se cuenta globalmente dentro del nivel.
+- Sin periodo activo y sin parámetro, `periodo_lectivo` es `null` y los contadores vuelven `0` (`docentes` global).
+- `docentes` usa su columna directa `nivel`; `secciones`, `estudiantes`, `horarios` y `asignaturas` se filtran por `sección → grado → nivel`.
 - `pases` y `reportes` se filtran por `estudiante → sección → grado → nivel`.
 - `representantes` se cuentan como distintos con al menos un estudiante activo en el nivel consultado (no tienen columna `nivel`).
 - Una sola petición devuelve todos los números; el frontend no necesita consultar cada módulo al entrar a Gestión Académica.
 
-### 6.15 Auditorías (`/api/auditorias`)
+#### Cierre de año
+
+| Método | Ruta | Acceso | Descripción |
+| --- | --- | --- | --- |
+| POST | `/api/gestion/cerrar-anio` | Admin | Cierra el período actual, traspasa estudiantes y crea la estructura del siguiente |
+
+```json
+{ "periodo_actual": 2026, "periodo_siguiente": 2027 }
+```
+
+Devuelve `200` con `{ periodo_cerrado, periodo_activado, documentos_generados, estudiantes_promovidos, egresados, secciones_creadas, asignaturas_creadas }`.
+
+- El período actual debe estar activo y abierto; el siguiente debe ser mayor y no tener secciones creadas.
+- Genera PDFs de nóminas y representantes para todas las secciones, de horarios solo para las de LICEO y un listado general de docentes por nivel. Se preparan en staging y se mueven solo si toda la operación tiene éxito; si falla, se revierten.
+- Traspasa estudiantes al siguiente grado (6to Grado → 1er Año) y marca el egreso en 5to Año mediante `fecha_egreso` (solo lectura en la API normal).
+- Replica las combinaciones grado+letra existentes sin docentes titulares y copia los nombres de asignaturas de liceo sin docentes.
+
+### 6.15 Listados (`/api/listados`)
+
+| Método | Ruta | Acceso | Descripción |
+| --- | --- | --- | --- |
+| POST | `/api/listados/{tipo}` | Autenticado (según nivel) | Genera un PDF (`tipo`: `nominas`, `representantes`, `horarios` o `docentes`). Devuelve `201` |
+| GET | `/api/listados/documentos` | Admin | Lista documentos generados. Filtros: `tipo`, `periodo_lectivo`, `nivel`, `id_grado`, `id_seccion` |
+| GET | `/api/listados/documentos/{documento_id}/archivo` | Autenticado | Descarga el PDF |
+| GET | `/api/listados/documentos/paquete` | Admin | Descarga un ZIP con todos los PDFs de un tipo y período |
+
+Generar un listado:
+
+```json
+{ "id_seccion": 10 }
+```
+
+o, sin sección: `{ "nivel": "ESCUELA", "periodo_lectivo": 2026 }`.
+
+- `periodo_lectivo` es opcional: por defecto se usa el activo (400 si no hay activo y no se indicó uno).
+- `horarios` requiere `id_seccion` de **liceo** (400 si la sección es de ESCUELA); `docentes` es general por nivel (400 con `id_seccion` o `id_grado`); los demás listados generales requieren `nivel`.
+- Los PDF usan hoja carta, margen izquierdo de 4 cm y 3 cm en los demás lados.
+- La ruta incluye el periodo lectivo: `2026-2027/listados/nominas/ESCUELA/1er_grado/U/nomina_2026-2027_1er_grado_U.pdf` (si ya existe, se agrega `_v2`, `_v3`, …).
+- Título: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/1er Grado "U"`. Metadatos: `ESCUELA • 1er Grado U • 2026-2027`.
+- Los representantes de ESCUELA del export original solo tienen teléfono; en la columna `Representante` se muestra `-`. Los de LICEO conservan su nombre real.
+- PDF de `horarios`: tabla de 12 filas (periodo/curso/sección, `Hora | LUNES | ... | VIERNES` y los bloques `7:00-7:40`, `7:40-8:20`, `8:20-8:40` (RECESO), `8:40-9:20`, `9:20-10:00`, `10:10-10:10` (RECESO), `10:10-10:50`, `10:10-11:30`, `11:30-12:10`, `12:10-12:40`), seguida de `Docentes:` con `Materia: Docente` de esa sección.
+- PDF de `docentes`: columnas `Cédula | Docente | Asignaturas` en LICEO y `Cédula | Docente | Grado/Sección` en ESCUELA; una fila por docente activo del nivel. En LICEO se incluye el año de cada materia (`Matemática 1er Año`) y se deduplica por materia+año; en ESCUELA se listan los grados/secciones donde es titular (o `-` si no tiene).
+
+### 6.16 Auditorías (`/api/auditorias`)
 
 Acceso: **solo administrador**.
 
@@ -834,13 +921,13 @@ Cada operación de escritura registra automáticamente una auditoría con:
 - El conteo se hace por mes calendario de `fecha` y excluye pases dados de baja.
 - Al actualizar un pase se recalcula la cuota excluyendo el propio pase.
 - Un pase dado de baja deja de contar para la cuota.
-- Los pases se conservan durante el año académico; su baja masiva corresponde al cierre de año (Fase 6).
+- Los pases se conservan durante el año académico; su baja masiva queda a cargo del cierre de año.
 
 ### 7.2 Reportes
 
 - No tienen cuota mensual.
 - Se filtran por año, mes, categoría, gravedad y nivel.
-- Se conservan durante el año académico; su baja masiva corresponde al cierre de año (Fase 6).
+- Se conservan durante el año académico; su baja masiva queda a cargo del cierre de año.
 - No existe flujo de estados ni aprobación en el contrato actual.
 
 ### 7.3 Horarios
@@ -885,6 +972,38 @@ Cada operación de escritura registra automáticamente una auditoría con:
 - `GET /api/auditorias/` es exclusivo del administrador.
 - Los filtros de auditoría son por nombre de usuario, módulo, acción y fecha.
 
+### 7.8 Períodos lectivos
+
+- El período activo es compartido por listados, resumen y los DTOs de creación que no reciben un año explícito.
+- No se puede cerrar un período con `PATCH`; solo `POST /api/gestion/cerrar-anio`.
+- No se puede activar un período cerrado.
+
+### 7.9 Listados y PDFs
+
+- Los PDF se generan para el período activo salvo que se envíe `periodo_lectivo`.
+- Las rutas de almacenamiento llevan el periodo como primera carpeta (`2026` → `2026-2027`).
+- Si el archivo destino ya existe, se conserva y se genera un nombre único con sufijo.
+- Los representantes sin nombre (placeholders de ESCUELA) se muestran como `-`, conservando su teléfono.
+
+### 7.10 Adjuntos de pases y reportes
+
+- Solo imágenes JPG/JPEG/PNG/WebP, máximo 5 MB.
+- La subida es multipart con el campo `archivo`; `archivo_url` es solo de lectura.
+- Al desvincular con `DELETE /{id}/archivo` se limpia la metadata, pero el archivo físico permanece en `STORAGE_ROOT`.
+
+### 7.11 Estructura física
+
+Todo se guarda bajo `STORAGE_ROOT` (`C:\sistema` por defecto):
+
+```text
+2026-2027/
+├─ pases/{nivel}/{grado}/{letra}/estudiante-{id}/archivo.ext
+├─ reportes/{nivel}/{grado}/{letra}/estudiante-{id}/archivo.ext
+└─ listados/{nominas|representantes|horarios|docentes}/{nivel}/{grado|general}/{letra}/archivo.pdf
+```
+
+La BD sigue guardando el año como entero (`2026`); la etiqueta `2026-2027` se deriva para rutas, nombres de archivo, títulos y metadatos.
+
 ---
 
 ## 8. Semilla y catálogos
@@ -922,15 +1041,64 @@ La semilla se ejecuta en cada arranque y es idempotente. No resucita registros d
 | 9 | 7 | Bloque 7 | ACADEMICO | 11:30 | 12:10 |
 | 10 | 8 | Bloque 8 | ACADEMICO | 12:10 | 12:40 |
 
+### 8.3 Datos de prueba locales (nóminas)
+
+`backend/scripts/nominas/` contiene el export original, organizado en `PDFs/` y `Excels/`, con los SQL y JSON en la raíz. Es una carpeta **ignorada por Git** porque incluye nombres y cédulas reales: no debe subirse al repositorio. Un clone nuevo no la trae; hay que copiarla manualmente desde el export local antes de cargar datos de prueba. Los scripts generadores (`excel.py`, `generar_sql.py`) reciben como `--carpeta` la ruta a `nominas/Excels`.
+
+Los SQL de esa carpeta están adaptados al esquema actual:
+
+- cédulas sin el prefijo `V-` (coinciden con el CRUD de docentes y con `sembrar_horarios.py`);
+- periodo lectivo `2026` activo y no cerrado;
+- los grados los crea la semilla de la API, así que los SQL solo insertan secciones;
+- dos estudiantes de 5to Año tienen `fecha_egreso` para probar el detalle de egresados;
+- las 4 colisiones docente+bloque+día del JSON se insertan tal cual vienen en el export;
+- los representantes de ESCUELA del PDF original no tienen nombre (solo teléfono): los 190 placeholders quedan con nombre y apellidos vacíos y los PDFs muestran `-` en la columna `Representante`;
+- todos los `INSERT` son idempotentes y pueden re-ejecutarse.
+
+Carga completa en un solo comando, desde `backend/` y con la configuración de `.env`:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.cargar_datos_prueba
+```
+
+El cargador crea las tablas y la semilla base si faltan, y ejecuta en orden jerárquico: periodo → docentes → secciones → representantes → estudiantes → asignaturas → vínculos docentes → horarios → reclasificación de docentes sin materias → usuarios. Es idempotente: puede ejecutarse las veces que haga falta sin duplicar registros. Acepta `--sql`, `--json`, `--clave`, `--no-actualizar-horarios`, `--solo-reclasificar-docentes` y `--recrear-tablas`.
+
+La reclasificación pasa a `ESCUELA` los docentes activos de `LICEO` que no tienen vínculos de asignatura ni horarios activos y no son titulares de una sección de liceo. Para aplicar solo ese ajuste sin recargar el resto:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.cargar_datos_prueba --solo-reclasificar-docentes
+```
+
+Si la base viene de una versión anterior del esquema, `create_all()` no agrega columnas a tablas ya existentes (por ejemplo, falta `estudiantes.fecha_egreso`). Para esos casos, y **solo cuando la base pueda perderse**, usar:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.cargar_datos_prueba --recrear-tablas
+```
+
+Ese flag hace `drop_all()` antes de crear las tablas y cargar; borra todos los datos de las 15 tablas.
+
+Usuarios creados por el cargador (todos con la clave de prueba `Prueba123*`, sobreescribible con `--clave` o la variable `CLAVE_PRUEBA`):
+
+| Usuario | Rol | Nivel |
+| --- | --- | --- |
+| `admin_prueba` | ADMINISTRADOR | — |
+| `secretaria_liceo` | SECRETARIA | LICEO |
+| `secretaria_escuela` | SECRETARIA | ESCUELA |
+
+> Son cuentas de prueba: no usar estas claves en un entorno desplegado.
+
+> Los commits antiguos del repositorio todavía contienen `backend/scripts/docentes.sql` y `backend/scripts/horarios_liceo_2026.json`. Su eliminación del historial quedó pendiente de una decisión explícita.
+
 ---
 
 ## 9. Modelo de datos y orden de carga
 
-### 9.1 Tablas (13)
+### 9.1 Tablas (15)
 
 | Tabla | Propósito |
 | --- | --- |
 | `usuarios` | Administrador, coordinadores y secretarias |
+| `periodos_lectivos` | Años lectivos, cuál está activo y cuál cerrado |
 | `representantes` | Datos de contacto de los representantes |
 | `grados` | Catálogo fijo de 1 a 11 |
 | `asignaturas` | Asignaturas por grado de liceo |
@@ -943,6 +1111,7 @@ La semilla se ejecuta en cada arranque y es idempotente. No resucita registros d
 | `pases` | Entradas y salidas de estudiantes |
 | `reportes` | Incidencias disciplinarias/académicas |
 | `auditorias` | Bitácora de operaciones |
+| `documentos_generados` | PDFs de listados generados |
 
 Todas las tablas incluyen `fecha_creacion`, `fecha_actualizacion` y `fecha_eliminacion`.
 
@@ -960,7 +1129,7 @@ Por las claves foráneas, el orden seguro es:
 8. Horarios.
 9. Pases y reportes.
 
-En la Fase 6 se agregará el cierre de año atómico y el traslado masivo. La carga inicial desde fotos/CSV se hará después, con un script SQL o con los endpoints; este README no incluye ese script.
+Los PDF de listados se generan desde los endpoints o desde el cierre de año; no se cargan con este orden. Para datos de prueba reales, usar `scripts/cargar_datos_prueba.py` (§ 8.3), que respeta este orden jerárquico.
 
 ---
 
@@ -1067,31 +1236,23 @@ Con el frontend servido desde el mismo backend y el mismo puerto, las peticiones
 
 ## 11. Pendientes y limitaciones conocidas
 
-### 11.1 Fase 6 (pendiente)
+### 11.1 Entrega y mantenimiento (pendiente)
 
-- Fotos opcionales de estudiantes/docentes y archivos adjuntos de pases/reportes. El diseño previsto es solo un campo de URL; **no habrá subida binaria** en esa fase.
-- Traslado masivo de estudiantes entre secciones.
-- Cierre de año atómico: baja de pases, reportes, horarios y secciones salientes; creación de secciones del nuevo período.
-- Nuevos campos del resumen de gestión sin romper los existentes.
+- Revisión final del frontend contra `docs/ENTREGA_FRONTEND.md`.
+- Purgar del historial de Git los archivos antiguos con cédulas (`backend/scripts/docentes.sql`, `backend/scripts/horarios_liceo_2026.json`): requiere autorización explícita porque reescribe commits.
+- Push de `backend-dev` a `origin/backend-dev`: solo con autorización explícita.
+- Suite formal de `pytest` (hoy los smokes son temporales y se borran) y documentación de despliegue/empaquetado.
 
-### 11.2 Fase 7 (pendiente)
+### 11.2 Limitaciones actuales
 
-- Suite formal de `pytest` (hoy solo hay smokes temporales que no se commitean).
-- Verificación integral contra PostgreSQL real (los smokes actuales usan SQLite).
-- Congelar el contrato como `v1` y entregar colección Postman/Bruno.
-- Documentación de despliegue y empaquetado.
-
-### 11.3 Limitaciones actuales
-
-- **No hay Alembic ni migraciones.** La BD se crea con `create_all`. Antes de cargar datos reales hay que decidir si se adopta Alembic.
+- **No hay Alembic.** `create_all()` no altera tablas existentes; para cambios de columnas en esquemas viejos se usa `--recrear-tablas` (destructivo). La única migración automática es `ALTER TYPE tipodocumento ADD VALUE IF NOT EXISTS 'docentes'`, ejecutada en el arranque.
 - **No hay logout ni revocación de JWT.** El token dura 360 minutos por defecto.
-- **No hay subida de archivos.**
 - **No hay refresh token.**
 - **No hay endpoint de restauración** de registros dados de baja.
-- **No hay cierre de año todavía**: pases y reportes se conservan, pero la operación masiva es de Fase 6.
 - **No hay Docker/compose** ni instalador `.exe` todavía.
+- La subida de archivos admite solo imágenes; no hay vista previa ni borrado físico de adjuntos.
 - El frontend aún no está conectado; este README describe solo el backend.
-- La carpeta `backend/scripts/` contiene scripts auxiliares antiguos (`generar_sql.py`, `excel.py`, `docentes.sql`) que no forman parte del contrato de la API.
+- La carpeta `backend/scripts/` contiene scripts auxiliares (`generar_sql.py`, `excel.py`, `sembrar_horarios.py`, `crear_admin.py`, `cargar_datos_prueba.py`) que no forman parte del contrato de la API. Los datos sensibles de nóminas están solo en `backend/scripts/nominas/`, ignorada por Git.
 
 ---
 
@@ -1121,6 +1282,10 @@ La API crea las tablas al arrancar. Verifica que hayas iniciado la API al menos 
 ### `python -m scripts.crear_admin` falla porque no hay tablas
 
 Arranca la API una vez (aunque sea para crear el esquema), detenla y vuelve a ejecutar el script.
+
+### La carga de datos falla con `no existe la columna «fecha_egreso»`
+
+La BD tiene un esquema anterior: `create_all()` no agrega columnas a tablas existentes. Si puedes perder los datos, ejecuta `python -m scripts.cargar_datos_prueba --recrear-tablas` (hace `drop_all()` y vuelve a cargar todo).
 
 ### El login devuelve `401`
 

@@ -17,6 +17,11 @@ def create_db_tables():
 
   SQLModel.metadata.create_all(engine)
 
+  # Migración no destructiva: `create_all()` no altera enums existentes.
+  # Este valor es necesario para registrar PDFs de docentes.
+  with engine.begin() as conn:
+    conn.execute(text("ALTER TYPE tipodocumento ADD VALUE IF NOT EXISTS 'docentes'"))
+
 
 def inicializar_base_datos() -> tuple[int, int]:
   """Crea el esquema y carga la semilla institucional si hace falta."""

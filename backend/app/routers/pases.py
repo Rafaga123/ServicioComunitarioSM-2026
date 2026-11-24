@@ -45,6 +45,7 @@ from app.models.schemas import (
 from app.models.session import get_session
 from app.utils.auditoria import registrar_auditoria
 from app.utils.nombres import nombre_completo
+from app.utils.periodos import periodo_lectivo_efectivo
 from app.utils.security import (
   requerir_roles,
   resolver_nivel,
@@ -247,6 +248,7 @@ def listar_pases(
   consulta = consulta.join(Grados, Secciones.id_grado == Grados.id)
 
   nivel = resolver_nivel(usuario_actual, nivel)
+  periodo_lectivo = periodo_lectivo_efectivo(session, periodo_lectivo)
   if nivel is not None:
     consulta = consulta.where(Grados.nivel == nivel)
   if id_estudiante is not None:
@@ -312,7 +314,6 @@ def registrar_pase(
     fecha=pase_in.fecha,
     periodo_lectivo=estudiante.seccion.periodo_lectivo,
     autorizador=autorizador,
-    archivo_url=pase_in.archivo_url,
   )
 
   session.add(nuevo_pase)
@@ -347,7 +348,7 @@ def actualizar_pase(
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(estudiante))
 
   datos_actualizar = pase_in.model_dump(exclude_unset=True)
-  campos_opcionales = {"id_docente", "id_asignatura", "autorizador", "archivo_url"}
+  campos_opcionales = {"id_docente", "id_asignatura", "autorizador"}
   datos_actualizar = {
     campo: valor
     for campo, valor in datos_actualizar.items()
@@ -448,7 +449,8 @@ def subir_pase_archivo(
 
   seccion = estudiante.seccion
   ruta_relativa = ruta_relativa_imagen(
-    pase.fecha,
+    seccion.periodo_lectivo,
+    "pases",
     seccion.grado.numero,
     seccion.letra,
     seccion.grado.nivel,

@@ -869,13 +869,15 @@ def extraer_academico(
 
             clave_rep_vinculada = None
             if incluir_placeholder_pdf and telefono:
+                # El PDF de primaria no trae nombre del representante: solo se
+                # conoce el teléfono. No copiar los apellidos del estudiante.
                 clave_rep = f"PDF_TEL|{telefono}|{p_ape}|{s_ape}"
                 clave_rep_vinculada = vincular_representante(
                     clave_dedup=clave_rep,
-                    p_nom="REPRESENTANTE",
+                    p_nom="",
                     s_nom="",
-                    p_ape=p_ape,
-                    s_ape=s_ape,
+                    p_ape="",
+                    s_ape="",
                     telefono=telefono,
                     es_placeholder=True,
                     cedula_est=cedula,

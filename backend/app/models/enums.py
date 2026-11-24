@@ -49,6 +49,7 @@ class TipoDocumento(str, Enum):
   nominas = "nominas"
   representantes = "representantes"
   horarios = "horarios"
+  docentes = "docentes"
 
 
 # Enum para los tipos de reglamento

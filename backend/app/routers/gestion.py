@@ -27,6 +27,7 @@ from app.models.schemas import (
 from app.models.session import get_session
 from app.services.cierre import cerrar_anio as cerrar_anio_servicio
 from app.utils.auditoria import registrar_auditoria
+from app.utils.periodos import periodo_activo, periodo_lectivo_efectivo
 from app.utils.security import (
   obtener_usuario_actual,
   requerir_roles,
@@ -36,7 +37,11 @@ from app.utils.security import (
 router = APIRouter(prefix="/gestion", tags=["Gestión"])
 
 
-def _contar_estudiantes(session: Session, nivel: NivelEducativo | None) -> int:
+def _contar_estudiantes(
+  session: Session,
+  nivel: NivelEducativo | None,
+  periodo_lectivo: int | None,
+) -> int:
   consulta = (
     select(func.count(Estudiantes.id))
     .select_from(Estudiantes)
@@ -50,11 +55,17 @@ def _contar_estudiantes(session: Session, nivel: NivelEducativo | None) -> int:
   )
   if nivel is not None:
     consulta = consulta.where(Grados.nivel == nivel)
+  if periodo_lectivo is not None:
+    consulta = consulta.where(Secciones.periodo_lectivo == periodo_lectivo)
 
   return session.exec(consulta).one()
 
 
-def _contar_secciones(session: Session, nivel: NivelEducativo | None) -> int:
+def _contar_secciones(
+  session: Session,
+  nivel: NivelEducativo | None,
+  periodo_lectivo: int | None,
+) -> int:
   consulta = (
     select(func.count(Secciones.id))
     .select_from(Secciones)
@@ -66,11 +77,14 @@ def _contar_secciones(session: Session, nivel: NivelEducativo | None) -> int:
   )
   if nivel is not None:
     consulta = consulta.where(Grados.nivel == nivel)
+  if periodo_lectivo is not None:
+    consulta = consulta.where(Secciones.periodo_lectivo == periodo_lectivo)
 
   return session.exec(consulta).one()
 
 
 def _contar_docentes(session: Session, nivel: NivelEducativo | None) -> int:
+  # Los docentes son un catálogo global: no dependen de un periodo lectivo.
   consulta = select(func.count(Docentes.id)).where(Docentes.fecha_eliminacion.is_(None))
   if nivel is not None:
     consulta = consulta.where(Docentes.nivel == nivel)
@@ -78,7 +92,11 @@ def _contar_docentes(session: Session, nivel: NivelEducativo | None) -> int:
   return session.exec(consulta).one()
 
 
-def _contar_asignaturas(session: Session, nivel: NivelEducativo | None) -> int:
+def _contar_asignaturas(
+  session: Session,
+  nivel: NivelEducativo | None,
+  periodo_lectivo: int | None,
+) -> int:
   consulta = (
     select(func.count(Asignaturas.id))
     .select_from(Asignaturas)
@@ -90,11 +108,17 @@ def _contar_asignaturas(session: Session, nivel: NivelEducativo | None) -> int:
   )
   if nivel is not None:
     consulta = consulta.where(Grados.nivel == nivel)
+  if periodo_lectivo is not None:
+    consulta = consulta.where(Asignaturas.periodo_lectivo == periodo_lectivo)
 
   return session.exec(consulta).one()
 
 
-def _contar_horarios(session: Session, nivel: NivelEducativo | None) -> int:
+def _contar_horarios(
+  session: Session,
+  nivel: NivelEducativo | None,
+  periodo_lectivo: int | None,
+) -> int:
   consulta = (
     select(func.count(Horarios.id))
     .select_from(Horarios)
@@ -108,11 +132,17 @@ def _contar_horarios(session: Session, nivel: NivelEducativo | None) -> int:
   )
   if nivel is not None:
     consulta = consulta.where(Grados.nivel == nivel)
+  if periodo_lectivo is not None:
+    consulta = consulta.where(Horarios.periodo_lectivo == periodo_lectivo)
 
   return session.exec(consulta).one()
 
 
-def _contar_pases(session: Session, nivel: NivelEducativo | None) -> int:
+def _contar_pases(
+  session: Session,
+  nivel: NivelEducativo | None,
+  periodo_lectivo: int | None,
+) -> int:
   consulta = (
     select(func.count(Pases.id))
     .select_from(Pases)
@@ -128,11 +158,17 @@ def _contar_pases(session: Session, nivel: NivelEducativo | None) -> int:
   )
   if nivel is not None:
     consulta = consulta.where(Grados.nivel == nivel)
+  if periodo_lectivo is not None:
+    consulta = consulta.where(Pases.periodo_lectivo == periodo_lectivo)
 
   return session.exec(consulta).one()
 
 
-def _contar_reportes(session: Session, nivel: NivelEducativo | None) -> int:
+def _contar_reportes(
+  session: Session,
+  nivel: NivelEducativo | None,
+  periodo_lectivo: int | None,
+) -> int:
   consulta = (
     select(func.count(Reportes.id))
     .select_from(Reportes)
@@ -148,11 +184,17 @@ def _contar_reportes(session: Session, nivel: NivelEducativo | None) -> int:
   )
   if nivel is not None:
     consulta = consulta.where(Grados.nivel == nivel)
+  if periodo_lectivo is not None:
+    consulta = consulta.where(Reportes.periodo_lectivo == periodo_lectivo)
 
   return session.exec(consulta).one()
 
 
-def _contar_representantes(session: Session, nivel: NivelEducativo | None) -> int:
+def _contar_representantes(
+  session: Session,
+  nivel: NivelEducativo | None,
+  periodo_lectivo: int | None,
+) -> int:
   # Los representantes no tienen nivel propio: se cuentan los que tienen
   # al menos un estudiante activo dentro del nivel consultado.
   consulta = (
@@ -170,6 +212,8 @@ def _contar_representantes(session: Session, nivel: NivelEducativo | None) -> in
   )
   if nivel is not None:
     consulta = consulta.where(Grados.nivel == nivel)
+  if periodo_lectivo is not None:
+    consulta = consulta.where(Secciones.periodo_lectivo == periodo_lectivo)
 
   return session.exec(consulta).one()
 
@@ -200,14 +244,10 @@ def listar_periodos(
 @router.get("/periodos/activo", response_model=PeticionPeriodoLectivo | None)
 def obtener_periodo_activo(
   session: Session = Depends(get_session),
-  usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
+  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
-  periodo = session.exec(
-    select(PeriodosLectivos).where(
-      PeriodosLectivos.activo,
-      PeriodosLectivos.fecha_eliminacion.is_(None),
-    )
-  ).first()
+  """Devuelve el periodo activo para cualquier usuario autenticado."""
+  periodo = periodo_activo(session)
 
   return _to_periodo(periodo) if periodo else None
 
@@ -278,7 +318,23 @@ def actualizar_periodo(
     )
 
   datos = periodo_in.model_dump(exclude_unset=True)
-  if datos.get("activo"):
+  if "cerrado" in datos:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="El estado 'cerrado' solo se modifica al cerrar el año lectivo",
+    )
+  if "activo" in datos and datos["activo"] is None:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="El campo 'activo' no puede ser nulo",
+    )
+  if datos.get("activo") is True and periodo.cerrado:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="No se puede activar un periodo lectivo cerrado",
+    )
+
+  if datos.get("activo") is True:
     otros = session.exec(
       select(PeriodosLectivos).where(
         PeriodosLectivos.id != periodo_id,
@@ -288,7 +344,6 @@ def actualizar_periodo(
     ).all()
     for otro in otros:
       otro.activo = False
-    periodo.cerrado = False
 
   for campo, valor in datos.items():
     setattr(periodo, campo, valor)
@@ -312,21 +367,38 @@ def actualizar_periodo(
 @router.get("/resumen", response_model=PeticionResumenGestion)
 def obtener_resumen_gestion(
   nivel: NivelEducativo | None = None,
+  periodo_lectivo: int | None = None,
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
   nivel = resolver_nivel(usuario_actual, nivel)
+  periodo_lectivo = periodo_lectivo_efectivo(session, periodo_lectivo)
+
+  if periodo_lectivo is None:
+    return PeticionResumenGestion(
+      nivel=nivel,
+      periodo_lectivo=None,
+      representantes=0,
+      estudiantes=0,
+      secciones=0,
+      docentes=0,
+      asignaturas=0,
+      horarios=0,
+      pases=0,
+      reportes=0,
+    )
 
   return PeticionResumenGestion(
     nivel=nivel,
-    representantes=_contar_representantes(session, nivel),
-    estudiantes=_contar_estudiantes(session, nivel),
-    secciones=_contar_secciones(session, nivel),
+    periodo_lectivo=periodo_lectivo,
+    representantes=_contar_representantes(session, nivel, periodo_lectivo),
+    estudiantes=_contar_estudiantes(session, nivel, periodo_lectivo),
+    secciones=_contar_secciones(session, nivel, periodo_lectivo),
     docentes=_contar_docentes(session, nivel),
-    asignaturas=_contar_asignaturas(session, nivel),
-    horarios=_contar_horarios(session, nivel),
-    pases=_contar_pases(session, nivel),
-    reportes=_contar_reportes(session, nivel),
+    asignaturas=_contar_asignaturas(session, nivel, periodo_lectivo),
+    horarios=_contar_horarios(session, nivel, periodo_lectivo),
+    pases=_contar_pases(session, nivel, periodo_lectivo),
+    reportes=_contar_reportes(session, nivel, periodo_lectivo),
   )
 
 

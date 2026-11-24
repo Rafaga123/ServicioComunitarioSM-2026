@@ -37,7 +37,8 @@ from app.models.session import get_session
 from app.services import listados as servicio_listados
 from app.utils.auditoria import registrar_auditoria
 from app.utils.fechas import ahora_caracas
-from app.utils.pdf import construir_pdf
+from app.utils.pdf import construir_pdf, construir_pdf_horarios
+from app.utils.periodos import etiqueta_periodo, periodo_lectivo_efectivo
 from app.utils.security import (
   obtener_usuario_actual,
   requerir_roles,
@@ -115,6 +116,8 @@ def _resolver_filtros(
     nivel = nivel or grado.nivel
 
   if periodo is None:
+    periodo = periodo_lectivo_efectivo(session, None)
+  if periodo is None:
     raise HTTPException(400, "Indica periodo_lectivo")
 
   periodo_obj = _validar_periodo_lectivo(session, periodo)
@@ -159,22 +162,37 @@ def generar_listado(
 ):
   """Genera y guarda un PDF de listados: por sección o general por nivel."""
   periodo, nivel, seccion, grado = _resolver_filtros(session, usuario_actual, peticion)
-  if tipo == TipoDocumento.horarios and seccion is None:
-    raise HTTPException(400, "Los horarios requieren sección")
+  if tipo == TipoDocumento.horarios:
+    if seccion is None:
+      raise HTTPException(400, "Los horarios requieren sección")
+    if seccion.grado.nivel != NivelEducativo.liceo:
+      raise HTTPException(400, "Los horarios solo aplican a secciones de liceo")
+  if tipo == TipoDocumento.docentes and (seccion is not None or grado is not None):
+    raise HTTPException(400, "El listado de docentes es general por nivel")
 
   documento = servicio_listados.construir_documento(
     tipo, periodo, nivel, grado, seccion, session
   )
-  pdf = construir_pdf(
-    documento.titulo,
-    documento.encabezados,
-    documento.filas,
-    col_anchos=documento.col_anchos,
-    nivel=nivel.value if nivel else None,
-    grado=documento.grado.nombre if documento.grado else None,
-    seccion=documento.seccion_descripcion,
-    periodo_lectivo=periodo,
-  )
+  if tipo == TipoDocumento.horarios:
+    assert documento.horario_cabecera is not None
+    assert documento.horario_filas is not None
+    assert documento.horario_docentes is not None
+    pdf = construir_pdf_horarios(
+      documento.horario_cabecera,
+      documento.horario_filas,
+      documento.horario_docentes,
+    )
+  else:
+    pdf = construir_pdf(
+      documento.titulo,
+      documento.encabezados,
+      documento.filas,
+      col_anchos=documento.col_anchos,
+      nivel=nivel.value if nivel else None,
+      grado=None,
+      seccion=documento.seccion_descripcion,
+      periodo_lectivo=etiqueta_periodo(periodo),
+    )
   ruta_relativa = servicio_listados.ruta_relativa_listado(
     tipo, periodo, nivel, documento.grado, seccion, documento.nombre_archivo
   )
@@ -226,6 +244,7 @@ def listar_documentos(
   consulta = select(DocumentosGenerados).where(
     DocumentosGenerados.fecha_eliminacion.is_(None)
   )
+  periodo_lectivo = periodo_lectivo_efectivo(session, periodo_lectivo)
   if tipo is not None:
     consulta = consulta.where(DocumentosGenerados.tipo == tipo)
   if periodo_lectivo is not None:

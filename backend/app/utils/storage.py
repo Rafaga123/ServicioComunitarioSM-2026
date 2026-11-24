@@ -3,9 +3,10 @@
 Los adjuntos se guardan físicamente bajo STORAGE_ROOT con rutas relativas
 estándar:
 
-    {anio}/{mes:02d}/{nivel}/{grado_slug}/{letra}/estudiante-{id}/archivo.{ext}
+    {etiqueta}/{pases|reportes}/{nivel}/{grado_slug}/{letra}/estudiante-{id}/archivo.{ext}
 
-y se devuelven como `archivo_url` en los DTO (RFC-style: ruta relativa).
+donde `etiqueta` es `2026-2027` para el año lectivo 2026. Se devuelven como
+`archivo_url` en los DTO (RFC-style: ruta relativa).
 """
 
 import os
@@ -18,6 +19,7 @@ from fastapi import UploadFile
 from app.core.config import ARCHIVOS_MAX_BYTES, STORAGE_ROOT
 from app.models.enums import NivelEducativo
 from app.utils.fechas import ahora_caracas
+from app.utils.periodos import etiqueta_periodo
 
 # MIME permitidos para adjuntos de pases y reportes (solo imágenes).
 MIME_PERMITIDOS = {
@@ -71,7 +73,8 @@ def ruta_absoluta(ruta_relativa: str) -> Path:
 
 
 def ruta_relativa_imagen(
-  fecha,
+  periodo_lectivo: int,
+  carpeta: str,
   grado_numero: int,
   seccion_letra: str,
   nivel: NivelEducativo,
@@ -84,8 +87,8 @@ def ruta_relativa_imagen(
   slug_grado = GRADO_SLUGS.get(grado_numero, f"grado_{grado_numero}")
   nombre_archivo = f"{registro_id}_{uuid.uuid4().hex[:8]}.{extension}"
   return Path(
-    str(fecha.year),
-    f"{fecha.month:02d}",
+    etiqueta_periodo(periodo_lectivo),
+    _sanitizar_nombre(carpeta),
     nivel.value.lower(),
     slug_grado,
     seccion_letra.upper(),

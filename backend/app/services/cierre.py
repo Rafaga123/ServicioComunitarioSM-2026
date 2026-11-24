@@ -2,8 +2,8 @@
 
 Flujo de `POST /api/gestion/cerrar-anio`:
 1. Validar periodo actual (activo) y periodo siguiente (¿existe? crear).
-2. Generar PDFs de listados (nóminas/representantes/horarios-liceo) en RAM
-   y guardarlos en staging.
+2. Generar PDFs de listados (nóminas/representantes/horarios-liceo por sección
+   y docentes generales por nivel) en RAM y guardarlos en staging.
 3. Mover los archivos staging → destino final en STORAGE_ROOT.
 4. En una sola transacción: insertar los `DocumentosGenerados` y ejecutar el
    traspaso de estudiantes (6to Año→egreso, grados intermedios→siguiente).
@@ -31,10 +31,11 @@ from app.models.schemas import PeticionCierreAnio
 from app.services import listados as servicio_listados
 from app.utils.auditoria import registrar_auditoria
 from app.utils.fechas import ahora_caracas
-from app.utils.pdf import construir_pdf
+from app.utils.pdf import construir_pdf, construir_pdf_horarios
+from app.utils.periodos import etiqueta_periodo
 from app.utils.storage import hash_contenido, nombre_unico, ruta_absoluta
 
-GRADOS_PROMOVIDOS_MAX = 11  # 5to Año => 5 es la última promoción; 11 = egreso
+GRADOS_PROMOVIDOS_MAX = 11  # 11 = 5to Año, último grado del liceo (egreso)
 
 
 def _validar_periodo_lectivo(
@@ -116,27 +117,44 @@ def _crear_secciones_nuevas(
   periodo_siguiente: int,
   secciones_actuales: list[Secciones],
 ) -> dict[tuple[int, str], Secciones]:
-  """Crea las 33 secciones del nuevo periodo (11 grados × A/B/U)."""
+  """Replica las secciones reales del periodo y crea sus destinos.
+
+  Solo se crean las combinaciones (grado, letra) que existen actualmente y la
+  sección destino (grado + 1, misma letra) de cada cohorte. Los estudiantes de
+  `GRADOS_PROMOVIDOS_MAX` egresan, por lo que no requieren sección destino.
+  """
   grados = {
-    g.numero: g.id
+    g.numero: g
     for g in session.exec(select(Grados).where(Grados.fecha_eliminacion.is_(None)))
   }
-  letras = sorted({s.letra for s in secciones_actuales} or ["A", "B", "U"])
 
-  creadas = {}
-  for numero in range(1, 12):
-    if numero not in grados:
-      continue
-    for letra in letras:
-      seccion = Secciones(
-        id_grado=grados[numero],
-        letra=letra,
-        periodo_lectivo=periodo_siguiente,
-        id_docente_titular=None,
-      )
-      session.add(seccion)
-      session.flush()
-      creadas[(numero, letra)] = seccion
+  combinaciones = {(s.grado.numero, s.letra) for s in secciones_actuales}
+  destinos = {
+    (numero + 1, letra)
+    for numero, letra in combinaciones
+    if numero < GRADOS_PROMOVIDOS_MAX
+  }
+
+  grados_faltantes = sorted({numero for numero, _ in destinos} - grados.keys())
+  if grados_faltantes:
+    raise HTTPException(
+      status_code=400,
+      detail=(
+        f"No existe el grado destino {grados_faltantes[0]} en el catálogo de grados"
+      ),
+    )
+
+  creadas: dict[tuple[int, str], Secciones] = {}
+  for numero, letra in sorted(combinaciones | destinos):
+    seccion = Secciones(
+      id_grado=grados[numero].id,
+      letra=letra,
+      periodo_lectivo=periodo_siguiente,
+      id_docente_titular=None,
+    )
+    session.add(seccion)
+    session.flush()
+    creadas[(numero, letra)] = seccion
   return creadas
 
 
@@ -182,16 +200,26 @@ def _guardar_doc_staged(
   documento = servicio_listados.construir_documento(
     tipo, periodo, nivel, grado, seccion, session
   )
-  pdf = construir_pdf(
-    documento.titulo,
-    documento.encabezados,
-    documento.filas,
-    col_anchos=documento.col_anchos,
-    nivel=nivel.value if nivel else None,
-    grado=documento.grado.nombre if documento.grado else None,
-    seccion=documento.seccion_descripcion,
-    periodo_lectivo=periodo,
-  )
+  if tipo == TipoDocumento.horarios:
+    assert documento.horario_cabecera is not None
+    assert documento.horario_filas is not None
+    assert documento.horario_docentes is not None
+    pdf = construir_pdf_horarios(
+      documento.horario_cabecera,
+      documento.horario_filas,
+      documento.horario_docentes,
+    )
+  else:
+    pdf = construir_pdf(
+      documento.titulo,
+      documento.encabezados,
+      documento.filas,
+      col_anchos=documento.col_anchos,
+      nivel=nivel.value if nivel else None,
+      grado=None,
+      seccion=documento.seccion_descripcion,
+      periodo_lectivo=etiqueta_periodo(periodo),
+    )
   ruta_relativa = servicio_listados.ruta_relativa_listado(
     tipo, periodo, nivel, documento.grado, seccion, documento.nombre_archivo
   )
@@ -208,6 +236,53 @@ def _guardar_doc_staged(
     nivel=nivel,
     id_grado=documento.grado_id,
     id_seccion=documento.seccion_id,
+    nombre_archivo=nombre_archivo,
+    ruta_relativa=ruta_relativa,
+    hash=hash_contenido(pdf),
+    tamano=len(pdf),
+    mime="application/pdf",
+    fecha_generacion=ahora_caracas(),
+    generado_por=usuario.id,
+  )
+  session.add(registro)
+  return registro
+
+
+def _guardar_doc_general_staged(
+  session: Session,
+  usuario: object,
+  tipo: TipoDocumento,
+  periodo: int,
+  nivel: NivelEducativo,
+  staging_root: Path,
+) -> DocumentosGenerados:
+  """Prepara un PDF general por nivel (p. ej. el listado de docentes)."""
+  documento = servicio_listados.construir_documento(
+    tipo, periodo, nivel, None, None, session
+  )
+  pdf = construir_pdf(
+    documento.titulo,
+    documento.encabezados,
+    documento.filas,
+    col_anchos=documento.col_anchos,
+    nivel=nivel.value,
+    seccion=documento.seccion_descripcion,
+    periodo_lectivo=etiqueta_periodo(periodo),
+  )
+  ruta_relativa = servicio_listados.ruta_relativa_listado(
+    tipo, periodo, nivel, None, None, documento.nombre_archivo
+  )
+  nombre_archivo = nombre_unico(ruta_relativa, documento.nombre_archivo)
+  ruta_relativa = ruta_relativa.replace(documento.nombre_archivo, nombre_archivo)
+
+  staging_file = staging_root / ruta_relativa
+  staging_file.parent.mkdir(parents=True, exist_ok=True)
+  staging_file.write_bytes(pdf)
+
+  registro = DocumentosGenerados(
+    tipo=tipo,
+    periodo_lectivo=periodo,
+    nivel=nivel,
     nombre_archivo=nombre_archivo,
     ruta_relativa=ruta_relativa,
     hash=hash_contenido(pdf),
@@ -239,10 +314,12 @@ def cerrar_anio(
 
   staging_root = Path(STORAGE_ROOT) / ".staging" / str(uuid.uuid4())
   documentos: list[DocumentosGenerados] = []
+  movidos: list[Path] = []
   promovidos = 0
   egresados = 0
   secciones_nuevas: dict[tuple[int, str], Secciones] = {}
   asignaturas_creadas = 0
+  completado = False
 
   try:
     ps = _obtener_o_crear_periodo_siguiente(session, periodo_siguiente)
@@ -288,21 +365,33 @@ def cerrar_anio(
           )
         )
 
+    # 1b. Listado general de docentes por nivel.
+    for nivel in (NivelEducativo.escuela, NivelEducativo.liceo):
+      documentos.append(
+        _guardar_doc_general_staged(
+          session,
+          usuario,
+          TipoDocumento.docentes,
+          pa.anio,
+          nivel,
+          staging_root,
+        )
+      )
+
     # 2. Mover archivos de staging al destino final.
-    movidos: list[Path] = []
-    try:
-      for doc in documentos:
-        destino = ruta_absoluta(doc.ruta_relativa)
-        destino.parent.mkdir(parents=True, exist_ok=True)
-        if destino.exists():
-          (staging_root / doc.ruta_relativa).unlink(missing_ok=True)
-          continue
-        shutil.move(str(staging_root / doc.ruta_relativa), str(destino))
-        movidos.append(destino)
-    except Exception:
-      for destino in movidos:
-        destino.unlink(missing_ok=True)
-      raise
+    for doc in documentos:
+      destino = ruta_absoluta(doc.ruta_relativa)
+      destino.parent.mkdir(parents=True, exist_ok=True)
+      if destino.exists():
+        # Ya existe el PDF en destino: no se registra ni se cuenta.
+        (staging_root / doc.ruta_relativa).unlink(missing_ok=True)
+        if doc.id is None:
+          session.expunge(doc)
+        else:
+          session.delete(doc)
+        continue
+      shutil.move(str(staging_root / doc.ruta_relativa), str(destino))
+      movidos.append(destino)
 
     # 3. Traspaso de estudiantes y clonación de estructura.
     secciones_nuevas = _crear_secciones_nuevas(
@@ -317,6 +406,14 @@ def cerrar_anio(
     pa.cerrado = True
     pa.activo = False
     pa.fecha_cierre = ahora_caracas()
+    for otro in session.exec(
+      select(PeriodosLectivos).where(
+        PeriodosLectivos.id != ps.id,
+        PeriodosLectivos.activo.is_(True),
+        PeriodosLectivos.fecha_eliminacion.is_(None),
+      )
+    ).all():
+      otro.activo = False
     ps.activo = True
 
     registrar_auditoria(
@@ -329,23 +426,25 @@ def cerrar_anio(
 
     session.flush()
     session.commit()
+    completado = True
 
     return PeticionCierreAnio(
       periodo_cerrado=pa.anio,
       periodo_activado=ps.anio,
-      documentos_generados=len(documentos),
+      documentos_generados=len(movidos),
       estudiantes_promovidos=promovidos,
       egresados=egresados,
       secciones_creadas=len(secciones_nuevas),
       asignaturas_creadas=asignaturas_creadas,
     )
 
-  except HTTPException:
-    raise
   except Exception:
     session.rollback()
     raise
   finally:
+    if not completado:
+      for destino in movidos:
+        destino.unlink(missing_ok=True)
     shutil.rmtree(staging_root, ignore_errors=True)
 
 
@@ -368,7 +467,7 @@ def _traspasar_estudiantes(
     seccion = estudiante.seccion
     grado = seccion.grado
 
-    if grado.numero == 11:  # 5to Año -> egreso
+    if grado.numero == GRADOS_PROMOVIDOS_MAX:  # último grado -> egreso
       estudiante.fecha_egreso = ahora_caracas()
       egresados += 1
       continue

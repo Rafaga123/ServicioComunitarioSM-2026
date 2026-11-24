@@ -20,11 +20,34 @@ from app.models.db import (
   Representantes,
   Secciones,
 )
-from app.models.enums import NivelEducativo, TipoDocumento
+from app.models.enums import NivelEducativo, TipoBloqueHorario, TipoDocumento
 from app.utils.nombres import nombre_completo
+from app.utils.periodos import etiqueta_periodo
 from app.utils.storage import GRADO_SLUGS
 
 DIAS_SEMANA = {1: "Lunes", 2: "Martes", 3: "Miércoles", 4: "Jueves", 5: "Viernes"}
+
+# Etiquetas solicitadas para la malla impresa del liceo (se respetan tal cual,
+# aunque difieran de la hora almacenada en `bloques_horarios`).
+HORAS_MALLA_LICEO = {
+  1: "7:00-7:40",
+  2: "7:40-8:20",
+  3: "8:20-8:40",
+  4: "8:40-9:20",
+  5: "9:20-10:00",
+  6: "10:10-10:10",
+  7: "10:10-10:50",
+  8: "10:10-11:30",
+  9: "11:30-12:10",
+  10: "12:10-12:40",
+}
+
+TITULOS_DOCUMENTO = {
+  TipoDocumento.nominas: "Listado de estudiantes",
+  TipoDocumento.representantes: "Listado de representantes",
+  TipoDocumento.horarios: "Horario de clases",
+  TipoDocumento.docentes: "Listado de docentes",
+}
 
 
 @dataclass
@@ -38,6 +61,9 @@ class DocumentoListado:
   col_anchos: list[float]
   titulo: str
   seccion_descripcion: str | None
+  horario_cabecera: dict[str, str] | None = None
+  horario_filas: list[list[str]] | None = None
+  horario_docentes: list[tuple[str, str]] | None = None
 
 
 def _nombre_archivo(
@@ -51,22 +77,34 @@ def _nombre_archivo(
     "nominas": "nomina",
     "representantes": "representantes",
     "horarios": "horario",
+    "docentes": "docentes",
   }[tipo.value]
+  etiqueta = etiqueta_periodo(periodo)
   if grado is not None and seccion is not None:
     slug = GRADO_SLUGS.get(grado.numero, grado.nombre.lower().replace(" ", "_"))
-    return f"{stem}_{periodo}_{slug}_{seccion.letra}.pdf"
-  return f"{stem}_{periodo}_{nivel.value}_general.pdf"
+    return f"{stem}_{etiqueta}_{slug}_{seccion.letra}.pdf"
+  return f"{stem}_{etiqueta}_{nivel.value}_general.pdf"
 
 
 def _titulo(
   tipo: TipoDocumento,
+  periodo: int,
   nivel: NivelEducativo,
   grado: Grados | None,
   seccion: Secciones | None,
 ) -> str:
+  titulo = TITULOS_DOCUMENTO[tipo]
+  etiqueta = etiqueta_periodo(periodo)
   if seccion is not None and grado is not None:
-    return f"{tipo.value} — {grado.nombre} {seccion.letra}"
-  return f"{tipo.value} — {nivel.value} general"
+    return f'{titulo} {etiqueta}/{grado.nombre} "{seccion.letra.upper()}"'
+  return f"{titulo} {etiqueta}/{nivel.value} general"
+
+
+def _nombre_representante(representante: Representantes | None) -> str:
+  """Nombre del representante, o '-' cuando solo se conoce su teléfono."""
+  if representante is None:
+    return "-"
+  return nombre_completo(representante) or "-"
 
 
 # =====
@@ -85,7 +123,7 @@ def _filas_nominas_seccion(session: Session, seccion: Secciones) -> list[list[st
     [
       e.cedula_estudiantil,
       nombre_completo(e),
-      nombre_completo(e.representante) if e.representante else "-",
+      _nombre_representante(e.representante),
       e.representante.telefono if e.representante else "-",
     ]
     for e in estudiantes
@@ -121,7 +159,7 @@ def _filas_representantes_seccion(
     ).all()
     filas.append(
       [
-        nombre_completo(rep),
+        _nombre_representante(rep),
         rep.telefono,
         "; ".join(nombre_completo(e) for e in ests) or "-",
       ]
@@ -154,6 +192,58 @@ def _filas_horarios_seccion(session: Session, seccion: Secciones) -> list[list[s
   ]
 
 
+def _datos_horarios(
+  session: Session, seccion: Secciones, periodo: int
+) -> tuple[dict[str, str], list[list[str]], list[tuple[str, str]]]:
+  """Devuelve cabecera, malla de 10 bloques y docentes de una sección.
+
+  Las etiquetas de hora son las definidas en `HORAS_MALLA_LICEO`; la
+  asignación de materias por día/bloque se toma de los horarios activos.
+  """
+  bloques = session.exec(
+    select(BloquesHorarios)
+    .where(BloquesHorarios.fecha_eliminacion.is_(None))
+    .order_by(BloquesHorarios.orden)
+  ).all()
+  horarios = session.exec(
+    select(Horarios).where(
+      Horarios.id_seccion == seccion.id,
+      Horarios.fecha_eliminacion.is_(None),
+    )
+  ).all()
+  por_bloque_dia = {(h.id_bloque, h.dia_semana): h for h in horarios}
+
+  filas: list[list[str]] = []
+  for bloque in bloques:
+    hora = HORAS_MALLA_LICEO.get(
+      bloque.orden,
+      f"{bloque.hora_inicio.strftime('%H:%M')}-{bloque.hora_fin.strftime('%H:%M')}",
+    )
+    if bloque.tipo == TipoBloqueHorario.receso:
+      celdas = ["RECESO"] * 5
+    else:
+      celdas = []
+      for dia in range(1, 6):
+        horario = por_bloque_dia.get((bloque.id, dia))
+        celdas.append(horario.asignatura.nombre if horario is not None else "")
+    filas.append([hora, *celdas])
+
+  vistos: set[tuple[str, str]] = set()
+  docentes: list[tuple[str, str]] = []
+  for horario in sorted(horarios, key=lambda h: h.asignatura.nombre):
+    clave = (horario.asignatura.nombre, nombre_completo(horario.docente))
+    if clave not in vistos:
+      vistos.add(clave)
+      docentes.append(clave)
+
+  cabecera = {
+    "periodo": etiqueta_periodo(periodo),
+    "curso": seccion.grado.nombre,
+    "seccion": seccion.letra.upper(),
+  }
+  return cabecera, filas, docentes
+
+
 # =====
 # Consultas general (por nivel y periodo, sin sección)
 # =====
@@ -178,7 +268,7 @@ def _filas_nominas_general(
       e.cedula_estudiantil,
       nombre_completo(e),
       f"{e.seccion.grado.nombre} {e.seccion.letra}",
-      nombre_completo(e.representante) if e.representante else "-",
+      _nombre_representante(e.representante),
       e.representante.telefono if e.representante else "-",
     ]
     for e in estudiantes
@@ -222,11 +312,83 @@ def _filas_representantes_general(
     ).all()
     filas.append(
       [
-        nombre_completo(rep),
+        _nombre_representante(rep),
         rep.telefono,
         "; ".join(nombre_completo(e) for e in ests) or "-",
       ]
     )
+  return filas
+
+
+def _filas_docentes_general(
+  session: Session, periodo: int, nivel: NivelEducativo
+) -> list[list[str]]:
+  """Lista activa de docentes de un nivel con su detalle del periodo.
+
+  En LICEO se muestran las asignaturas con el año correspondiente para no
+  repetir `Matemática` de varios grados como si fuera la misma línea. En
+  ESCUELA se muestran los grados/secciones donde el docente es titular.
+  """
+  docentes = session.exec(
+    select(Docentes)
+    .where(
+      Docentes.nivel == nivel,
+      Docentes.fecha_eliminacion.is_(None),
+    )
+    .order_by(
+      Docentes.primer_apellido, Docentes.primer_nombre, Docentes.cedula, Docentes.id
+    )
+  ).all()
+
+  filas: list[list[str]] = []
+  for docente in docentes:
+    if docente.id is None:
+      continue
+
+    detalle = "-"
+    if nivel == NivelEducativo.liceo:
+      asignaturas = session.exec(
+        select(Asignaturas)
+        .join(Horarios, Horarios.id_asignatura == Asignaturas.id)
+        .join(Grados, Asignaturas.id_grado == Grados.id)
+        .where(
+          Horarios.id_docente == docente.id,
+          Horarios.periodo_lectivo == periodo,
+          Horarios.fecha_eliminacion.is_(None),
+          Asignaturas.periodo_lectivo == periodo,
+          Asignaturas.fecha_eliminacion.is_(None),
+          Grados.fecha_eliminacion.is_(None),
+        )
+        .order_by(Grados.numero, Asignaturas.nombre)
+      ).all()
+      vistos: set[tuple[str, str]] = set()
+      etiquetas: list[str] = []
+      for asignatura in asignaturas:
+        etiqueta = f"{asignatura.nombre} {asignatura.grado.nombre}"
+        clave = (asignatura.nombre, asignatura.grado.nombre)
+        if clave in vistos:
+          continue
+        vistos.add(clave)
+        etiquetas.append(etiqueta)
+      detalle = ", ".join(etiquetas) or "-"
+    else:
+      secciones = session.exec(
+        select(Secciones)
+        .join(Grados, Secciones.id_grado == Grados.id)
+        .where(
+          Secciones.id_docente_titular == docente.id,
+          Secciones.periodo_lectivo == periodo,
+          Secciones.fecha_eliminacion.is_(None),
+          Grados.fecha_eliminacion.is_(None),
+        )
+        .order_by(Grados.numero, Secciones.letra)
+      ).all()
+      detalle = (
+        "; ".join(f'{seccion.grado.nombre} "{seccion.letra}"' for seccion in secciones)
+        or "-"
+      )
+
+    filas.append([docente.cedula, nombre_completo(docente), detalle])
   return filas
 
 
@@ -243,18 +405,44 @@ FILAS_GENERAL: dict[
 ] = {
   TipoDocumento.nominas: _filas_nominas_general,
   TipoDocumento.representantes: _filas_representantes_general,
+  TipoDocumento.docentes: _filas_docentes_general,
 }
 
-HEADERS: dict[TipoDocumento, list[str]] = {
+HEADERS_SECCION: dict[TipoDocumento, list[str]] = {
   TipoDocumento.nominas: ["Cédula", "Estudiante", "Representante", "Teléfono"],
   TipoDocumento.representantes: ["Representante", "Teléfono", "Estudiantes asociados"],
-  TipoDocumento.horarios: ["Día", "Bloque", "Hora", "Asignatura", "Docente"],
+  TipoDocumento.horarios: [
+    "Día",
+    "Bloque",
+    "Inicio",
+    "Fin",
+    "Asignatura",
+    "Docente",
+  ],
 }
 
-COL_ANCHOS: dict[TipoDocumento, list[float]] = {
-  TipoDocumento.nominas: [4.0, 8.0, 8.0, 6.0],
-  TipoDocumento.representantes: [10.0, 6.0, 40.0],
-  TipoDocumento.horarios: [4.0, 8.0, 6.0, 5.0, 8.0, 10.0],
+HEADERS_GENERAL: dict[TipoDocumento, list[str]] = {
+  TipoDocumento.nominas: [
+    "Cédula",
+    "Estudiante",
+    "Grado / Sección",
+    "Representante",
+    "Teléfono",
+  ],
+  TipoDocumento.representantes: ["Representante", "Teléfono", "Estudiantes asociados"],
+  TipoDocumento.docentes: ["Cédula", "Docente", "Asignaturas"],
+}
+
+COL_ANCHOS_SECCION: dict[TipoDocumento, list[float]] = {
+  TipoDocumento.nominas: [2.6, 4.3, 4.3, 2.6],
+  TipoDocumento.representantes: [5.0, 2.8, 6.4],
+  TipoDocumento.horarios: [1.9, 1.8, 1.3, 1.3, 4.1, 3.9],
+}
+
+COL_ANCHOS_GENERAL: dict[TipoDocumento, list[float]] = {
+  TipoDocumento.nominas: [2.3, 3.4, 2.6, 3.5, 2.4],
+  TipoDocumento.representantes: [5.0, 2.8, 6.4],
+  TipoDocumento.docentes: [2.8, 5.0, 6.4],
 }
 
 
@@ -269,12 +457,27 @@ def construir_documento(
   """Resuelve las filas para un listado según tipo, nivel, grado y sección."""
   if seccion is not None:
     nombre_archivo = _nombre_archivo(tipo, periodo, nivel, grado, seccion)
-    descripcion = f"{grado.nombre if grado else nivel.value} {seccion.letra}"
+    # El encabezado del PDF muestra grado y sección en un solo campo.
+    descripcion = f"{grado.nombre if grado else nivel.value} {seccion.letra}".strip()
     filas = FILAS_POR_SECCION[tipo](session, seccion)
+    encabezados = HEADERS_SECCION[tipo]
+    col_anchos = COL_ANCHOS_SECCION[tipo]
   else:
     nombre_archivo = _nombre_archivo(tipo, periodo, nivel, None, None)
-    descripcion = f"{nivel.value} general"
+    descripcion = "general"
     filas = FILAS_GENERAL[tipo](session, periodo, nivel)
+    encabezados = HEADERS_GENERAL[tipo]
+    if tipo == TipoDocumento.docentes and nivel == NivelEducativo.escuela:
+      encabezados = ["Cédula", "Docente", "Grado/Sección"]
+    col_anchos = COL_ANCHOS_GENERAL[tipo]
+
+  cabecera_horario = None
+  filas_horario = None
+  docentes_horario = None
+  if tipo == TipoDocumento.horarios and seccion is not None:
+    cabecera_horario, filas_horario, docentes_horario = _datos_horarios(
+      session, seccion, periodo
+    )
 
   return DocumentoListado(
     seccion_id=seccion.id if seccion else None,
@@ -282,10 +485,13 @@ def construir_documento(
     grado=grado,
     nombre_archivo=nombre_archivo,
     filas=filas,
-    encabezados=HEADERS[tipo],
-    col_anchos=COL_ANCHOS[tipo],
-    titulo=_titulo(tipo, nivel, grado, seccion),
+    encabezados=encabezados,
+    col_anchos=col_anchos,
+    titulo=_titulo(tipo, periodo, nivel, grado, seccion),
     seccion_descripcion=descripcion,
+    horario_cabecera=cabecera_horario,
+    horario_filas=filas_horario,
+    horario_docentes=docentes_horario,
   )
 
 
@@ -299,12 +505,16 @@ def ruta_relativa_listado(
 ) -> str:
   """Ruta relativa dentro de STORAGE_ROOT del PDF generado.
 
-  Sección: `listados/nominas/LICEO/1er_ano/A/nomina_2027_1er_ano_A.pdf`.
-  General: `listados/nominas/LICEO/general/nomina_2027_LICEO_general.pdf`.
+  El periodo lectivo es la primera carpeta y usa su etiqueta legible.
+
+  Sección: `2026-2027/listados/nominas/LICEO/1er_ano/A/nomina_2026-2027_1er_ano_A.pdf`.
+  General: `2026-2027/listados/nominas/LICEO/general/nomina_2026-2027_LICEO_general.pdf`.
   """
+  etiqueta = etiqueta_periodo(periodo)
   if seccion is not None:
     slug = GRADO_SLUGS.get(grado.numero, "general")
     return (
-      f"listados/{tipo.value}/{nivel.value}/{slug}/{seccion.letra}/{nombre_archivo}"
+      f"{etiqueta}/listados/{tipo.value}/{nivel.value}/{slug}/"
+      f"{seccion.letra}/{nombre_archivo}"
     )
-  return f"listados/{tipo.value}/{nivel.value}/general/{nombre_archivo}"
+  return f"{etiqueta}/listados/{tipo.value}/{nivel.value}/general/{nombre_archivo}"
