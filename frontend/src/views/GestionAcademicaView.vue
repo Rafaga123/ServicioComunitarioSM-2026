@@ -14,23 +14,56 @@ import {
   actualizarRepresentante,
   eliminarRepresentante,
 } from '../services/representantes'
+import {
+  listarEstudiantes,
+  listarTodosEstudiantes,
+  crearEstudiante,
+  actualizarEstudiante,
+  eliminarEstudiante,
+} from '../services/estudiantes'
+import { listarTodosGrados } from '../services/grados'
+import {
+  listarAsignaturas,
+  listarTodasAsignaturas,
+  crearAsignatura,
+  actualizarAsignatura,
+  eliminarAsignatura,
+  vincularDocente,
+  desvincularDocente,
+} from '../services/asignaturas'
+import {
+  listarSecciones,
+  listarTodasSecciones,
+  actualizarSeccion,
+  LETRAS_POR_FORMATO,
+  formatoSecciones,
+  crearFormatoSecciones,
+  eliminarFormatoSecciones,
+} from '../services/secciones'
+import { listarPeriodos, obtenerPeriodoActivo } from '../services/periodos'
+import { obtenerResumenGestion } from '../services/gestion'
+import {
+  listarHorarios,
+  listarTodosHorarios,
+  crearHorario,
+  actualizarHorario,
+  eliminarHorario,
+  listarBloquesAcademicos,
+} from '../services/horarios'
 import { useRecursoPaginado } from '@/composables/useRecursoPaginado'
+import SeccionesTabla from '@/components/gestion-academica/SeccionesTabla.vue'
 import RepresentantesTabla from '@/components/gestion-academica/RepresentantesTabla.vue'
 import EstudiantesTabla from '@/components/gestion-academica/EstudiantesTabla.vue'
 import AsignaturasTabla from '@/components/gestion-academica/AsignaturasTabla.vue'
 import DocentesTabla from '@/components/gestion-academica/DocentesTabla.vue'
 import HorariosTabla from '@/components/gestion-academica/HorariosTabla.vue'
 import {
-  anios,
-  secciones,
   dias,
   norm,
-  ordinal,
   nomPersona,
   nomEst,
   nomDocente,
   diaNombre,
-  gradoTexto,
 } from '@/components/gestion-academica/helpers'
 import { esAdministrador, nivelActual, etiquetaNivel } from '@/services/auth'
 import {
@@ -47,54 +80,60 @@ import {
 } from '@/components/gestion-academica/estilos'
 
 // Uso en el layout:  <GestionAcademicaView tab-inicial="estudiantes" />
-// Valores de tab-inicial: representantes | estudiantes | asignaturas | docentes | horarios
+// Valores de tab-inicial: secciones | representantes | estudiantes | asignaturas | docentes | horarios
 const props = defineProps({
-  tabInicial: { type: String, default: 'representantes' },
+  tabInicial: { type: String, default: 'secciones' },
 })
 
 // ───────────── Catálogos ─────────────
-// anios, secciones y dias viven en components/gestion-academica/helpers.js
+// dias, norm, nomPersona, nomEst, nomDocente y diaNombre viven en helpers.js
 
 // Registros por página (el backend acepta size de 1 a 100)
 const POR_PAGINA = 10
 
+// El orden respeta la jerarquía de datos: las secciones son la base de
+// estudiantes y horarios; el resto se muestra por relevancia.
 const tabs = [
-  { id: 'representantes', label: 'Representantes', nuevo: 'Nuevo representante', singular: 'representante' },
+  { id: 'secciones', label: 'Secciones', nuevo: 'Nueva sección', singular: 'sección', plural: 'secciones' },
   { id: 'estudiantes', label: 'Estudiantes', nuevo: 'Nuevo estudiante', singular: 'estudiante' },
+  { id: 'representantes', label: 'Representantes', nuevo: 'Nuevo representante', singular: 'representante' },
   { id: 'asignaturas', label: 'Asignaturas', nuevo: 'Nueva asignatura', singular: 'asignatura' },
   { id: 'docentes', label: 'Docentes', nuevo: 'Nuevo docente', singular: 'docente' },
   { id: 'horarios', label: 'Horarios', nuevo: 'Nuevo horario', singular: 'horario' },
 ]
 const placeholders = {
+  secciones: 'Buscar por grado, letra, nivel o docente titular',
   representantes: 'Buscar por nombre o apellido',
-  estudiantes: 'Buscar por nombre o apellido',
+  estudiantes: 'Buscar por nombre, apellido o cédula',
   asignaturas: 'Buscar por nombre de la asignatura',
   docentes: 'Buscar por nombre o cédula',
-  horarios: 'Buscar por grado, sección, día o asignatura',
+  horarios: 'Buscar por sección, día, bloque o asignatura',
 }
 const vacios = {
+  secciones: { titulo: 'Aún no hay secciones registradas', texto: 'Crea las secciones por grado/año y letra para poder registrar estudiantes y armar los horarios.', boton: 'Registrar sección' },
   representantes: { titulo: 'Aún no hay representantes registrados', texto: 'Registra a los representantes para poder vincularlos con sus estudiantes.', boton: 'Registrar representante' },
   estudiantes: { titulo: 'Aún no hay estudiantes registrados', texto: 'Cuando registres estudiantes aparecerán aquí con su grado, sección y representantes.', boton: 'Registrar estudiante' },
   asignaturas: { titulo: 'Aún no hay asignaturas registradas', texto: 'Crea las asignaturas para poder asignarlas a docentes y armar los horarios.', boton: 'Registrar asignatura' },
   docentes: { titulo: 'Aún no hay docentes registrados', texto: 'Registra a los docentes con su cédula para poder asignarles asignaturas y horarios.', boton: 'Registrar docente' },
-  horarios: { titulo: 'Aún no hay horarios registrados', texto: 'Necesitas asignaturas registradas para armar el horario de cada grado y sección.', boton: 'Registrar horario' },
+  horarios: { titulo: 'Aún no hay horarios registrados', texto: 'Necesitas secciones de Liceo, asignaturas y bloques académicos para armar el horario por bloques.', boton: 'Registrar horario' },
 }
-const tab = ref(tabs.some((t) => t.id === props.tabInicial) ? props.tabInicial : 'representantes')
+const tab = ref(tabs.some((t) => t.id === props.tabInicial) ? props.tabInicial : 'secciones')
 const tabActual = computed(() => tabs.find((t) => t.id === tab.value))
 
 // ───────────── Datos (vacío: los listados conectados se llenan desde la API) ─────────────
+// secciones:      { id, idGrado, letra, periodoLectivo, idDocenteTitular, gradoNombre,
+//                   gradoNumero, nivel, docenteTitular }  (API /secciones)
 // representantes: { id, primerNombre, segundoNombre, primerApellido, segundoApellido, telefono }  (API /representantes)
-// estudiantes:    { id, primerNombre, segundoNombre, primerApellido, segundoApellido, gradoId, representanteIds[] }   (Estudiantes_Representantes)
-// asignaturas:    { id, nombre }
+// estudiantes:    { id, cedula, primerNombre, ..., fechaNacimiento, nivel, idGrado, gradoNombre,
+//                   seccionLetra, periodoLectivo, idRepresentante, representanteNombre }  (API /estudiantes)
+// asignaturas:    { id, nombre, idGrado, periodoLectivo, docentes }  (API /asignaturas)
 // docentes:       { id, primerNombre, segundoNombre, primerApellido, segundoApellido, cedula, nivel }  (API /docentes)
-// horarios:       { id, gradoId, asignaturaId, diaSemana, hora }
-// grados:         { id, grado, seccion }
-const datos = reactive({ representantes: [], estudiantes: [], asignaturas: [], docentes: [], horarios: [], grados: [] })
-let seq = 0
-const nuevoId = () => ++seq // TODO FastAPI: el id lo asigna el servidor
+// horarios:       { id, idSeccion, idBloque, idAsignatura, idDocente, periodoLectivo, diaSemana,
+//                    seccion, grado, bloque, horaInicio, horaFin, asignatura, docente }  (API /horarios)
+const datos = reactive({ secciones: [], representantes: [], estudiantes: [], asignaturas: [], docentes: [], horarios: [] })
 
 // ───────────── Listados conectados a la API ─────────────
-// Docentes y representantes comparten el mismo contrato paginado:
+// Docentes, representantes y estudiantes comparten el contrato paginado:
 // { items, total, offset, size }. El backend no busca por texto, así que el
 // filtrado se resuelve en el cliente sobre la lista completa.
 
@@ -102,6 +141,12 @@ const nuevoId = () => ++seq // TODO FastAPI: el id lo asigna el servidor
 // - El administrador no tiene nivel propio y puede ver ambos; el filtro es suyo.
 // - Los operadores quedan atados a su nivel (el backend también lo impone).
 const nivelFiltro = ref(esAdministrador.value ? '' : (nivelActual.value ?? ''))
+// Sección cuyo horario se quiere ubicar al llegar desde la pestaña Secciones.
+// El horario de Liceo es por bloques; el de Escuela es corrido y no se enlaza.
+const horarioSeccion = ref(null)
+// Período con el que se trabajan Secciones, Asignaturas y Horarios. Se
+// inicializa con el activo del backend.
+const periodoSeleccionado = ref('')
 const nivelConsulta = computed(() =>
   esAdministrador.value ? nivelFiltro.value : (nivelActual.value ?? ''),
 )
@@ -110,22 +155,47 @@ const alcanceNivel = computed(() =>
 )
 
 // Texto del estado vacío: cuando el filtro de nivel esconde todo, conviene
-// explicar por qué en vez de decir que no hay representantes registrados.
-const vacioTitulo = computed(() =>
-  tab.value === 'representantes' && nivelConsulta.value
-    ? `No hay representantes en ${alcanceNivel.value}`
-    : vacios[tab.value].titulo,
-)
-const vacioTexto = computed(() =>
-  tab.value === 'representantes' && nivelConsulta.value
-    ? 'Solo aparecen representantes con estudiantes activos en ese nivel.'
-    : vacios[tab.value].texto,
-)
+// explicar por qué en vez de decir que no hay registros.
+const vacioTitulo = computed(() => {
+  if (tab.value === 'secciones' && periodoSeleccionado.value) {
+    return `No hay secciones en ${alcanceNivel.value} · ${periodoSeleccionado.value}`
+  }
+  if (tab.value === 'asignaturas' && periodoSeleccionado.value) {
+    return `No hay asignaturas en ${alcanceNivel.value} · ${periodoSeleccionado.value}`
+  }
+  if (tab.value === 'horarios' && horarioSeccion.value) {
+    return `No hay horarios para ${etiquetaHorarioSeccion.value}`
+  }
+  if (!nivelConsulta.value) return vacios[tab.value].titulo
+  if (tab.value === 'representantes') return `No hay representantes en ${alcanceNivel.value}`
+  if (tab.value === 'estudiantes') return `No hay estudiantes en ${alcanceNivel.value}`
+  if (tab.value === 'secciones') return `No hay secciones en ${alcanceNivel.value}`
+  return vacios[tab.value].titulo
+})
+const vacioTexto = computed(() => {
+  if (tab.value === 'secciones' && periodoSeleccionado.value) {
+    return `Registra una sección para el período ${periodoSeleccionado.value} en ese nivel o cambia los filtros.`
+  }
+  if (tab.value === 'asignaturas' && periodoSeleccionado.value) {
+    return `Las asignaturas solo se registran en grados de Liceo para el período ${periodoSeleccionado.value}. Cambia el filtro de nivel o de período.`
+  }
+  if (tab.value === 'horarios' && horarioSeccion.value) {
+    return 'Registra un horario para esa sección o quita el filtro para ver los demás.'
+  }
+  if (!nivelConsulta.value) return vacios[tab.value].texto
+  if (tab.value === 'representantes') {
+    return 'Solo aparecen representantes con estudiantes activos en ese nivel.'
+  }
+  if (tab.value === 'estudiantes') {
+    return 'Registra un estudiante en ese nivel o cambia el filtro de nivel.'
+  }
+  return vacios[tab.value].texto
+})
 
-// "docente"/"docentes" según la pestaña, para los textos de totales.
+// "sección"/"secciones" según la pestaña, para los textos de totales.
 const sustantivo = computed(() => {
-  const { singular } = tabActual.value
-  return { uno: singular, varios: `${singular}s` }
+  const { singular, plural } = tabActual.value
+  return { uno: singular, varios: plural ?? `${singular}s` }
 })
 
 const docentes = useRecursoPaginado({
@@ -135,6 +205,21 @@ const docentes = useRecursoPaginado({
   asignar: (items) => { datos.docentes = items },
   porDefecto: POR_PAGINA,
 })
+// Secciones se muestra completa (son pocas) y agrupada por grado/letra, así
+// que no usa el selector "Por página". El período se inyecta en ambas consultas.
+const secciones = useRecursoPaginado({
+  listar: (args) => listarSecciones({
+    ...args,
+    periodoLectivo: periodoSeleccionado.value || undefined,
+  }),
+  listarTodos: (args) => listarTodasSecciones({
+    ...args,
+    periodoLectivo: periodoSeleccionado.value || undefined,
+  }),
+  getNivel: () => nivelConsulta.value,
+  asignar: (items) => { datos.secciones = items },
+  porDefecto: 100,
+})
 const representantes = useRecursoPaginado({
   listar: listarRepresentantes,
   listarTodos: listarTodosRepresentantes,
@@ -142,92 +227,412 @@ const representantes = useRecursoPaginado({
   asignar: (items) => { datos.representantes = items },
   porDefecto: POR_PAGINA,
 })
+const estudiantes = useRecursoPaginado({
+  listar: listarEstudiantes,
+  listarTodos: listarTodosEstudiantes,
+  getNivel: () => nivelConsulta.value,
+  asignar: (items) => { datos.estudiantes = items },
+  porDefecto: POR_PAGINA,
+})
+// Las asignaturas pertenecen a un grado y a un año lectivo: se consultan con
+// el mismo período elegido en Secciones para no mezclar períodos distintos.
+const asignaturas = useRecursoPaginado({
+  listar: (args) => listarAsignaturas({
+    ...args,
+    periodoLectivo: periodoSeleccionado.value || undefined,
+  }),
+  listarTodos: (args) => listarTodasAsignaturas({
+    ...args,
+    periodoLectivo: periodoSeleccionado.value || undefined,
+  }),
+  getNivel: () => nivelConsulta.value,
+  asignar: (items) => { datos.asignaturas = items },
+  porDefecto: POR_PAGINA,
+})
+// Los horarios comparten el período elegido y, al venir desde Secciones, se
+// reducen a la sección elegida. El nivel lo inyecta el composable.
+const horarios = useRecursoPaginado({
+  listar: (args) => listarHorarios({
+    ...args,
+    periodoLectivo: periodoSeleccionado.value || undefined,
+    idSeccion: horarioSeccion.value?.id ?? undefined,
+  }),
+  listarTodos: (args) => listarTodosHorarios({
+    ...args,
+    periodoLectivo: periodoSeleccionado.value || undefined,
+    idSeccion: horarioSeccion.value?.id ?? undefined,
+  }),
+  getNivel: () => nivelConsulta.value,
+  asignar: (items) => { datos.horarios = items },
+  porDefecto: POR_PAGINA,
+})
 
 const docentesApi = docentes.estado
+const seccionesApi = secciones.estado
 const representantesApi = representantes.estado
+const estudiantesApi = estudiantes.estado
+const asignaturasApi = asignaturas.estado
+const horariosApi = horarios.estado
 const cargarDocentes = docentes.cargar
 const cargarTodosDocentes = docentes.cargarTodos
+const cargarSecciones = secciones.cargar
+const cargarTodosSecciones = secciones.cargarTodos
 const cargarRepresentantes = representantes.cargar
 const cargarTodosRepresentantes = representantes.cargarTodos
+const cargarEstudiantes = estudiantes.cargar
+const cargarTodosEstudiantes = estudiantes.cargarTodos
+const cargarAsignaturas = asignaturas.cargar
+const cargarTodosAsignaturas = asignaturas.cargarTodos
+const cargarHorarios = horarios.cargar
+const cargarTodosHorariosApi = horarios.cargarTodos
 
-// Pestaña cuyo listado vive en el backend (null en las que siguen locales).
+// Conteos globales para las insignias de las pestañas. Se piden una sola vez
+// al /gestion/resumen en vez de esperar a que se visite cada listado.
+const resumen = reactive({ datos: null, cargando: false, error: '' })
+let resumenSolicitud = 0
+const cargarResumen = async () => {
+  const solicitud = ++resumenSolicitud
+  resumen.cargando = true
+  resumen.error = ''
+  try {
+    const datos = await obtenerResumenGestion({
+      nivel: nivelConsulta.value || undefined,
+    })
+    if (solicitud === resumenSolicitud) resumen.datos = datos
+  } catch (error) {
+    if (solicitud !== resumenSolicitud) return
+    resumen.datos = null
+    resumen.error = error?.message || 'No se pudo cargar el resumen de gestión.'
+  } finally {
+    if (solicitud === resumenSolicitud) resumen.cargando = false
+  }
+}
+watch(nivelConsulta, () => {
+  resumen.datos = null
+  cargarResumen()
+})
+// Los totales de los listados cambian al crear o eliminar registros: eso también
+// debe reflejarse en las insignias de las demás pestañas.
+watch(
+  () => [
+    seccionesApi.total,
+    docentesApi.total,
+    representantesApi.total,
+    estudiantesApi.total,
+    asignaturasApi.total,
+    horariosApi.total,
+  ],
+  () => { cargarResumen() },
+)
+
+// Cambiar el período recarga la matriz de secciones, las asignaturas y los
+// horarios de ese año; los demás listados no dependen de él.
+watch(periodoSeleccionado, () => {
+  // La carga inicial ya se hace en onMounted; solo reaccionamos a cambios
+  // posteriores del selector de período.
+  if (tab.value === 'secciones' && seccionesApi.cargado) {
+    pagina.secciones = 1
+    secciones.reiniciar()
+    cargarSecciones(1)
+  }
+  if (tab.value === 'asignaturas' && asignaturasApi.cargado) {
+    pagina.asignaturas = 1
+    asignaturas.reiniciar()
+    cargarAsignaturas(1)
+  }
+  if (tab.value === 'horarios' && horariosApi.cargado) {
+    pagina.horarios = 1
+    horarios.reiniciar()
+    cargarHorarios(1)
+  }
+})
+
+// ───────────── Catálogos del formulario de estudiantes ─────────────
+// grados y secciones se piden para el nivel de la consulta; el período activo
+// define el año escolar con el que se crea una sección si todavía no existe.
+const catalogos = reactive({
+  grados: [],
+  secciones: [],
+  periodos: [],
+  periodoActivo: null,
+  cargando: false,
+  error: '',
+})
+
+const cargarCatalogos = async () => {
+  catalogos.cargando = true
+  catalogos.error = ''
+  try {
+    const nivel = nivelConsulta.value || undefined
+    const [grados, secciones, periodos, periodo] = await Promise.all([
+      listarTodosGrados({ nivel }),
+      listarTodasSecciones({ nivel }),
+      listarPeriodos(),
+      obtenerPeriodoActivo(),
+    ])
+    catalogos.grados = grados.items
+    catalogos.secciones = secciones.items
+    catalogos.periodos = periodos
+    catalogos.periodoActivo = periodo
+    if (periodo && !periodoSeleccionado.value) periodoSeleccionado.value = periodo.anio
+  } catch (error) {
+    catalogos.error = error?.message || 'No se pudieron cargar los grados, las secciones o los períodos.'
+  } finally {
+    catalogos.cargando = false
+  }
+}
+
+// El selector del formulario de estudiantes necesita TODOS los representantes,
+// sin el filtro de nivel de la pestaña: un representante es global y puede no
+// tener estudiantes en el nivel consultado. Se cachea aparte de la lista que
+// usa la búsqueda de la pestaña Representantes.
+const repsFormulario = reactive({ items: [], listo: false, cargando: false, error: '' })
+const cargarRepsFormulario = async () => {
+  if (repsFormulario.cargando) return
+  repsFormulario.cargando = true
+  repsFormulario.error = ''
+  try {
+    const { items } = await listarTodosRepresentantes()
+    repsFormulario.items = items
+    repsFormulario.listo = true
+  } catch (error) {
+    repsFormulario.error = error?.message || 'No se pudieron cargar los representantes.'
+  } finally {
+    repsFormulario.cargando = false
+  }
+}
+const invalidarRepsFormulario = () => {
+  repsFormulario.items = []
+  repsFormulario.listo = false
+}
+
+// Titulares posibles para secciones de Escuela. Se cargan aparte porque el
+// docente titular es opcional y no debe bloquear el formulario si no hay
+// docentes registrados todavía.
+const titulares = reactive({ items: [], listo: false, cargando: false, error: '' })
+const cargarTitulares = async () => {
+  if (titulares.cargando) return
+  titulares.cargando = true
+  titulares.error = ''
+  try {
+    const { items } = await listarTodosDocentes({ nivel: 'ESCUELA' })
+    titulares.items = items
+    titulares.listo = true
+  } catch (error) {
+    titulares.error = error?.message || 'No se pudieron cargar los docentes de Escuela.'
+  } finally {
+    titulares.cargando = false
+  }
+}
+const invalidarTitulares = () => {
+  titulares.items = []
+  titulares.listo = false
+}
+
+// Catálogo del panel de asignaturas: docentes y grados de Liceo. Se pide aparte
+// porque el filtro de nivel de la pestaña puede estar en Escuela y aun así hay
+// que poder registrar asignaturas.
+const catalogoAsignaturas = reactive({
+  docentes: [],
+  grados: [],
+  listo: false,
+  cargando: false,
+  error: '',
+})
+const cargarCatalogoAsignaturas = async () => {
+  if (catalogoAsignaturas.cargando) return
+  catalogoAsignaturas.cargando = true
+  catalogoAsignaturas.error = ''
+  try {
+    const [docentes, grados] = await Promise.all([
+      listarTodosDocentes({ nivel: 'LICEO' }),
+      listarTodosGrados({ nivel: 'LICEO' }),
+    ])
+    catalogoAsignaturas.docentes = docentes.items
+    catalogoAsignaturas.grados = grados.items
+    catalogoAsignaturas.listo = true
+  } catch (error) {
+    catalogoAsignaturas.error = error?.message || 'No se pudo cargar el catálogo de Liceo.'
+  } finally {
+    catalogoAsignaturas.cargando = false
+  }
+}
+const invalidarCatalogoAsignaturas = () => {
+  catalogoAsignaturas.docentes = []
+  catalogoAsignaturas.grados = []
+  catalogoAsignaturas.listo = false
+}
+
+// Catálogo del panel de horarios: secciones de Liceo (para elegir el grado),
+// asignaturas con sus docentes vinculados, bloques académicos y un listado
+// completo de horarios para detectar choques de sección/docente.
+const catalogoHorarios = reactive({
+  secciones: [],
+  asignaturas: [],
+  bloques: [],
+  horarios: [],
+  listo: false,
+  cargando: false,
+  error: '',
+})
+let promesaCatalogoHorarios = null
+let versionCatalogoHorarios = 0
+const cargarCatalogoHorarios = () => {
+  if (catalogoHorarios.listo) return Promise.resolve()
+  if (promesaCatalogoHorarios) return promesaCatalogoHorarios
+
+  const version = versionCatalogoHorarios
+  catalogoHorarios.cargando = true
+  catalogoHorarios.error = ''
+  promesaCatalogoHorarios = (async () => {
+    try {
+      const [secciones, asignaturas, bloques, todos] = await Promise.all([
+        listarTodasSecciones({ nivel: 'LICEO' }),
+        listarTodasAsignaturas({ nivel: 'LICEO' }),
+        listarBloquesAcademicos(),
+        listarTodosHorarios(),
+      ])
+      // Si algo invalidó el catálogo mientras cargaba, estos datos ya no sirven.
+      if (version !== versionCatalogoHorarios) return
+      catalogoHorarios.secciones = secciones.items
+      catalogoHorarios.asignaturas = asignaturas.items
+      catalogoHorarios.bloques = bloques
+      catalogoHorarios.horarios = todos.items
+      catalogoHorarios.listo = true
+    } catch (error) {
+      if (version === versionCatalogoHorarios) {
+        catalogoHorarios.error = error?.message || 'No se pudo cargar el catálogo de horarios.'
+      }
+    } finally {
+      catalogoHorarios.cargando = false
+      promesaCatalogoHorarios = null
+    }
+  })()
+  return promesaCatalogoHorarios
+}
+const invalidarCatalogoHorarios = () => {
+  versionCatalogoHorarios += 1
+  catalogoHorarios.secciones = []
+  catalogoHorarios.asignaturas = []
+  catalogoHorarios.bloques = []
+  catalogoHorarios.horarios = []
+  catalogoHorarios.listo = false
+}
+
+// Pestaña cuyo listado vive en el backend.
 const apiTab = computed(() =>
-  ({ docentes: docentesApi, representantes: representantesApi }[tab.value] ?? null),
+  ({
+    secciones: seccionesApi,
+    docentes: docentesApi,
+    representantes: representantesApi,
+    estudiantes: estudiantesApi,
+    asignaturas: asignaturasApi,
+    horarios: horariosApi,
+  }[tab.value] ?? null),
 )
 
 const cargarTab = (paginaSolicitada) => {
+  if (tab.value === 'secciones') return cargarSecciones(paginaSolicitada)
   if (tab.value === 'docentes') return cargarDocentes(paginaSolicitada)
   if (tab.value === 'representantes') return cargarRepresentantes(paginaSolicitada)
+  if (tab.value === 'estudiantes') return cargarEstudiantes(paginaSolicitada)
+  if (tab.value === 'asignaturas') return cargarAsignaturas(paginaSolicitada)
+  if (tab.value === 'horarios') return cargarHorarios(paginaSolicitada)
 }
 const cargarTodosTab = () => {
+  if (tab.value === 'secciones') return cargarTodosSecciones()
   if (tab.value === 'docentes') return cargarTodosDocentes()
   if (tab.value === 'representantes') return cargarTodosRepresentantes()
+  if (tab.value === 'estudiantes') return cargarTodosEstudiantes()
+  if (tab.value === 'asignaturas') return cargarTodosAsignaturas()
+  if (tab.value === 'horarios') return cargarTodosHorariosApi()
 }
 const recargarTab = () =>
   filtrando.value ? cargarTodosTab() : cargarTab(apiTab.value?.page ?? 1)
 
-const refrescarDocentes = () => docentes.refrescar({ conTodos: filtrando.value })
-const refrescarRepresentantes = () =>
-  representantes.refrescar({ conTodos: filtrando.value })
+const refrescarAsignaturas = () => {
+  invalidarCatalogoHorarios()
+  return asignaturas.refrescar({ conTodos: filtrando.value })
+}
+const refrescarDocentes = () => {
+  invalidarTitulares()
+  invalidarCatalogoAsignaturas()
+  invalidarCatalogoHorarios()
+  return docentes.refrescar({ conTodos: filtrando.value })
+}
+const refrescarSecciones = async () => {
+  // El catálogo decide el formato de cada fila, así que hay que esperarlo
+  // junto con el listado antes de volver a pintar la matriz.
+  invalidarCatalogoHorarios()
+  await Promise.all([
+    cargarCatalogos(),
+    secciones.refrescar({ conTodos: filtrando.value }),
+  ])
+}
+const refrescarRepresentantes = () => {
+  invalidarRepsFormulario()
+  return representantes.refrescar({ conTodos: filtrando.value })
+}
+const refrescarEstudiantes = () =>
+  estudiantes.refrescar({ conTodos: filtrando.value })
+const refrescarHorarios = () => {
+  invalidarCatalogoHorarios()
+  return horarios.refrescar({ conTodos: filtrando.value })
+}
 
-onMounted(() => {
-  // Las demás pestañas siguen con datos locales hasta que sus endpoints se conecten.
+onMounted(async () => {
+  // Los conteos no dependen del período ni del catálogo: se piden en cuanto
+  // monta la vista para que todas las pestañas tengan su insignia.
+  cargarResumen()
+  // Primero los catálogos: así el período activo ya está elegido cuando se
+  // pide la primera página de secciones.
+  await cargarCatalogos()
   if (apiTab.value) cargarTab(1)
-  if (tab.value === 'estudiantes') cargarTodosRepresentantes()
+  if (tab.value === 'estudiantes') cargarRepsFormulario()
+  if (tab.value === 'secciones') cargarTitulares()
+  if (tab.value === 'asignaturas') cargarCatalogoAsignaturas()
+  if (tab.value === 'horarios') cargarCatalogoHorarios()
 })
 
 // ───────────── Helpers ─────────────
-// norm, ordinal, nomPersona, nomEst, nomDocente, diaNombre y gradoTexto
-// vienen de components/gestion-academica/helpers.js
-const porId = (lista, id) => datos[lista].find((x) => x.id === id)
-const buscarGrado = (grado, seccion) => datos.grados.find((g) => g.grado === grado && g.seccion === seccion)
-const obtenerGrado = (grado, seccion) => {
-  let g = buscarGrado(grado, seccion)
-  if (!g) {
-    g = { id: nuevoId(), grado, seccion } // TODO FastAPI: el backend crea el grado si no existe
-    datos.grados.push(g)
-  }
-  return g.id
-}
+// norm, nomPersona, nomEst, nomDocente y diaNombre vienen de helpers.js
 const etiqueta = (t, x) =>
-  t === 'estudiantes'
-    ? nomEst(x)
-    : t === 'asignaturas'
+  t === 'secciones'
+    ? `${x.gradoNombre || 'Grado'} · Sección ${x.letra || '—'}`
+    : t === 'estudiantes'
+      ? `${nomEst(x)}${x.cedula ? ` (${x.cedula})` : ''}`
+      : t === 'asignaturas'
       ? x.nombre
       : t === 'docentes'
         ? nomDocente(x)
         : t === 'horarios'
-          ? `${gradoTexto(datos.grados, x.gradoId)} · ${diaNombre(x.diaSemana)} ${x.hora.slice(0, 5)}`
+          ? `${x.seccion || x.grado || 'Horario'} · ${diaNombre(x.diaSemana)} ${x.bloque || ''}`
           : nomPersona(x)
 
 // ───────────── Búsqueda (un solo campo por pestaña) ─────────────
-const busq = reactive({ representantes: '', estudiantes: '', asignaturas: '', docentes: '', horarios: '' })
+const busq = reactive({ secciones: '', representantes: '', estudiantes: '', asignaturas: '', docentes: '', horarios: '' })
 
-const listaEstudiantes = computed(() => {
-  const q = norm(busq.estudiantes)
-  return datos.estudiantes.filter((e) => !q || norm(nomEst(e)).includes(q))
-})
 const listaAsignaturas = computed(() => {
   const q = norm(busq.asignaturas)
   return datos.asignaturas.filter((a) => !q || norm(a.nombre).includes(q))
 })
-const listaHorarios = computed(() => {
-  const q = norm(busq.horarios)
-  return datos.horarios
-    .filter((h) => {
-      const g = porId('grados', h.gradoId)
-      const texto = `${gradoTexto(datos.grados, h.gradoId)} ${g?.grado ?? ''}${g?.seccion ?? ''} ${diaNombre(h.diaSemana)} ${porId('asignaturas', h.asignaturaId)?.nombre ?? ''}`
-      return !q || norm(texto).includes(q)
-    })
-    .sort((a, b) => {
-      const ga = porId('grados', a.gradoId), gb = porId('grados', b.gradoId)
-      return (ga?.grado - gb?.grado) || (ga?.seccion ?? '').localeCompare(gb?.seccion ?? '') || (a.diaSemana - b.diaSemana) || a.hora.localeCompare(b.hora)
-    })
-})
 
 // Texto sobre el que se busca en cada pestaña conectada a la API.
-const textoBusqueda = (t, x) =>
-  t === 'docentes' ? `${nomDocente(x)} ${x.cedula ?? ''}` : etiqueta(t, x)
+const textoBusqueda = (t, x) => {
+  if (t === 'secciones') {
+    return `${x.gradoNombre ?? ''} ${x.letra ?? ''} ${x.nivel ?? ''} ${x.periodoLectivo ?? ''} ${x.docenteTitular ?? ''}`
+  }
+  if (t === 'docentes') return `${nomDocente(x)} ${x.cedula ?? ''}`
+  if (t === 'estudiantes') return `${nomEst(x)} ${x.cedula ?? ''}`
+  if (t === 'asignaturas') {
+    const docentes = (x.docentes ?? []).map(nomDocente).join(' ')
+    return `${x.nombre ?? ''} ${x.gradoNombre ?? ''} ${x.periodoLectivo ?? ''} ${docentes}`
+  }
+  if (t === 'horarios') {
+    return `${x.seccion ?? ''} ${x.grado ?? ''} ${x.nivel ?? ''} ${diaNombre(x.diaSemana)} ${x.bloque ?? ''} ${x.asignatura ?? ''} ${x.docente ?? ''} ${x.periodoLectivo ?? ''}`
+  }
+  return etiqueta(t, x)
+}
 
 // Búsqueda de las pestañas conectadas: el backend no filtra, así que se hace
 // en el cliente sobre la lista completa (sin mayúsculas ni acentos).
@@ -245,7 +650,7 @@ const cargandoTab = computed(
 )
 
 // ───────────── Paginación ─────────────
-const pagina = reactive({ representantes: 1, estudiantes: 1, asignaturas: 1, docentes: 1, horarios: 1 })
+const pagina = reactive({ secciones: 1, representantes: 1, estudiantes: 1, asignaturas: 1, docentes: 1, horarios: 1 })
 Object.keys(busq).forEach((k) => watch(() => busq[k], () => { pagina[k] = 1 })) // al buscar, vuelve a la página 1
 
 // Al buscar en una pestaña conectada se necesita la lista completa para
@@ -259,11 +664,7 @@ watch(() => [tab.value, busq[tab.value]], () => {
 
 const listaTab = computed(() => {
   if (apiTab.value) return filtrando.value ? filtrados.value : datos[tab.value]
-  return {
-    estudiantes: listaEstudiantes.value,
-    asignaturas: listaAsignaturas.value,
-    horarios: listaHorarios.value,
-  }[tab.value] ?? []
+  return listaAsignaturas.value
 })
 
 // Las pestañas conectadas usan el total y la página del servidor, salvo con
@@ -318,20 +719,41 @@ const vigilarTamano = (nombre, api, recargar) =>
   })
 vigilarTamano('docentes', docentesApi, cargarDocentes)
 vigilarTamano('representantes', representantesApi, cargarRepresentantes)
+vigilarTamano('estudiantes', estudiantesApi, cargarEstudiantes)
+vigilarTamano('asignaturas', asignaturasApi, cargarAsignaturas)
+vigilarTamano('horarios', horariosApi, cargarHorarios)
 
-// Cambiar el nivel reinicia ambos listados del servidor.
+// Cambiar el nivel reinicia los listados del servidor y recarga los catálogos
+// del formulario (grados y secciones del nivel).
 watch(nivelFiltro, () => {
   if (!esAdministrador.value) return
+  pagina.secciones = 1
   pagina.docentes = 1
   pagina.representantes = 1
+  pagina.estudiantes = 1
+  pagina.asignaturas = 1
+  pagina.horarios = 1
+  secciones.reiniciar()
   docentes.reiniciar()
   representantes.reiniciar()
+  estudiantes.reiniciar()
+  asignaturas.reiniciar()
+  horarios.reiniciar()
   if (apiTab.value) cargarTab(1)
+  cargarCatalogos()
 })
 
 const totalTab = (id) => {
+  // El resumen es la fuente de verdad: incluye pestañas que todavía no se
+  // visitaron. Mientras carga se conserva el total local del listado activo.
+  const conteo = resumen.datos
+  if (conteo && Object.prototype.hasOwnProperty.call(conteo, id)) return conteo[id]
+  if (id === 'secciones') return seccionesApi.total
   if (id === 'docentes') return docentesApi.total
   if (id === 'representantes') return representantesApi.total
+  if (id === 'estudiantes') return estudiantesApi.total
+  if (id === 'asignaturas') return asignaturasApi.total
+  if (id === 'horarios') return horariosApi.total
   return datos[id].length
 }
 const botonesPagina = computed(() => {
@@ -350,13 +772,81 @@ const panelRef = ref(null)
 const repBusq = ref('')
 
 const formVacio = {
+  secciones: () => ({
+    idGrado: '',
+    formato: '',
+    periodoLectivo: periodoSeleccionado.value || '',
+    // Un docente distinto por sección: A, B y U pueden tener titulares propios.
+    titulares: { U: null, A: null, B: null },
+    letra: '',
+    idDocenteTitular: null,
+  }),
   representantes: () => ({ primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: '', telefono: '' }),
-  estudiantes: () => ({ primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: '', anio: '', seccion: '', representanteIds: [] }),
-  asignaturas: () => ({ nombre: '' }),
+  estudiantes: () => ({
+    cedula: '',
+    primerNombre: '',
+    segundoNombre: '',
+    primerApellido: '',
+    segundoApellido: '',
+    fechaNacimiento: '',
+    idGrado: '',
+    // El estudiante pertenece a una sección ya registrada; nunca se crea una
+    // sección automáticamente al guardar.
+    idSeccion: null,
+    idRepresentante: null,
+    representanteNombre: '',
+  }),
+  asignaturas: () => ({
+    nombre: '',
+    idGrado: '',
+    periodoLectivo: periodoSeleccionado.value || '',
+    docenteIds: [],
+  }),
   docentes: () => ({ primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: '', cedula: '', nivel: nivelFiltro.value || '' }),
-  horarios: () => ({ anio: '', seccion: '', diaSemana: '', hora: '', asignaturaId: '' }),
+  horarios: () => ({
+    idSeccion: null,
+    idBloque: null,
+    idAsignatura: null,
+    idDocente: null,
+    periodoLectivo: periodoSeleccionado.value || '',
+    diaSemana: '',
+  }),
+}
+
+// Registro rápido de representante dentro del panel de estudiantes. Es un
+// formulario independiente: abrirlo no cambia de pestaña ni toca `form`, así
+// que los datos ya escritos del estudiante se conservan.
+const repInline = reactive({
+  abierto: false,
+  guardando: false,
+  error: '',
+  form: formVacio.representantes(),
+})
+const reiniciarRepInline = () => {
+  repInline.abierto = false
+  repInline.guardando = false
+  repInline.error = ''
+  repInline.form = formVacio.representantes()
 }
 const tituloPanel = computed(() => (panel.modo === 'crear' ? tabActual.value.nuevo : `Editar ${tabActual.value.singular}`))
+
+// El nivel del grado define si se ofrece docente titular (solo Escuela).
+const gradoDelFormulario = computed(() =>
+  catalogos.grados.find((g) => g.id === Number(form.value.idGrado)),
+)
+const esSeccionEscuela = computed(() => gradoDelFormulario.value?.nivel === 'ESCUELA')
+const formatoDelFormulario = computed(
+  () => form.value.formato || (form.value.letra === 'U' ? 'unica' : form.value.letra ? 'dividida' : ''),
+)
+const letrasDelFormulario = computed(() => LETRAS_POR_FORMATO[formatoDelFormulario.value] ?? [])
+const fijarTitular = (letra, valor) => {
+  form.value.titulares ??= { U: null, A: null, B: null }
+  form.value.titulares[letra] = valor === '' || valor === null ? null : Number(valor)
+}
+const etiquetaHorarioSeccion = computed(() => {
+  const s = horarioSeccion.value
+  return s ? `${s.gradoNombre || 'Grado'} · Sección ${s.letra}` : ''
+})
 
 const enfocarPrimerCampo = async () => {
   await nextTick()
@@ -367,76 +857,445 @@ const abrirNuevo = () => {
   panel.modo = 'crear'
   errorForm.value = ''
   repBusq.value = ''
+  reiniciarRepInline()
+  if (tab.value === 'estudiantes') cargarRepsFormulario()
+  if (tab.value === 'secciones') cargarTitulares()
+  if (tab.value === 'asignaturas') cargarCatalogoAsignaturas()
+  if (tab.value === 'horarios') cargarCatalogoHorarios()
   panel.abierto = true
   enfocarPrimerCampo()
 }
-const abrirEditar = (item) => {
+const abrirEditar = async (item) => {
+  if (tab.value === 'horarios') await cargarCatalogoHorarios()
   const copia = JSON.parse(JSON.stringify(item))
-  if (tab.value === 'estudiantes' || tab.value === 'horarios') {
-    const g = porId('grados', item.gradoId)
-    copia.anio = g?.grado ?? ''
-    copia.seccion = g?.seccion ?? ''
+  if (tab.value === 'secciones') {
+    // El grado y la letra no se pueden cambiar: el backend solo acepta letra,
+    // período y docente titular en el PUT, y A/B deben ir juntas.
+    copia.idGrado = item.idGrado ?? ''
+    copia.letra = item.letra ?? ''
+    copia.formato = item.letra === 'U' ? 'unica' : 'dividida'
+    copia.titulares = { ...formVacio.secciones().titulares }
+  } else if (tab.value === 'estudiantes') {
+    // La API ya devuelve el grado y la sección a la que pertenece.
+    copia.idGrado = item.idGrado ?? ''
+    copia.idSeccion = item.idSeccion ?? null
+    // Se conservan aunque el filtro de nivel oculte alguno de ellos, para que
+    // el selector no quede vacío al editar un estudiante existente.
+    copia.gradoActual = {
+      id: item.idGrado,
+      nombre: item.gradoNombre,
+      numero: item.gradoNumero,
+      nivel: item.nivel,
+    }
+    copia.seccionActual = {
+      id: item.idSeccion,
+      idGrado: item.idGrado,
+      letra: item.seccionLetra,
+      periodoLectivo: item.periodoLectivo,
+    }
+  } else if (tab.value === 'asignaturas') {
+    // El grado y el período son fijos en el PUT (el backend rechaza el año).
+    copia.idGrado = item.idGrado ?? ''
+    copia.periodoLectivo = item.periodoLectivo ?? ''
+    copia.docentesAnteriores = (item.docentes ?? []).map((d) => d.id)
+    copia.docenteIds = [...copia.docentesAnteriores]
+  } else if (tab.value === 'horarios') {
+    // El DTO trae los nombres y los id's; el catálogo aporta id_grado para
+    // filtrar las asignaturas. Se conserva lo original por si cambió el filtro.
+    const seccionCatalogo = catalogoHorarios.secciones.find(
+      (s) => s.id === item.idSeccion,
+    )
+    const docenteActual = item.docente
+      ? { id: item.idDocente, nombre: item.docente }
+      : null
+    copia.idSeccion = item.idSeccion ?? null
+    copia.idBloque = item.idBloque ?? null
+    copia.idAsignatura = item.idAsignatura ?? null
+    copia.idDocente = item.idDocente ?? null
+    copia.periodoLectivo = item.periodoLectivo ?? ''
+    copia.diaSemana = item.diaSemana ?? ''
+    copia.seccionActual = seccionCatalogo
+      ? { ...seccionCatalogo }
+      : {
+          id: item.idSeccion,
+          idGrado: null,
+          letra: String(item.seccion ?? '').split(' ').pop() ?? '',
+          gradoNombre: item.grado ?? '',
+          periodoLectivo: item.periodoLectivo,
+          nivel: 'LICEO',
+        }
+    copia.asignaturaActual = {
+      id: item.idAsignatura,
+      nombre: item.asignatura ?? '',
+      idGrado: seccionCatalogo?.idGrado ?? null,
+      periodoLectivo: item.periodoLectivo,
+      nivel: 'LICEO',
+      docentes: docenteActual ? [docenteActual] : [],
+    }
+    copia.docenteActual = docenteActual
   }
   form.value = copia
   panel.modo = 'editar'
   errorForm.value = ''
   repBusq.value = ''
+  reiniciarRepInline()
+  if (tab.value === 'estudiantes') cargarRepsFormulario()
+  if (tab.value === 'secciones') cargarTitulares()
+  if (tab.value === 'asignaturas') cargarCatalogoAsignaturas()
+  if (tab.value === 'horarios') cargarCatalogoHorarios()
   panel.abierto = true
   enfocarPrimerCampo()
 }
-const cerrarPanel = () => { panel.abierto = false }
+const cerrarPanel = () => {
+  panel.abierto = false
+  reiniciarRepInline()
+}
 const irA = (id) => { cerrarPanel(); tab.value = id }
+
+// "Celda vacía" de la matriz de secciones: abre el panel con grado, formato y
+// período ya puestos para no obligar a repetir lo que el usuario eligió.
+const crearSeccionEn = ({ idGrado, formato, periodoLectivo }) => {
+  form.value = {
+    ...formVacio.secciones(),
+    idGrado,
+    formato,
+    periodoLectivo: periodoLectivo || periodoSeleccionado.value,
+  }
+  panel.modo = 'crear'
+  errorForm.value = ''
+  cargarTitulares()
+  panel.abierto = true
+  enfocarPrimerCampo()
+}
+
+// Desde una sección de Liceo se salta a Horarios con el contexto de esa
+// sección. Escuela no se enlaza: su horario es corrido, no por bloques.
+const verHorario = (seccion) => {
+  const yaEnHorarios = tab.value === 'horarios'
+  horarioSeccion.value = seccion
+  busq.horarios = ''
+  pagina.horarios = 1
+  horarios.reiniciar()
+  tab.value = 'horarios'
+  // Si ya estábamos en Horarios, el watch de tab no se dispara.
+  if (yaEnHorarios && !horariosApi.loading) cargarHorarios(1)
+}
+const limpiarHorarioSeccion = () => {
+  horarioSeccion.value = null
+  pagina.horarios = 1
+  horarios.reiniciar()
+  if (tab.value === 'horarios' && !horariosApi.loading) cargarHorarios(1)
+}
+
 watch(tab, (valor) => {
   cerrarPanel()
   // La primera vez que se abre una pestaña conectada se pide la página 1.
   if (apiTab.value && !apiTab.value.cargado && !apiTab.value.loading) cargarTab(1)
-  // El selector de representantes del formulario de estudiantes necesita la
-  // lista completa, no solo la página visible.
-  if (valor === 'estudiantes' && !representantesApi.todosListo && !representantesApi.cargandoTodos) {
-    cargarTodosRepresentantes()
+  if (valor === 'estudiantes') cargarRepsFormulario()
+  if (valor === 'secciones') cargarTitulares()
+  if (valor === 'asignaturas') cargarCatalogoAsignaturas()
+  if (valor === 'horarios') cargarCatalogoHorarios()
+})
+
+// Selector de representantes del formulario de estudiantes.
+const repOpciones = computed(() =>
+  repsFormulario.listo ? repsFormulario.items : datos.representantes,
+)
+const repPorId = (id) =>
+  repsFormulario.items.find((r) => r.id === id) ??
+  datos.representantes.find((r) => r.id === id)
+const representanteNombre = computed(() => {
+  const rep = repPorId(form.value.idRepresentante)
+  return rep ? nomPersona(rep) : form.value.representanteNombre || '—'
+})
+const repCoincidencias = computed(() => {
+  const q = norm(repBusq.value.trim())
+  if (!q) return []
+  return repOpciones.value
+    .filter((r) => r.id !== form.value.idRepresentante && norm(nomPersona(r)).includes(q))
+    .slice(0, 6)
+})
+const agregarRep = (rep) => {
+  form.value.idRepresentante = rep.id
+  form.value.representanteNombre = nomPersona(rep)
+  repBusq.value = ''
+}
+const quitarRep = () => {
+  form.value.idRepresentante = null
+  form.value.representanteNombre = ''
+}
+
+// Alta de representante sin abandonar el formulario del estudiante.
+const abrirRepInline = () => {
+  repInline.error = ''
+  repInline.abierto = true
+}
+const cerrarRepInline = () => {
+  repInline.abierto = false
+  repInline.error = ''
+  repInline.form = formVacio.representantes()
+}
+const guardarRepInline = async () => {
+  for (const k in repInline.form) {
+    if (typeof repInline.form[k] === 'string') repInline.form[k] = repInline.form[k].trim()
+  }
+  const err = validar('representantes', repInline.form)
+  if (err) { repInline.error = err; return }
+
+  repInline.guardando = true
+  repInline.error = ''
+  try {
+    const creado = await crearRepresentante(repInline.form)
+    if (!repsFormulario.listo) {
+      repsFormulario.items = [creado]
+      repsFormulario.listo = true
+    } else if (!repsFormulario.items.some((r) => r.id === creado.id)) {
+      repsFormulario.items.push(creado)
+    }
+    // Se selecciona automáticamente y se cierra solo el subformulario: el
+    // estudiante sigue abierto con todos sus datos intactos.
+    agregarRep(creado)
+    cerrarRepInline()
+    // La pestaña Representantes se actualiza sin invalidar la caché que usa
+    // este formulario (refrescarRepresentantes sí la invalidaría).
+    await representantes.refrescar()
+    avisar('Representante registrado y vinculado al estudiante.')
+  } catch (error) {
+    repInline.error = error?.message || 'No se pudo registrar el representante.'
+  } finally {
+    repInline.guardando = false
+  }
+}
+
+// Catálogos del formulario de estudiantes. Se toman del catálogo general (que
+// trae todos los períodos) y se añade lo que ya tenía el estudiante al editar
+// para que el filtro de nivel nunca deje un selector vacío.
+const gradosDelFormulario = computed(() => {
+  const grados = [...catalogos.grados]
+  const actual = form.value?.gradoActual
+  if (actual && !grados.some((g) => g.id === actual.id)) grados.push(actual)
+  return grados
+})
+const seccionesDelFormulario = computed(() => {
+  const idGrado = Number(form.value?.idGrado)
+  if (!idGrado) return []
+  const seleccionada = Number(form.value?.idSeccion)
+  const secciones = [...catalogos.secciones]
+  const actual = form.value?.seccionActual
+  if (actual && !secciones.some((s) => s.id === actual.id)) secciones.push(actual)
+  return secciones.filter(
+    (s) => Number(s.idGrado) === idGrado || s.id === seleccionada,
+  )
+})
+// Si cambia el grado, la sección elegida deja de ser válida.
+watch(() => form.value?.idGrado, (id, anterior) => {
+  if (!panel.abierto || tab.value !== 'estudiantes' || anterior === id) return
+  const seccion = seccionesDelFormulario.value.find(
+    (s) => s.id === Number(form.value.idSeccion),
+  )
+  if (form.value.idSeccion && Number(seccion?.idGrado) !== Number(id)) {
+    form.value.idSeccion = null
+  }
+})
+// Al corregir la sección que faltaba, se retira el aviso anterior.
+watch(() => form.value?.idSeccion, (valor, anterior) => {
+  if (
+    panel.abierto &&
+    tab.value === 'estudiantes' &&
+    valor &&
+    valor !== anterior &&
+    errorForm.value.includes('sección')
+  ) {
+    errorForm.value = ''
   }
 })
 
-// Selector de representantes (pestaña Estudiantes, aún local).
-const repOpciones = computed(() =>
-  representantesApi.todosListo ? representantesApi.todos : datos.representantes,
-)
-const repPorId = (id) =>
-  representantesApi.todos.find((r) => r.id === id) ??
-  datos.representantes.find((r) => r.id === id)
-const repCoincidencias = computed(() => {
-  const q = norm(repBusq.value.trim())
-  const elegidos = form.value.representanteIds ?? []
-  if (!q) return []
-  return repOpciones.value.filter((r) => !elegidos.includes(r.id) && norm(nomPersona(r)).includes(q)).slice(0, 6)
+// ───────────── Catálogos dependientes del formulario de horarios ─────────────
+// Secciones de Liceo del período elegido. Al editar se conserva la original
+// aunque ya no esté en el catálogo (por ejemplo, si cambió el filtro de nivel).
+const seccionesDelHorario = computed(() => {
+  const periodo = Number(form.value?.periodoLectivo)
+  const seleccionada = Number(form.value?.idSeccion)
+  const secciones = [...catalogoHorarios.secciones]
+  const actual = form.value?.seccionActual
+  if (actual && !secciones.some((s) => s.id === actual.id)) secciones.push(actual)
+  return secciones.filter(
+    (s) =>
+      (s.nivel === 'LICEO' && Number(s.periodoLectivo) === periodo) ||
+      s.id === seleccionada,
+  )
 })
-const agregarRep = (id) => { form.value.representanteIds.push(id); repBusq.value = '' }
-const quitarRep = (id) => { form.value.representanteIds = form.value.representanteIds.filter((x) => x !== id) }
+const seccionDelHorario = computed(() =>
+  seccionesDelHorario.value.find((s) => s.id === Number(form.value?.idSeccion)),
+)
+// Las asignaturas dependen del grado de la sección y del período.
+const asignaturasDelHorario = computed(() => {
+  const seccion = seccionDelHorario.value
+  const actual = form.value?.asignaturaActual
+  if (!seccion) return actual ? [actual] : []
+  const asignaturas = [...catalogoHorarios.asignaturas]
+  if (actual && !asignaturas.some((a) => a.id === actual.id)) asignaturas.push(actual)
+  return asignaturas.filter(
+    (a) =>
+      a.nivel === 'LICEO' &&
+      Number(a.periodoLectivo) === Number(form.value?.periodoLectivo) &&
+      Number(a.idGrado) === Number(seccion.idGrado),
+  )
+})
+// Un docente solo puede programarse si está vinculado a la asignatura elegida.
+const docentesDelHorario = computed(() => {
+  const asignatura = asignaturasDelHorario.value.find(
+    (a) => a.id === Number(form.value?.idAsignatura),
+  )
+  const docentes = [...(asignatura?.docentes ?? [])]
+  const actual = form.value?.docenteActual
+  if (actual && !docentes.some((d) => d.id === actual.id)) docentes.push(actual)
+  return docentes
+})
+// Al cambiar uno de los selectores dependientes, se descartan las opciones que
+// ya no son válidas. Solo aplica al registrar: al editar se conserva lo que
+// traía el horario aunque el catálogo haya cambiado.
+watch(
+  () => form.value?.periodoLectivo,
+  (valor, anterior) => {
+    if (!panel.abierto || panel.modo !== 'crear' || tab.value !== 'horarios' || valor === anterior) return
+    form.value.idSeccion = null
+    form.value.idAsignatura = null
+    form.value.idDocente = null
+  },
+)
+watch(
+  () => form.value?.idSeccion,
+  (valor, anterior) => {
+    if (!panel.abierto || panel.modo !== 'crear' || tab.value !== 'horarios' || valor === anterior) return
+    form.value.idAsignatura = null
+    form.value.idDocente = null
+  },
+)
+watch(
+  () => form.value?.idAsignatura,
+  (valor, anterior) => {
+    if (!panel.abierto || panel.modo !== 'crear' || tab.value !== 'horarios' || valor === anterior) return
+    form.value.idDocente = null
+  },
+)
 
 const validar = (t, f) => {
   const otros = datos[t].filter((x) => x.id !== f.id)
+  if (t === 'secciones') {
+    if (!f.idGrado) return 'Selecciona el grado de la sección.'
+    if (!f.periodoLectivo) return 'Selecciona el período lectivo.'
+    if (panel.modo === 'crear') {
+      if (!LETRAS_POR_FORMATO[f.formato]) {
+        return 'Selecciona el formato: sección única (U) o secciones A y B.'
+      }
+      const actual = formatoSecciones(catalogos.secciones, f.idGrado, f.periodoLectivo)
+      if (actual === 'unica') return 'Este grado ya tiene la sección única U. Dala de baja para crear A y B.'
+      if (actual === 'dividida') return 'Este grado ya tiene las secciones A y B. Dales de baja para crear la sección única U.'
+      if (actual === 'inconsistente') return 'Las secciones de este grado están inconsistentes. Dales de baja antes de crear otras.'
+    } else if (!f.letra) {
+      return 'Selecciona la sección que vas a editar.'
+    }
+  }
   if (t === 'representantes') {
     if (!f.primerNombre || !f.primerApellido) return 'El primer nombre y el primer apellido son obligatorios.'
     if (!f.telefono) return 'El número telefónico es obligatorio.'
   }
+  if (t === 'estudiantes') {
+    if (!f.cedula) return 'La cédula del estudiante es obligatoria.'
+    if (!f.primerNombre || !f.primerApellido) return 'El primer nombre y el primer apellido son obligatorios.'
+    if (!f.fechaNacimiento) return 'La fecha de nacimiento es obligatoria.'
+    if (f.fechaNacimiento > new Date().toISOString().slice(0, 10)) return 'La fecha de nacimiento no puede ser futura.'
+    if (!f.idGrado) return 'Selecciona el grado del estudiante.'
+    if (!f.idSeccion) return 'Selecciona una sección registrada para el estudiante.'
+    const seccion = seccionesDelFormulario.value.find(
+      (s) => s.id === Number(f.idSeccion),
+    )
+    if (!seccion) return 'La sección elegida no está registrada.'
+    if (Number(seccion.idGrado) !== Number(f.idGrado)) {
+      return 'La sección elegida no corresponde al grado seleccionado.'
+    }
+  }
   if (t === 'docentes' && !f.nivel) return 'Selecciona el nivel educativo del docente.'
-  if (t === 'asignaturas' && otros.some((x) => norm(x.nombre) === norm(f.nombre))) return 'Ya existe una asignatura con ese nombre.'
+  if (t === 'asignaturas') {
+    if (!String(f.nombre ?? '').trim()) return 'Escribe el nombre de la asignatura.'
+    if (!f.idGrado) return 'Selecciona el grado de Liceo.'
+    const grado = catalogoAsignaturas.grados.find((g) => g.id === Number(f.idGrado))
+    if (!grado || grado.nivel !== 'LICEO') {
+      return 'Las asignaturas solo se registran en grados de Liceo.'
+    }
+    if (panel.modo === 'crear' && !f.periodoLectivo) {
+      return 'Selecciona el período lectivo.'
+    }
+    // El duplicado se mide por grado + nombre + período. Se revisa sobre la
+    // caché completa (si ya se cargó) para no depender de la página visible.
+    const todas = asignaturasApi.todos.length ? asignaturasApi.todos : datos.asignaturas
+    const duplicada = todas.some(
+      (x) =>
+        x.id !== f.id &&
+        Number(x.idGrado) === Number(f.idGrado) &&
+        Number(x.periodoLectivo) === Number(f.periodoLectivo) &&
+        norm(x.nombre) === norm(f.nombre),
+    )
+    if (duplicada) return 'Ya existe esa asignatura en ese grado y período.'
+  }
   if (t === 'horarios') {
-    const g = buscarGrado(f.anio, f.seccion)
-    if (g && otros.some((h) => h.gradoId === g.id && h.diaSemana === f.diaSemana && h.hora === f.hora)) return 'Ese grado y sección ya tiene una clase a esa hora.'
+    if (!f.periodoLectivo) return 'Selecciona el período lectivo.'
+    if (!f.idSeccion) return 'Selecciona la sección de Liceo.'
+    const seccion = seccionesDelHorario.value.find((s) => s.id === Number(f.idSeccion))
+    if (!seccion) return 'La sección elegida no está registrada para ese período.'
+    if (Number(seccion.periodoLectivo) !== Number(f.periodoLectivo)) {
+      return 'La sección pertenece a otro período lectivo.'
+    }
+    if (!f.idBloque) return 'Selecciona el bloque horario.'
+    if (!f.diaSemana) return 'Selecciona el día de la semana.'
+    if (!f.idAsignatura) return 'Selecciona la asignatura.'
+    const asignatura = asignaturasDelHorario.value.find((a) => a.id === Number(f.idAsignatura))
+    if (!asignatura) return 'La asignatura no corresponde al grado y período de la sección.'
+    if (!f.idDocente) return 'Selecciona el docente.'
+    const docente = docentesDelHorario.value.find((d) => d.id === Number(f.idDocente))
+    if (!docente) return 'El docente no está vinculado a la asignatura.'
+
+    const conocidos = catalogoHorarios.horarios.length
+      ? catalogoHorarios.horarios
+      : horariosApi.todos.length ? horariosApi.todos : otros
+    const mismoBloqueDia = conocidos.filter(
+      (h) =>
+        h.id !== f.id &&
+        Number(h.periodoLectivo) === Number(f.periodoLectivo) &&
+        Number(h.idBloque) === Number(f.idBloque) &&
+        Number(h.diaSemana) === Number(f.diaSemana),
+    )
+    if (mismoBloqueDia.some((h) => Number(h.idSeccion) === Number(f.idSeccion))) {
+      return 'La sección ya tiene una clase en ese bloque y día.'
+    }
+    if (mismoBloqueDia.some((h) => Number(h.idDocente) === Number(f.idDocente))) {
+      return 'El docente ya tiene una clase en ese bloque y día.'
+    }
   }
   return ''
 }
-const construir = (t, f) => {
-  if (t === 'estudiantes') {
-    const { anio, seccion, ...r } = f
-    return { ...r, gradoId: obtenerGrado(anio, seccion) }
+// Ajusta las vinculaciones docente↔asignatura con los endpoints dedicados del
+// backend. Solo se toca lo que cambió para no alterar vinculaciones ajenas.
+const sincronizarDocentesAsignatura = async (
+  idAsignatura,
+  seleccionados = [],
+  anteriores = [],
+) => {
+  const antes = new Set((anteriores ?? []).map(Number))
+  const ahora = new Set((seleccionados ?? []).map(Number))
+  const quitar = [...antes].filter((id) => !ahora.has(id))
+  const agregar = [...ahora].filter((id) => !antes.has(id))
+
+  try {
+    for (const id of quitar) await desvincularDocente(idAsignatura, id)
+    for (const id of agregar) await vincularDocente(idAsignatura, id)
+  } catch (error) {
+    throw new Error(
+      `${error.message} La asignatura se guardó, pero no se pudo completar la vinculación de docentes. Revisa los docentes desde Editar.`,
+      { cause: error },
+    )
   }
-  if (t === 'horarios') {
-    const { anio, seccion, ...r } = f
-    return { ...r, gradoId: obtenerGrado(anio, seccion) }
-  }
-  return { ...f }
 }
 
 const guardando = ref(false)
@@ -447,12 +1306,47 @@ const guardar = async () => {
   const err = validar(t, f)
   if (err) { errorForm.value = err; return }
 
-  // Docentes y representantes: crear/actualizar en la API y recargar.
-  if (t === 'docentes' || t === 'representantes') {
+  // Todas las pestañas están conectadas: crear/actualizar en el servidor y recargar.
+  if (t === 'secciones' || t === 'docentes' || t === 'representantes' || t === 'estudiantes' || t === 'asignaturas' || t === 'horarios') {
     const creando = panel.modo === 'crear'
-    const recurso = t === 'docentes'
-      ? { crear: crearDocente, actualizar: actualizarDocente, recargar: refrescarDocentes }
-      : { crear: crearRepresentante, actualizar: actualizarRepresentante, recargar: refrescarRepresentantes }
+    const recurso =
+      t === 'asignaturas'
+        ? {
+            crear: async () => {
+              const creada = await crearAsignatura(f)
+              await sincronizarDocentesAsignatura(creada.id, f.docenteIds ?? [], [])
+              return creada
+            },
+            actualizar: async () => {
+              const actualizada = await actualizarAsignatura(f.id, f)
+              await sincronizarDocentesAsignatura(
+                f.id,
+                f.docenteIds ?? [],
+                f.docentesAnteriores ?? [],
+              )
+              return actualizada
+            },
+            recargar: refrescarAsignaturas,
+          }
+        : t === 'secciones'
+        ? {
+            // Crear U, o A y B juntas, con titular distinto por sección.
+            crear: () => crearFormatoSecciones({
+              idGrado: f.idGrado,
+              periodoLectivo: f.periodoLectivo,
+              formato: f.formato,
+              titulares: f.titulares ?? {},
+            }),
+            actualizar: actualizarSeccion,
+            recargar: refrescarSecciones,
+          }
+        : t === 'horarios'
+          ? { crear: crearHorario, actualizar: actualizarHorario, recargar: refrescarHorarios }
+          : t === 'docentes'
+            ? { crear: crearDocente, actualizar: actualizarDocente, recargar: refrescarDocentes }
+            : t === 'representantes'
+              ? { crear: crearRepresentante, actualizar: actualizarRepresentante, recargar: refrescarRepresentantes }
+              : { crear: crearEstudiante, actualizar: actualizarEstudiante, recargar: refrescarEstudiantes }
     errorForm.value = ''
     guardando.value = true
     try {
@@ -468,16 +1362,6 @@ const guardar = async () => {
     }
     return
   }
-
-  const registro = construir(t, f)
-  // TODO FastAPI: POST /api/{t} (crear) o PUT /api/{t}/{id} (editar)
-  if (panel.modo === 'crear') datos[t].push({ ...registro, id: nuevoId() })
-  else {
-    const i = datos[t].findIndex((x) => x.id === f.id)
-    if (i > -1) datos[t][i] = registro
-  }
-  cerrarPanel()
-  avisar(panel.modo === 'crear' ? 'Registro creado correctamente.' : 'Cambios guardados.')
 }
 
 // ───────────── Eliminar, confirmaciones y avisos ─────────────
@@ -498,20 +1382,76 @@ const avisar = (msg) => {
 }
 
 const consecuencias = {
+  secciones: ' El servidor no permitirá darla de baja si tiene estudiantes o horarios activos.',
   representantes: ' Solo se puede eliminar si no tiene estudiantes asignados.',
-  asignaturas: ' Se quitará de los docentes y se eliminarán sus horarios.',
+  asignaturas: ' El servidor no permitirá darla de baja si tiene horarios o docentes vinculados.',
   docentes: '',
   estudiantes: '',
   horarios: '',
 }
+// Si el grado está dividido, A y B se dan de baja juntas. El catálogo es la
+// fuente del formato; si está desactualizado se cae a la sección pulsada.
+const seccionesABorrar = (item) => {
+  const delCatalogo = catalogos.secciones.filter(
+    (s) => s.idGrado === item.idGrado && s.periodoLectivo === item.periodoLectivo,
+  )
+  const formato = formatoSecciones(catalogos.secciones, item.idGrado, item.periodoLectivo)
+  return formato === 'dividida' && delCatalogo.length === 2 ? delCatalogo : [item]
+}
+
+const bajasSecciones = async (secciones, mensaje) => {
+  guardando.value = true
+  try {
+    await eliminarFormatoSecciones(secciones)
+    avisar(mensaje)
+    await refrescarSecciones()
+  } catch (error) {
+    seccionesApi.error = error?.message || 'No se pudieron dar de baja las secciones.'
+    avisar(seccionesApi.error)
+  } finally {
+    guardando.value = false
+  }
+}
+
+// Reparación de estados inconsistentes (por ejemplo, A sin B).
+const reiniciarSecciones = (secciones) => {
+  const letras = secciones.map((s) => s.letra).sort().join(' y ')
+  pedirConfirmacion(
+    'Dar de baja secciones',
+    `¿Dar de baja ${letras}? Quedarán sin secciones y podrás crear el formato correcto (U sola, o A y B juntas).`,
+    'Dar de baja',
+    () => bajasSecciones(secciones, 'Secciones dadas de baja.'),
+  )
+}
+
 const eliminar = (item) => {
   const t = tab.value
+
+  if (t === 'secciones') {
+    const objetivo = seccionesABorrar(item)
+    const letras = objetivo.map((s) => s.letra).sort().join(' y ')
+    pedirConfirmacion(
+      'Eliminar sección',
+      `¿Dar de baja ${objetivo.length > 1 ? 'las secciones' : 'la sección'} ${letras} de ${item.gradoNombre || 'ese grado'}? Esta acción no se puede deshacer.${objetivo.length > 1 ? ' Se darán de baja A y B juntas.' : ''} Antes se comprobará si tienen estudiantes u horarios.`,
+      'Eliminar',
+      () => bajasSecciones(objetivo, 'Registro eliminado.'),
+    )
+    return
+  }
+
   pedirConfirmacion(`Eliminar ${tabActual.value.singular}`, `¿Eliminar "${etiqueta(t, item)}"? Esta acción no se puede deshacer.${consecuencias[t]}`, 'Eliminar', async () => {
-    // Docentes y representantes: borrado real en la API (soft delete).
-    if (t === 'docentes' || t === 'representantes') {
-      const recurso = t === 'docentes'
-        ? { eliminar: eliminarDocente, api: docentesApi, recargar: refrescarDocentes, nombre: 'docente' }
-        : { eliminar: eliminarRepresentante, api: representantesApi, recargar: refrescarRepresentantes, nombre: 'representante' }
+    // Borrado real (soft delete en el servidor).
+    if (t === 'docentes' || t === 'representantes' || t === 'estudiantes' || t === 'asignaturas' || t === 'horarios') {
+      const recurso =
+        t === 'docentes'
+          ? { eliminar: eliminarDocente, api: docentesApi, recargar: refrescarDocentes, nombre: 'docente' }
+          : t === 'representantes'
+            ? { eliminar: eliminarRepresentante, api: representantesApi, recargar: refrescarRepresentantes, nombre: 'representante' }
+            : t === 'estudiantes'
+              ? { eliminar: eliminarEstudiante, api: estudiantesApi, recargar: refrescarEstudiantes, nombre: 'estudiante' }
+              : t === 'asignaturas'
+                ? { eliminar: eliminarAsignatura, api: asignaturasApi, recargar: refrescarAsignaturas, nombre: 'asignatura' }
+                : { eliminar: eliminarHorario, api: horariosApi, recargar: refrescarHorarios, nombre: 'horario' }
       try {
         await recurso.eliminar(item.id)
         avisar('Registro eliminado.')
@@ -523,14 +1463,6 @@ const eliminar = (item) => {
       }
       return
     }
-
-    // TODO FastAPI: DELETE /api/{t}/{id}
-    if (t === 'asignaturas') {
-      datos.docentes.forEach((d) => { d.asignaturaIds = (d.asignaturaIds ?? []).filter((id) => id !== item.id) })
-      datos.horarios = datos.horarios.filter((h) => h.asignaturaId !== item.id)
-    }
-    datos[t] = datos[t].filter((x) => x.id !== item.id)
-    avisar('Registro eliminado.')
   })
 }
 
@@ -549,9 +1481,14 @@ const eliminar = (item) => {
                 :class="['flex min-h-11 items-center gap-2 whitespace-nowrap rounded-t-xl border-b-[3px] px-4 text-[15px] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#233E47]',
                          tab === t.id ? 'border-[#233E47] bg-white font-bold text-[#233E47]' : 'border-transparent font-semibold text-[#4a5a63] hover:text-[#233E47]']">
           {{ t.label }}
-          <span :class="['rounded-full px-2 py-0.5 text-xs font-bold', tab === t.id ? 'bg-[#ccd5ae] text-[#233E47]' : 'bg-[#e4e7ee] text-[#4a5a63]']">{{ totalTab(t.id) }}</span>
+          <span :class="['rounded-full px-2 py-0.5 text-xs font-bold', tab === t.id ? 'bg-[#ccd5ae] text-[#233E47]' : 'bg-[#e4e7ee] text-[#4a5a63]']">{{ resumen.cargando && !resumen.datos ? '…' : totalTab(t.id) }}</span>
         </button>
       </div>
+
+      <p v-if="resumen.error" role="alert" class="border-b border-[#fbd5d2] bg-[#fff5f4] px-5 py-2 text-sm font-semibold text-[#8a1c14]">
+        {{ resumen.error }}
+        <button type="button" class="ml-2 font-bold underline" @click="cargarResumen">Reintentar</button>
+      </p>
 
       <div role="tabpanel" class="flex flex-col gap-5 p-5 md:p-6">
 
@@ -568,6 +1505,14 @@ const eliminar = (item) => {
               <option value="">Todos</option>
               <option value="LICEO">Liceo</option>
               <option value="ESCUELA">Escuela</option>
+            </select>
+          </div>
+          <div v-if="tab === 'secciones' || tab === 'asignaturas' || tab === 'horarios'" class="flex items-center gap-2">
+            <label for="periodo-filtro" class="whitespace-nowrap text-sm font-semibold text-[#233E47]">Período</label>
+            <select id="periodo-filtro" v-model.number="periodoSeleccionado" :class="[inp, '!h-10 !w-auto']">
+              <option v-for="p in catalogos.periodos" :key="p.id ?? p.anio" :value="p.anio">
+                {{ p.anio }}{{ p.activo ? ' · activo' : '' }}{{ p.cerrado ? ' · cerrado' : '' }}
+              </option>
             </select>
           </div>
           <div v-if="tab === 'docentes'" class="flex items-center gap-2">
@@ -588,6 +1533,33 @@ const eliminar = (item) => {
               <option :value="100">100</option>
             </select>
           </div>
+          <div v-else-if="tab === 'estudiantes'" class="flex items-center gap-2">
+            <label for="tam-est" class="whitespace-nowrap text-sm font-semibold text-[#233E47]">Por página</label>
+            <select id="tam-est" v-model.number="estudiantesApi.size" :class="[inp, '!h-10 !w-auto']">
+              <option :value="10">10</option>
+              <option :value="25">25</option>
+              <option :value="50">50</option>
+              <option :value="100">100</option>
+            </select>
+          </div>
+          <div v-else-if="tab === 'asignaturas'" class="flex items-center gap-2">
+            <label for="tam-asig" class="whitespace-nowrap text-sm font-semibold text-[#233E47]">Por página</label>
+            <select id="tam-asig" v-model.number="asignaturasApi.size" :class="[inp, '!h-10 !w-auto']">
+              <option :value="10">10</option>
+              <option :value="25">25</option>
+              <option :value="50">50</option>
+              <option :value="100">100</option>
+            </select>
+          </div>
+          <div v-else-if="tab === 'horarios'" class="flex items-center gap-2">
+            <label for="tam-hor" class="whitespace-nowrap text-sm font-semibold text-[#233E47]">Por página</label>
+            <select id="tam-hor" v-model.number="horariosApi.size" :class="[inp, '!h-10 !w-auto']">
+              <option :value="10">10</option>
+              <option :value="25">25</option>
+              <option :value="50">50</option>
+              <option :value="100">100</option>
+            </select>
+          </div>
           <button v-if="!apiTab || esAdministrador" type="button" :class="btnP" @click="abrirNuevo">
             <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
             {{ tabActual.nuevo }}
@@ -598,6 +1570,7 @@ const eliminar = (item) => {
         <p v-if="apiTab && !(apiTab.error && !apiTab.cargado)" class="-mt-1 text-sm text-[#4a5a63]">
           <span v-if="buscandoTab">Buscando en todos los {{ tabActual.label.toLowerCase() }}…</span>
           <span v-else-if="filtrando"><b class="text-[#233E47]">{{ totalFiltrado }}</b> coincidencia(s) de <b class="text-[#233E47]">{{ apiTab.total }}</b> {{ apiTab.total === 1 ? sustantivo.uno : sustantivo.varios }}</span>
+          <span v-else-if="tab === 'horarios' && horarioSeccion"><b class="text-[#233E47]">{{ apiTab.total }}</b> {{ apiTab.total === 1 ? sustantivo.uno : sustantivo.varios }} para {{ etiquetaHorarioSeccion }}</span>
           <span v-else><b class="text-[#233E47]">{{ apiTab.total }}</b> {{ apiTab.total === 1 ? sustantivo.uno : sustantivo.varios }} en {{ alcanceNivel }}</span>
         </p>
 
@@ -615,19 +1588,50 @@ const eliminar = (item) => {
         <!-- Cargando la primera página -->
         <p v-if="apiTab && apiTab.loading && !datos[tab].length" :class="sinRes">Cargando {{ tabActual.label.toLowerCase() }}…</p>
 
+        <!-- En Secciones se muestra la matriz aunque esté vacía: las celdas
+             "+ Crear" son el punto de entrada para registrar la primera. -->
+        <p v-if="tab === 'secciones' && !datos.secciones.length && !apiTab.loading && !apiTab.error" :class="aviso2">
+          Aún no hay secciones. Usa las celdas «+ Crear» del grado que corresponda.
+        </p>
+
         <!-- Estado vacío general (aún no hay ningún dato) -->
-        <div v-if="!datos[tab].length && !(apiTab && (apiTab.loading || apiTab.error))" class="flex flex-col items-center gap-2 rounded-xl border border-dashed border-[#91a5c9] bg-[#f6f9fe] px-4 py-14 text-center">
+        <div v-if="tab !== 'secciones' && !datos[tab].length && !(apiTab && (apiTab.loading || apiTab.error))" class="flex flex-col items-center gap-2 rounded-xl border border-dashed border-[#91a5c9] bg-[#f6f9fe] px-4 py-14 text-center">
           <svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#91a5c9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M7 9.5V15c0 1.5 2.2 3 5 3s5-1.5 5-3V9.5"/></svg>
           <p class="text-lg font-bold text-[#233E47]">{{ vacioTitulo }}</p>
           <p class="max-w-md text-sm text-[#4a5a63]">{{ vacioTexto }}</p>
           <button type="button" :class="[btnS, 'mt-2']" @click="abrirNuevo">{{ vacios[tab].boton }}</button>
         </div>
 
-        <template v-else-if="datos[tab].length">
+        <!-- Contexto traído desde Secciones: horario de una sección de Liceo -->
+        <div v-if="tab === 'horarios' && horarioSeccion" class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#b4d0f8] bg-[#eef3fb] px-4 py-3">
+          <p class="text-sm text-[#233E47]">
+            Mostrando el horario de <b>{{ etiquetaHorarioSeccion }}</b> (Liceo).
+          </p>
+          <button type="button" :class="btnS" @click="limpiarHorarioSeccion">Quitar filtro</button>
+        </div>
+
+        <template v-if="datos[tab].length || tab === 'secciones'">
 
           <!-- Cada pestaña vive en su propio componente -->
+          <SeccionesTabla
+            v-if="tab === 'secciones'"
+            :filas="filasPagina"
+            :catalogo="catalogos.secciones"
+            :grados="catalogos.grados"
+            :periodo="periodoSeleccionado"
+            :buscando="buscandoTab"
+            :cargando="apiTab.cargandoTodos"
+            :filtrando="filtrando"
+            :puede-gestionar="esAdministrador"
+            @editar="abrirEditar"
+            @eliminar="eliminar"
+            @crear="crearSeccionEn"
+            @ver-horario="verHorario"
+            @reiniciar="reiniciarSecciones"
+          />
+
           <RepresentantesTabla
-            v-if="tab === 'representantes'"
+            v-else-if="tab === 'representantes'"
             :filas="filasPagina"
             :estudiantes="datos.estudiantes"
             :buscando="buscandoTab"
@@ -641,8 +1645,10 @@ const eliminar = (item) => {
           <EstudiantesTabla
             v-else-if="tab === 'estudiantes'"
             :filas="filasPagina"
-            :representantes="repOpciones"
-            :grados="datos.grados"
+            :buscando="buscandoTab"
+            :cargando="apiTab.cargandoTodos"
+            :filtrando="filtrando"
+            :puede-gestionar="esAdministrador"
             @editar="abrirEditar"
             @eliminar="eliminar"
           />
@@ -650,7 +1656,10 @@ const eliminar = (item) => {
           <AsignaturasTabla
             v-else-if="tab === 'asignaturas'"
             :filas="filasPagina"
-            :docentes="datos.docentes"
+            :buscando="buscandoTab"
+            :cargando="apiTab.cargandoTodos"
+            :filtrando="filtrando"
+            :puede-gestionar="esAdministrador"
             @editar="abrirEditar"
             @eliminar="eliminar"
           />
@@ -669,9 +1678,10 @@ const eliminar = (item) => {
           <HorariosTabla
             v-else
             :filas="filasPagina"
-            :asignaturas="datos.asignaturas"
-            :docentes="datos.docentes"
-            :grados="datos.grados"
+            :buscando="buscandoTab"
+            :cargando="apiTab.cargandoTodos"
+            :filtrando="filtrando"
+            :puede-gestionar="esAdministrador"
             @editar="abrirEditar"
             @eliminar="eliminar"
           />
@@ -719,8 +1729,94 @@ const eliminar = (item) => {
             <div class="flex-1 space-y-4 overflow-y-auto px-6 py-5">
               <p v-if="errorForm" role="alert" class="rounded-xl bg-[#fbd5d2] px-4 py-3 text-sm font-semibold text-[#8a1c14]">{{ errorForm }}</p>
 
+              <!-- Sección -->
+              <template v-if="tab === 'secciones'">
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label for="f-s-grado" :class="lbl">Grado / año</label>
+                    <select id="f-s-grado" v-model="form.idGrado" required :disabled="panel.modo === 'editar'" :class="[inp, 'mt-1', panel.modo === 'editar' ? 'bg-[#f3f6f1] opacity-70' : '']">
+                      <option value="" disabled>Selecciona</option>
+                      <option v-for="g in catalogos.grados" :key="g.id" :value="g.id">{{ g.nombre }} ({{ etiquetaNivel(g.nivel) }})</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="f-s-formato" :class="lbl">Formato</label>
+                    <select id="f-s-formato" v-model="form.formato" required :disabled="panel.modo === 'editar'" :class="[inp, 'mt-1', panel.modo === 'editar' ? 'bg-[#f3f6f1] opacity-70' : '']">
+                      <option value="" disabled>Selecciona</option>
+                      <option value="unica">Sección única (U)</option>
+                      <option value="dividida">Secciones A y B</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="f-s-letra" :class="lbl">Sección</label>
+                    <select v-if="panel.modo === 'editar'" id="f-s-letra" :value="form.letra" disabled :class="[inp, 'mt-1', 'bg-[#f3f6f1] opacity-70']">
+                      <option :value="form.letra">{{ form.letra }}</option>
+                    </select>
+                    <p v-else :class="[nada, 'mt-2']">
+                      {{ form.formato === 'unica' ? 'Se creará la sección U.' : form.formato === 'dividida' ? 'Se crearán las secciones A y B.' : 'Elige el formato para ver las secciones que se crearán.' }}
+                    </p>
+                  </div>
+                  <div>
+                    <label for="f-s-periodo" :class="lbl">Período lectivo</label>
+                    <select id="f-s-periodo" v-model.number="form.periodoLectivo" required :class="[inp, 'mt-1']">
+                      <option value="" disabled>Selecciona</option>
+                      <option v-for="p in catalogos.periodos" :key="p.id ?? p.anio" :value="p.anio">
+                        {{ p.anio }}{{ p.activo ? ' · activo' : '' }}{{ p.cerrado ? ' · cerrado' : '' }}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+
+                <p v-if="catalogos.error" role="alert" class="rounded-xl bg-[#fbd5d2] px-4 py-3 text-sm font-semibold text-[#8a1c14]">
+                  {{ catalogos.error }}
+                  <button type="button" class="ml-2 font-bold underline" @click="cargarCatalogos">Reintentar</button>
+                </p>
+                <p v-else-if="catalogos.cargando" :class="aviso2">Cargando catálogos…</p>
+                <p v-else-if="!catalogos.grados.length || !catalogos.periodos.length" :class="aviso2">
+                  No hay grados o períodos disponibles. Revisa la configuración del backend.
+                </p>
+
+                <div v-if="esSeccionEscuela">
+                  <template v-if="panel.modo === 'crear'">
+                    <div v-for="letra in letrasDelFormulario" :key="letra" class="mt-3">
+                      <label :for="`f-s-titular-${letra}`" :class="lbl">
+                        Docente titular de la sección {{ letra }}
+                        <span class="font-normal text-[#5b6a72]">(opcional)</span>
+                      </label>
+                      <select :id="`f-s-titular-${letra}`" :value="form.titulares?.[letra] ?? null" @change="fijarTitular(letra, $event.target.value)" :class="[inp, 'mt-1']">
+                        <option :value="null">Sin titular</option>
+                        <option v-for="d in titulares.items" :key="d.id" :value="d.id">{{ nomDocente(d) }}</option>
+                      </select>
+                    </div>
+                  </template>
+                  <div v-else>
+                    <label for="f-s-titular" :class="lbl">
+                      Docente titular de la sección {{ form.letra }}
+                      <span class="font-normal text-[#5b6a72]">(opcional)</span>
+                    </label>
+                    <select id="f-s-titular" v-model.number="form.idDocenteTitular" :class="[inp, 'mt-1']">
+                      <option :value="null">Sin titular</option>
+                      <option v-for="d in titulares.items" :key="d.id" :value="d.id">{{ nomDocente(d) }}</option>
+                    </select>
+                  </div>
+                  <p v-if="titulares.error" role="alert" class="mt-2 rounded-xl bg-[#fbd5d2] px-4 py-3 text-sm font-semibold text-[#8a1c14]">
+                    {{ titulares.error }}
+                    <button type="button" class="ml-2 font-bold underline" @click="cargarTitulares">Reintentar</button>
+                  </p>
+                  <p v-else-if="titulares.cargando && !titulares.listo" :class="[nada, 'mt-2']">Cargando docentes de Escuela…</p>
+                  <p v-else-if="!titulares.items.length" :class="[nada, 'mt-2']">Todavía no hay docentes de Escuela; puedes dejar las secciones sin titular.</p>
+                </div>
+                <p v-else :class="aviso2">
+                  El titular solo se asigna en secciones de Escuela. El horario de Liceo se organiza por bloques de materia.
+                </p>
+
+                <p v-if="panel.modo === 'editar'" class="text-sm text-[#4a5a63]">
+                  El grado y la letra no se pueden cambiar. Para pasar de sección única a A y B (o al revés), da de baja la actual y crea el otro formato.
+                </p>
+              </template>
+
               <!-- Representante -->
-              <template v-if="tab === 'representantes'">
+              <template v-else-if="tab === 'representantes'">
                 <div class="grid gap-3 sm:grid-cols-2">
                   <div><label for="f-r-pn" :class="lbl">Primer nombre</label><input id="f-r-pn" v-model="form.primerNombre" maxlength="50" required :class="[inp, 'mt-1']"></div>
                   <div><label for="f-r-sn" :class="lbl">Segundo nombre</label><input id="f-r-sn" v-model="form.segundoNombre" maxlength="50" :class="[inp, 'mt-1']"></div>
@@ -733,48 +1829,141 @@ const eliminar = (item) => {
               <!-- Estudiante -->
               <template v-else-if="tab === 'estudiantes'">
                 <div class="grid gap-3 sm:grid-cols-2">
-                  <div><label for="f-pn" :class="lbl">Primer nombre</label><input id="f-pn" v-model="form.primerNombre" maxlength="50" required :class="[inp, 'mt-1']"></div>
-                  <div><label for="f-sn" :class="lbl">Segundo nombre</label><input id="f-sn" v-model="form.segundoNombre" maxlength="50" required :class="[inp, 'mt-1']"></div>
-                  <div><label for="f-pa" :class="lbl">Primer apellido</label><input id="f-pa" v-model="form.primerApellido" maxlength="50" required :class="[inp, 'mt-1']"></div>
-                  <div><label for="f-sa" :class="lbl">Segundo apellido</label><input id="f-sa" v-model="form.segundoApellido" maxlength="50" required :class="[inp, 'mt-1']"></div>
+                  <div><label for="f-e-ced" :class="lbl">Cédula estudiantil</label><input id="f-e-ced" v-model="form.cedula" maxlength="20" required :class="[inp, 'mt-1']"></div>
+                  <div><label for="f-e-fn" :class="lbl">Fecha de nacimiento</label><input id="f-e-fn" v-model="form.fechaNacimiento" type="date" required :class="[inp, 'mt-1']"></div>
+                  <div><label for="f-e-pn" :class="lbl">Primer nombre</label><input id="f-e-pn" v-model="form.primerNombre" maxlength="50" required :class="[inp, 'mt-1']"></div>
+                  <div><label for="f-e-sn" :class="lbl">Segundo nombre</label><input id="f-e-sn" v-model="form.segundoNombre" maxlength="50" :class="[inp, 'mt-1']"></div>
+                  <div><label for="f-e-pa" :class="lbl">Primer apellido</label><input id="f-e-pa" v-model="form.primerApellido" maxlength="50" required :class="[inp, 'mt-1']"></div>
+                  <div><label for="f-e-sa" :class="lbl">Segundo apellido</label><input id="f-e-sa" v-model="form.segundoApellido" maxlength="50" :class="[inp, 'mt-1']"></div>
                   <div>
-                    <label for="f-anio" :class="lbl">Grado (año)</label>
-                    <select id="f-anio" v-model="form.anio" required :class="[inp, 'mt-1']"><option value="" disabled>Selecciona</option><option v-for="a in anios" :key="a" :value="a">{{ ordinal(a) }} Año</option></select>
+                    <label for="f-e-grado" :class="lbl">Grado</label>
+                    <select id="f-e-grado" v-model="form.idGrado" required :class="[inp, 'mt-1']">
+                      <option value="" disabled>Selecciona</option>
+                      <option v-for="g in gradosDelFormulario" :key="g.id" :value="g.id">{{ g.nombre }}</option>
+                    </select>
                   </div>
                   <div>
-                    <label for="f-sec" :class="lbl">Sección</label>
-                    <select id="f-sec" v-model="form.seccion" required :class="[inp, 'mt-1']"><option value="" disabled>Selecciona</option><option v-for="s in secciones" :key="s" :value="s">{{ s }}</option></select>
+                    <label for="f-e-seccion" :class="lbl">Sección registrada</label>
+                    <select id="f-e-seccion" v-model.number="form.idSeccion" required :class="[inp, 'mt-1']">
+                      <option :value="null" disabled>Selecciona</option>
+                      <option v-for="s in seccionesDelFormulario" :key="s.id" :value="s.id">
+                        Sección {{ s.letra }} · {{ s.periodoLectivo }}
+                      </option>
+                    </select>
                   </div>
                 </div>
 
+                <p v-if="catalogos.error" role="alert" class="rounded-xl bg-[#fbd5d2] px-4 py-3 text-sm font-semibold text-[#8a1c14]">
+                  {{ catalogos.error }}
+                  <button type="button" class="ml-2 font-bold underline" @click="cargarCatalogos">Reintentar</button>
+                </p>
+                <p v-else-if="catalogos.cargando" :class="aviso2">Cargando grados y secciones…</p>
+                <p v-else-if="!catalogos.secciones.length" :class="aviso2">
+                  No hay secciones registradas. Créalas desde la pestaña Secciones antes de registrar estudiantes.
+                </p>
+                <p v-else class="text-sm text-[#4a5a63]">
+                  El estudiante se registra en una sección existente. No se crean secciones automáticamente.
+                </p>
+
                 <div>
-                  <label for="f-rep" :class="lbl">Representantes</label>
-                  <div v-if="form.representanteIds.length" class="mt-2 flex flex-wrap gap-1.5">
-                    <span v-for="id in form.representanteIds" :key="id" :class="[tag, 'flex items-center gap-1.5 !py-1']">
-                      {{ repPorId(id) ? nomPersona(repPorId(id)) : '—' }}
-                      <button type="button" class="font-bold" :aria-label="'Quitar representante'" @click="quitarRep(id)">✕</button>
+                  <label for="f-rep" :class="lbl">Representante</label>
+                  <div v-if="form.idRepresentante" class="mt-2 flex flex-wrap gap-1.5">
+                    <span :class="[tag, 'flex items-center gap-1.5 !py-1']">
+                      {{ representanteNombre }}
+                      <button type="button" class="font-bold" aria-label="Quitar representante" @click="quitarRep">✕</button>
                     </span>
                   </div>
-                  <p v-else :class="[nada, 'mt-2']">Sin representantes vinculados aún</p>
+                  <p v-else :class="[nada, 'mt-2']">Sin representante vinculado</p>
                   <input id="f-rep" v-model="repBusq" type="search" placeholder="Buscar representante por nombre o apellido" autocomplete="off" :class="[inp, 'mt-2']">
-                  <p v-if="!repOpciones.length" :class="aviso2">
-                    Aún no hay representantes registrados.
-                    <button type="button" class="font-bold underline" @click="irA('representantes')">Registrar uno primero</button>
+                  <p v-if="repsFormulario.error" role="alert" class="mt-2 rounded-xl bg-[#fbd5d2] px-4 py-3 text-sm font-semibold text-[#8a1c14]">
+                    {{ repsFormulario.error }}
+                    <button type="button" class="ml-2 font-bold underline" @click="cargarRepsFormulario">Reintentar</button>
                   </p>
-                  <ul v-else-if="repBusq.trim()" class="mt-1 overflow-hidden rounded-xl border border-[#d5dbe6]">
+                  <p v-else-if="repsFormulario.cargando && !repsFormulario.listo" :class="[nada, 'mt-2']">Cargando representantes…</p>
+                  <p v-else-if="!repOpciones.length" :class="aviso2">
+                    Aún no hay representantes registrados. Puedes registrar uno aquí mismo sin salir del formulario.
+                  </p>
+                  <ul v-else-if="repBusq.trim() && !repInline.abierto" class="mt-1 overflow-hidden rounded-xl border border-[#d5dbe6]">
                     <li v-for="r in repCoincidencias" :key="r.id">
-                      <button type="button" class="flex min-h-11 w-full items-center justify-between gap-3 px-3 text-left text-sm hover:bg-[#eef3fb]" @click="agregarRep(r.id)">
+                      <button type="button" class="flex min-h-11 w-full items-center justify-between gap-3 px-3 text-left text-sm hover:bg-[#eef3fb]" @click="agregarRep(r)">
                         <span class="font-semibold">{{ nomPersona(r) }}</span><span class="text-[#4a5a63]">{{ r.telefono }}</span>
                       </button>
                     </li>
                     <li v-if="!repCoincidencias.length" class="px-3 py-3 text-sm italic text-[#5b6a72]">Ningún representante coincide con la búsqueda.</li>
                   </ul>
+
+                  <button v-if="!repInline.abierto" type="button" class="mt-2 text-sm font-semibold text-[#233E47] underline" @click="abrirRepInline">
+                    {{ repOpciones.length ? 'Registrar un representante nuevo aquí' : 'Registrar uno aquí' }}
+                  </button>
+
+                  <div v-if="repInline.abierto" class="mt-3 space-y-3 rounded-xl border border-[#b4d0f8] bg-[#f6f9fe] p-3">
+                    <p class="text-sm font-bold text-[#233E47]">Registro rápido de representante</p>
+                    <p v-if="repInline.error" role="alert" class="rounded-xl bg-[#fbd5d2] px-3 py-2 text-sm font-semibold text-[#8a1c14]">{{ repInline.error }}</p>
+                    <div class="grid gap-2 sm:grid-cols-2">
+                      <div><label for="f-er-pn" :class="lbl">Primer nombre</label><input id="f-er-pn" v-model="repInline.form.primerNombre" maxlength="50" required :class="[inp, 'mt-1']"></div>
+                      <div><label for="f-er-sn" :class="lbl">Segundo nombre</label><input id="f-er-sn" v-model="repInline.form.segundoNombre" maxlength="50" :class="[inp, 'mt-1']"></div>
+                      <div><label for="f-er-pa" :class="lbl">Primer apellido</label><input id="f-er-pa" v-model="repInline.form.primerApellido" maxlength="50" required :class="[inp, 'mt-1']"></div>
+                      <div><label for="f-er-sa" :class="lbl">Segundo apellido</label><input id="f-er-sa" v-model="repInline.form.segundoApellido" maxlength="50" :class="[inp, 'mt-1']"></div>
+                    </div>
+                    <div><label for="f-er-tel" :class="lbl">Número telefónico</label><input id="f-er-tel" v-model="repInline.form.telefono" type="tel" maxlength="50" required :class="[inp, 'mt-1']"></div>
+                    <div class="flex gap-2">
+                      <button type="button" :class="[btnS, 'flex-1']" @click="cerrarRepInline">Cancelar</button>
+                      <button type="button" :class="[btnP, 'flex-1']" :disabled="repInline.guardando" @click="guardarRepInline">{{ repInline.guardando ? 'Guardando…' : 'Guardar representante' }}</button>
+                    </div>
+                    <p class="text-xs text-[#5b6a72]">Los datos del estudiante se conservan y el representante quedará seleccionado automáticamente.</p>
+                  </div>
                 </div>
               </template>
 
               <!-- Asignatura -->
               <template v-else-if="tab === 'asignaturas'">
-                <div><label for="f-nom" :class="lbl">Nombre de la asignatura</label><input id="f-nom" v-model="form.nombre" maxlength="50" required :class="[inp, 'mt-1']"></div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label for="f-a-nom" :class="lbl">Nombre de la asignatura</label>
+                    <input id="f-a-nom" v-model="form.nombre" maxlength="100" required :class="[inp, 'mt-1']">
+                  </div>
+                  <div>
+                    <label for="f-a-grado" :class="lbl">Grado / año (Liceo)</label>
+                    <select id="f-a-grado" v-model="form.idGrado" required :disabled="panel.modo === 'editar'" :class="[inp, 'mt-1', panel.modo === 'editar' ? 'bg-[#f3f6f1] opacity-70' : '']">
+                      <option value="" disabled>Selecciona</option>
+                      <option v-for="g in catalogoAsignaturas.grados" :key="g.id" :value="g.id">{{ g.nombre }}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="f-a-periodo" :class="lbl">Período lectivo</label>
+                    <select id="f-a-periodo" v-model.number="form.periodoLectivo" required :disabled="panel.modo === 'editar'" :class="[inp, 'mt-1', panel.modo === 'editar' ? 'bg-[#f3f6f1] opacity-70' : '']">
+                      <option value="" disabled>Selecciona</option>
+                      <option v-for="p in catalogos.periodos" :key="p.id ?? p.anio" :value="p.anio">
+                        {{ p.anio }}{{ p.activo ? ' · activo' : '' }}{{ p.cerrado ? ' · cerrado' : '' }}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+
+                <p v-if="catalogoAsignaturas.error" role="alert" class="rounded-xl bg-[#fbd5d2] px-4 py-3 text-sm font-semibold text-[#8a1c14]">
+                  {{ catalogoAsignaturas.error }}
+                  <button type="button" class="ml-2 font-bold underline" @click="cargarCatalogoAsignaturas">Reintentar</button>
+                </p>
+                <p v-else-if="catalogoAsignaturas.cargando && !catalogoAsignaturas.listo" :class="aviso2">Cargando grados y docentes de Liceo…</p>
+                <p v-else-if="!catalogoAsignaturas.grados.length" :class="aviso2">
+                  No hay grados de Liceo disponibles. Revisa la configuración del backend.
+                </p>
+
+                <div>
+                  <span :class="lbl">Docentes que dictan la asignatura</span>
+                  <p :class="[nada, 'mt-1']">Solo docentes de Liceo. Puedes dejarla sin docentes y vincularlos después desde Editar.</p>
+                  <div v-if="catalogoAsignaturas.docentes.length" class="mt-2 max-h-48 space-y-1 overflow-y-auto rounded-xl border border-[#d5dbe6] p-2">
+                    <label v-for="d in catalogoAsignaturas.docentes" :key="d.id" class="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg px-2 text-sm hover:bg-[#eef3fb]">
+                      <input v-model="form.docenteIds" type="checkbox" :value="d.id" class="h-4 w-4 accent-[#233E47]">
+                      <span>{{ nomDocente(d) }}</span>
+                    </label>
+                  </div>
+                  <p v-else-if="catalogoAsignaturas.listo" :class="[nada, 'mt-2']">Todavía no hay docentes de Liceo registrados.</p>
+                </div>
+
+                <p v-if="panel.modo === 'editar'" class="text-sm text-[#4a5a63]">
+                  El grado y el período se definen al registrar. Para cambiarlos, da de baja la asignatura y créala de nuevo.
+                </p>
               </template>
 
               <!-- Docente -->
@@ -801,33 +1990,64 @@ const eliminar = (item) => {
               </template>
 
               <!-- Horario -->
-              <template v-else>
+              <template v-else-if="tab === 'horarios'">
+                <p v-if="catalogoHorarios.error" role="alert" class="rounded-xl bg-[#fbd5d2] px-3 py-2 text-sm font-semibold text-[#8a1c14]">{{ catalogoHorarios.error }}</p>
                 <div class="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label for="f-anio" :class="lbl">Grado (año)</label>
-                    <select id="f-anio" v-model="form.anio" required :class="[inp, 'mt-1']"><option value="" disabled>Selecciona</option><option v-for="a in anios" :key="a" :value="a">{{ ordinal(a) }} Año</option></select>
+                    <label for="f-h-periodo" :class="lbl">Período lectivo</label>
+                    <select id="f-h-periodo" v-model.number="form.periodoLectivo" required :disabled="panel.modo === 'editar'" :class="[inp, 'mt-1']">
+                      <option value="" disabled>Selecciona</option>
+                      <option v-for="p in catalogos.periodos" :key="p.id ?? p.anio" :value="p.anio">
+                        {{ p.anio }}{{ p.activo ? ' · activo' : '' }}
+                      </option>
+                    </select>
                   </div>
                   <div>
-                    <label for="f-sec" :class="lbl">Sección</label>
-                    <select id="f-sec" v-model="form.seccion" required :class="[inp, 'mt-1']"><option value="" disabled>Selecciona</option><option v-for="s in secciones" :key="s" :value="s">{{ s }}</option></select>
+                    <label for="f-h-seccion" :class="lbl">Sección de Liceo</label>
+                    <select id="f-h-seccion" v-model="form.idSeccion" required :disabled="panel.modo === 'editar'" :class="[inp, 'mt-1']">
+                      <option value="" disabled>Selecciona</option>
+                      <option v-for="s in seccionesDelHorario" :key="s.id" :value="s.id">
+                        {{ s.gradoNombre || `Grado ${s.gradoNumero}` }} · {{ s.letra }} · {{ s.periodoLectivo }}
+                      </option>
+                    </select>
                   </div>
                   <div>
-                    <label for="f-dia" :class="lbl">Día de la semana</label>
-                    <select id="f-dia" v-model="form.diaSemana" required :class="[inp, 'mt-1']"><option value="" disabled>Selecciona</option><option v-for="d in dias" :key="d.v" :value="d.v">{{ d.l }}</option></select>
+                    <label for="f-h-dia" :class="lbl">Día de la semana</label>
+                    <select id="f-h-dia" v-model="form.diaSemana" required :class="[inp, 'mt-1']">
+                      <option value="" disabled>Selecciona</option>
+                      <option v-for="d in dias" :key="d.v" :value="d.v">{{ d.l }}</option>
+                    </select>
                   </div>
-                  <div><label for="f-hora" :class="lbl">Hora</label><input id="f-hora" v-model="form.hora" type="time" required :class="[inp, 'mt-1']"></div>
+                  <div>
+                    <label for="f-h-bloque" :class="lbl">Bloque</label>
+                    <select id="f-h-bloque" v-model="form.idBloque" required :class="[inp, 'mt-1']">
+                      <option value="" disabled>Selecciona</option>
+                      <option v-for="b in catalogoHorarios.bloques" :key="b.id" :value="b.id">
+                        {{ b.nombre || `Bloque ${b.numero ?? b.orden}` }} · {{ b.horaInicio.slice(0, 5) }}–{{ b.horaFin.slice(0, 5) }}
+                      </option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="f-h-asig" :class="lbl">Asignatura</label>
+                    <select id="f-h-asig" v-model="form.idAsignatura" required :disabled="!seccionDelHorario" :class="[inp, 'mt-1']">
+                      <option value="" disabled>{{ seccionDelHorario ? 'Selecciona' : 'Primero elige la sección' }}</option>
+                      <option v-for="a in asignaturasDelHorario" :key="a.id" :value="a.id">{{ a.nombre }}</option>
+                    </select>
+                    <p v-if="seccionDelHorario && !asignaturasDelHorario.length" :class="aviso2">
+                      No hay asignaturas para esa sección y período.
+                      <button type="button" class="font-bold underline" @click="irA('asignaturas')">Ir a Asignaturas</button>
+                    </p>
+                  </div>
+                  <div>
+                    <label for="f-h-doc" :class="lbl">Docente</label>
+                    <select id="f-h-doc" v-model="form.idDocente" required :disabled="!form.idAsignatura" :class="[inp, 'mt-1']">
+                      <option value="" disabled>{{ form.idAsignatura ? 'Selecciona' : 'Primero elige la asignatura' }}</option>
+                      <option v-for="d in docentesDelHorario" :key="d.id" :value="d.id">{{ nomDocente(d) }}</option>
+                    </select>
+                    <p v-if="form.idAsignatura && !docentesDelHorario.length" class="mt-1 text-xs font-semibold text-[#8a1c14]">Esa asignatura aún no tiene docentes vinculados.</p>
+                  </div>
                 </div>
-                <div>
-                  <label for="f-asig" :class="lbl">Asignatura</label>
-                  <select id="f-asig" v-model="form.asignaturaId" required :class="[inp, 'mt-1']">
-                    <option value="" disabled>Selecciona</option>
-                    <option v-for="a in datos.asignaturas" :key="a.id" :value="a.id">{{ a.nombre }}</option>
-                  </select>
-                  <p v-if="!datos.asignaturas.length" :class="aviso2">
-                    Aún no hay asignaturas registradas.
-                    <button type="button" class="font-bold underline" @click="irA('asignaturas')">Ir a Asignaturas</button>
-                  </p>
-                </div>
+                <p class="text-xs text-[#5b6a72]">Los horarios son por bloques académicos de Liceo; no se programan en Escuela.</p>
               </template>
             </div>
 

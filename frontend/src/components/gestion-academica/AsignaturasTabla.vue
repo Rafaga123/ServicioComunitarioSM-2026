@@ -2,38 +2,46 @@
 import { nomDocente } from './helpers'
 import { th, td, btnMini, tag, nada, sinRes } from './estilos'
 
-const props = defineProps({
+defineProps({
   filas: { type: Array, required: true },
-  docentes: { type: Array, default: () => [] },
+  buscando: { type: Boolean, default: false },
+  cargando: { type: Boolean, default: false },
+  filtrando: { type: Boolean, default: false },
+  puedeGestionar: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['editar', 'eliminar'])
-
-const docentesDe = (asigId) => props.docentes.filter((d) => (d.asignaturaIds ?? []).includes(asigId))
 </script>
 
 <template>
-  <p v-if="!filas.length" :class="sinRes">Ninguna asignatura coincide con la búsqueda.</p>
+  <p v-if="buscando && cargando" :class="sinRes">Buscando en todas las asignaturas…</p>
+  <p v-else-if="buscando" :class="sinRes">No se pudo cargar la lista completa para filtrar.</p>
+  <p v-else-if="filtrando && !filas.length" :class="sinRes">Ninguna asignatura coincide con el filtro.</p>
   <div v-else class="overflow-x-auto rounded-xl border border-[#e3e8ee]">
     <table class="w-full border-collapse">
       <thead>
         <tr>
           <th :class="th">Asignatura</th>
+          <th :class="th">Grado / año</th>
+          <th :class="th">Período</th>
           <th :class="th">Docentes</th>
           <th :class="[th, 'text-right']">Acciones</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="a in filas" :key="a.id">
-          <td :class="[td, 'font-semibold']">{{ a.nombre }}</td>
+          <td :class="[td, 'font-semibold text-[#233E47]']">{{ a.nombre }}</td>
+          <td :class="td">{{ a.gradoNombre || '—' }}</td>
+          <td :class="td">{{ a.periodoLectivo }}</td>
           <td :class="td">
-            <span v-if="!docentesDe(a.id).length" :class="nada">Sin docente asignado aún</span>
+            <span v-if="!a.docentes?.length" :class="nada">Sin docente vinculado</span>
             <div v-else class="flex flex-wrap gap-1">
-              <span v-for="d in docentesDe(a.id)" :key="d.id" :class="tag">{{ nomDocente(d) }}</span>
+              <span v-for="d in a.docentes" :key="d.id" :class="tag">{{ nomDocente(d) }}</span>
             </div>
           </td>
           <td :class="[td, 'whitespace-nowrap text-right']">
             <button
+              v-if="puedeGestionar"
               type="button"
               :class="btnMini"
               :aria-label="'Editar ' + a.nombre"
@@ -42,6 +50,7 @@ const docentesDe = (asigId) => props.docentes.filter((d) => (d.asignaturaIds ?? 
               Editar
             </button>
             <button
+              v-if="puedeGestionar"
               type="button"
               :class="[btnMini, '!text-[#8a1c14]']"
               :aria-label="'Eliminar ' + a.nombre"

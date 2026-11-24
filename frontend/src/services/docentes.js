@@ -16,8 +16,9 @@ const RECURSO = '/docentes/'
 // Límite que impone el backend en el parámetro `size` (Paginacion: le=100).
 export const MAXIMO_POR_PAGINA = 100
 
-// PeticionDocente -> objeto de la vista
-const aDocente = (docente) => ({
+// PeticionDocente -> objeto de la vista. Se exporta para que Asignaturas
+// convierta con el mismo formato los docentes que devuelve su endpoint.
+export const aDocente = (docente) => ({
   id: docente.id,
   primerNombre: docente.primer_nombre ?? '',
   segundoNombre: docente.segundo_nombre ?? '',

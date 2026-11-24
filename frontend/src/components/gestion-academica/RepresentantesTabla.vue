@@ -14,8 +14,9 @@ const props = defineProps({
 
 const emit = defineEmits(['editar', 'eliminar'])
 
+// El backend guarda un solo representante por estudiante (idRepresentante).
 const estudiantesDe = (repId) =>
-  props.estudiantes.filter((e) => (e.representanteIds ?? []).includes(repId))
+  props.estudiantes.filter((e) => e.idRepresentante === repId)
 </script>
 
 <template>

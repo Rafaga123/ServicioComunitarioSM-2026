@@ -2,7 +2,7 @@
 
 API REST para la gestión académica y disciplinaria de una escuela y un liceo. Está construida con **FastAPI + SQLModel + PostgreSQL** y separa la información por nivel educativo (`ESCUELA` / `LICEO`).
 
-> **Estado actual:** Fase 5.1 completada. El backend expone **14 routers**, **36 rutas** y **68 operaciones** documentadas en OpenAPI. El frontend todavía no está conectado; este documento es el contrato de referencia para esa integración.
+> **Estado actual:** Fase 5.1 completada. El backend expone **14 routers**, **36 rutas** y **68 operaciones** documentadas en OpenAPI. El frontend ya consume la API en Gestión Académica, Usuarios y Auditorías; Pases, Reportes y el panel del usuario todavía usan datos de ejemplo.
 >
 > **Importante:** la base de datos se crea desde cero con `SQLModel.metadata.create_all()` al arrancar. Todavía **no hay migraciones (Alembic)**. Cualquier cambio de esquema posterior a la carga de datos reales requiere decidir primero cómo migrarlo.
 
