@@ -245,16 +245,39 @@ FILAS_GENERAL: dict[
   TipoDocumento.representantes: _filas_representantes_general,
 }
 
-HEADERS: dict[TipoDocumento, list[str]] = {
+HEADERS_SECCION: dict[TipoDocumento, list[str]] = {
   TipoDocumento.nominas: ["Cédula", "Estudiante", "Representante", "Teléfono"],
   TipoDocumento.representantes: ["Representante", "Teléfono", "Estudiantes asociados"],
-  TipoDocumento.horarios: ["Día", "Bloque", "Hora", "Asignatura", "Docente"],
+  TipoDocumento.horarios: [
+    "Día",
+    "Bloque",
+    "Inicio",
+    "Fin",
+    "Asignatura",
+    "Docente",
+  ],
 }
 
-COL_ANCHOS: dict[TipoDocumento, list[float]] = {
-  TipoDocumento.nominas: [4.0, 8.0, 8.0, 6.0],
-  TipoDocumento.representantes: [10.0, 6.0, 40.0],
-  TipoDocumento.horarios: [4.0, 8.0, 6.0, 5.0, 8.0, 10.0],
+HEADERS_GENERAL: dict[TipoDocumento, list[str]] = {
+  TipoDocumento.nominas: [
+    "Cédula",
+    "Estudiante",
+    "Grado / Sección",
+    "Representante",
+    "Teléfono",
+  ],
+  TipoDocumento.representantes: ["Representante", "Teléfono", "Estudiantes asociados"],
+}
+
+COL_ANCHOS_SECCION: dict[TipoDocumento, list[float]] = {
+  TipoDocumento.nominas: [2.6, 4.3, 4.3, 2.6],
+  TipoDocumento.representantes: [5.0, 2.8, 6.4],
+  TipoDocumento.horarios: [1.9, 1.8, 1.3, 1.3, 4.1, 3.9],
+}
+
+COL_ANCHOS_GENERAL: dict[TipoDocumento, list[float]] = {
+  TipoDocumento.nominas: [2.3, 3.4, 2.6, 3.5, 2.4],
+  TipoDocumento.representantes: [5.0, 2.8, 6.4],
 }
 
 
@@ -271,10 +294,14 @@ def construir_documento(
     nombre_archivo = _nombre_archivo(tipo, periodo, nivel, grado, seccion)
     descripcion = f"{grado.nombre if grado else nivel.value} {seccion.letra}"
     filas = FILAS_POR_SECCION[tipo](session, seccion)
+    encabezados = HEADERS_SECCION[tipo]
+    col_anchos = COL_ANCHOS_SECCION[tipo]
   else:
     nombre_archivo = _nombre_archivo(tipo, periodo, nivel, None, None)
     descripcion = f"{nivel.value} general"
     filas = FILAS_GENERAL[tipo](session, periodo, nivel)
+    encabezados = HEADERS_GENERAL[tipo]
+    col_anchos = COL_ANCHOS_GENERAL[tipo]
 
   return DocumentoListado(
     seccion_id=seccion.id if seccion else None,
@@ -282,8 +309,8 @@ def construir_documento(
     grado=grado,
     nombre_archivo=nombre_archivo,
     filas=filas,
-    encabezados=HEADERS[tipo],
-    col_anchos=COL_ANCHOS[tipo],
+    encabezados=encabezados,
+    col_anchos=col_anchos,
     titulo=_titulo(tipo, nivel, grado, seccion),
     seccion_descripcion=descripcion,
   )
