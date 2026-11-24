@@ -24,6 +24,7 @@ from app.utils.security import (
   obtener_usuario_actual,
   requerir_roles,
   resolver_nivel,
+  validar_acceso_nivel,
 )
 from app.utils.soft_delete import marcar_eliminado
 
@@ -98,7 +99,9 @@ def obtener_docente(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
-  return _obtener_docente_activo(session, docente_id)
+  docente = _obtener_docente_activo(session, docente_id)
+  validar_acceso_nivel(usuario_actual, docente.nivel)
+  return docente
 
 
 @router.post("/", response_model=PeticionDocente, status_code=status.HTTP_201_CREATED)
