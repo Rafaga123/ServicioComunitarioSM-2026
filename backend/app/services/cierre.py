@@ -34,7 +34,7 @@ from app.utils.fechas import ahora_caracas
 from app.utils.pdf import construir_pdf
 from app.utils.storage import hash_contenido, nombre_unico, ruta_absoluta
 
-GRADOS_PROMOVIDOS_MAX = 11  # 5to Año => 5 es la última promoción; 11 = egreso
+GRADOS_PROMOVIDOS_MAX = 11  # 11 = 5to Año, último grado del liceo (egreso)
 
 
 def _validar_periodo_lectivo(
@@ -116,27 +116,44 @@ def _crear_secciones_nuevas(
   periodo_siguiente: int,
   secciones_actuales: list[Secciones],
 ) -> dict[tuple[int, str], Secciones]:
-  """Crea las 33 secciones del nuevo periodo (11 grados × A/B/U)."""
+  """Replica las secciones reales del periodo y crea sus destinos.
+
+  Solo se crean las combinaciones (grado, letra) que existen actualmente y la
+  sección destino (grado + 1, misma letra) de cada cohorte. Los estudiantes de
+  `GRADOS_PROMOVIDOS_MAX` egresan, por lo que no requieren sección destino.
+  """
   grados = {
-    g.numero: g.id
+    g.numero: g
     for g in session.exec(select(Grados).where(Grados.fecha_eliminacion.is_(None)))
   }
-  letras = sorted({s.letra for s in secciones_actuales} or ["A", "B", "U"])
 
-  creadas = {}
-  for numero in range(1, 12):
-    if numero not in grados:
-      continue
-    for letra in letras:
-      seccion = Secciones(
-        id_grado=grados[numero],
-        letra=letra,
-        periodo_lectivo=periodo_siguiente,
-        id_docente_titular=None,
-      )
-      session.add(seccion)
-      session.flush()
-      creadas[(numero, letra)] = seccion
+  combinaciones = {(s.grado.numero, s.letra) for s in secciones_actuales}
+  destinos = {
+    (numero + 1, letra)
+    for numero, letra in combinaciones
+    if numero < GRADOS_PROMOVIDOS_MAX
+  }
+
+  grados_faltantes = sorted({numero for numero, _ in destinos} - grados.keys())
+  if grados_faltantes:
+    raise HTTPException(
+      status_code=400,
+      detail=(
+        f"No existe el grado destino {grados_faltantes[0]} en el catálogo de grados"
+      ),
+    )
+
+  creadas: dict[tuple[int, str], Secciones] = {}
+  for numero, letra in sorted(combinaciones | destinos):
+    seccion = Secciones(
+      id_grado=grados[numero].id,
+      letra=letra,
+      periodo_lectivo=periodo_siguiente,
+      id_docente_titular=None,
+    )
+    session.add(seccion)
+    session.flush()
+    creadas[(numero, letra)] = seccion
   return creadas
 
 
@@ -239,10 +256,12 @@ def cerrar_anio(
 
   staging_root = Path(STORAGE_ROOT) / ".staging" / str(uuid.uuid4())
   documentos: list[DocumentosGenerados] = []
+  movidos: list[Path] = []
   promovidos = 0
   egresados = 0
   secciones_nuevas: dict[tuple[int, str], Secciones] = {}
   asignaturas_creadas = 0
+  completado = False
 
   try:
     ps = _obtener_o_crear_periodo_siguiente(session, periodo_siguiente)
@@ -289,20 +308,19 @@ def cerrar_anio(
         )
 
     # 2. Mover archivos de staging al destino final.
-    movidos: list[Path] = []
-    try:
-      for doc in documentos:
-        destino = ruta_absoluta(doc.ruta_relativa)
-        destino.parent.mkdir(parents=True, exist_ok=True)
-        if destino.exists():
-          (staging_root / doc.ruta_relativa).unlink(missing_ok=True)
-          continue
-        shutil.move(str(staging_root / doc.ruta_relativa), str(destino))
-        movidos.append(destino)
-    except Exception:
-      for destino in movidos:
-        destino.unlink(missing_ok=True)
-      raise
+    for doc in documentos:
+      destino = ruta_absoluta(doc.ruta_relativa)
+      destino.parent.mkdir(parents=True, exist_ok=True)
+      if destino.exists():
+        # Ya existe el PDF en destino: no se registra ni se cuenta.
+        (staging_root / doc.ruta_relativa).unlink(missing_ok=True)
+        if doc.id is None:
+          session.expunge(doc)
+        else:
+          session.delete(doc)
+        continue
+      shutil.move(str(staging_root / doc.ruta_relativa), str(destino))
+      movidos.append(destino)
 
     # 3. Traspaso de estudiantes y clonación de estructura.
     secciones_nuevas = _crear_secciones_nuevas(
@@ -317,6 +335,14 @@ def cerrar_anio(
     pa.cerrado = True
     pa.activo = False
     pa.fecha_cierre = ahora_caracas()
+    for otro in session.exec(
+      select(PeriodosLectivos).where(
+        PeriodosLectivos.id != ps.id,
+        PeriodosLectivos.activo.is_(True),
+        PeriodosLectivos.fecha_eliminacion.is_(None),
+      )
+    ).all():
+      otro.activo = False
     ps.activo = True
 
     registrar_auditoria(
@@ -329,23 +355,25 @@ def cerrar_anio(
 
     session.flush()
     session.commit()
+    completado = True
 
     return PeticionCierreAnio(
       periodo_cerrado=pa.anio,
       periodo_activado=ps.anio,
-      documentos_generados=len(documentos),
+      documentos_generados=len(movidos),
       estudiantes_promovidos=promovidos,
       egresados=egresados,
       secciones_creadas=len(secciones_nuevas),
       asignaturas_creadas=asignaturas_creadas,
     )
 
-  except HTTPException:
-    raise
   except Exception:
     session.rollback()
     raise
   finally:
+    if not completado:
+      for destino in movidos:
+        destino.unlink(missing_ok=True)
     shutil.rmtree(staging_root, ignore_errors=True)
 
 
@@ -368,7 +396,7 @@ def _traspasar_estudiantes(
     seccion = estudiante.seccion
     grado = seccion.grado
 
-    if grado.numero == 11:  # 5to Año -> egreso
+    if grado.numero == GRADOS_PROMOVIDOS_MAX:  # último grado -> egreso
       estudiante.fecha_egreso = ahora_caracas()
       egresados += 1
       continue
