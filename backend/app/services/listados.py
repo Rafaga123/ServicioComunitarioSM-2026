@@ -22,6 +22,7 @@ from app.models.db import (
 )
 from app.models.enums import NivelEducativo, TipoDocumento
 from app.utils.nombres import nombre_completo
+from app.utils.periodos import etiqueta_periodo
 from app.utils.storage import GRADO_SLUGS
 
 DIAS_SEMANA = {1: "Lunes", 2: "Martes", 3: "Miércoles", 4: "Jueves", 5: "Viernes"}
@@ -58,10 +59,11 @@ def _nombre_archivo(
     "representantes": "representantes",
     "horarios": "horario",
   }[tipo.value]
+  etiqueta = etiqueta_periodo(periodo)
   if grado is not None and seccion is not None:
     slug = GRADO_SLUGS.get(grado.numero, grado.nombre.lower().replace(" ", "_"))
-    return f"{stem}_{periodo}_{slug}_{seccion.letra}.pdf"
-  return f"{stem}_{periodo}_{nivel.value}_general.pdf"
+    return f"{stem}_{etiqueta}_{slug}_{seccion.letra}.pdf"
+  return f"{stem}_{etiqueta}_{nivel.value}_general.pdf"
 
 
 def _titulo(
@@ -72,9 +74,10 @@ def _titulo(
   seccion: Secciones | None,
 ) -> str:
   titulo = TITULOS_DOCUMENTO[tipo]
+  etiqueta = etiqueta_periodo(periodo)
   if seccion is not None and grado is not None:
-    return f"{titulo} {periodo}/{grado.nombre} \"{seccion.letra.upper()}\""
-  return f"{titulo} {periodo}/{nivel.value} general"
+    return f'{titulo} {etiqueta}/{grado.nombre} "{seccion.letra.upper()}"'
+  return f"{titulo} {etiqueta}/{nivel.value} general"
 
 
 def _nombre_representante(representante: Representantes | None) -> str:
@@ -342,15 +345,19 @@ def ruta_relativa_listado(
 ) -> str:
   """Ruta relativa dentro de STORAGE_ROOT del PDF generado.
 
-  El periodo es una carpeta para separar los listados de cada año.
+  El periodo lectivo es la primera carpeta y usa su etiqueta legible.
 
-  Sección: `listados/nominas/2027/LICEO/1er_ano/A/nomina_2027_1er_ano_A.pdf`.
-  General: `listados/nominas/2027/LICEO/general/nomina_2027_LICEO_general.pdf`.
+  Sección: `periodo_lectivo/2026-2027/listados/nominas/LICEO/1er_ano/A/nomina_2026-2027_1er_ano_A.pdf`.
+  General: `periodo_lectivo/2026-2027/listados/nominas/LICEO/general/nomina_2026-2027_LICEO_general.pdf`.
   """
+  etiqueta = etiqueta_periodo(periodo)
   if seccion is not None:
     slug = GRADO_SLUGS.get(grado.numero, "general")
     return (
-      f"listados/{tipo.value}/{periodo}/{nivel.value}/{slug}/"
+      f"periodo_lectivo/{etiqueta}/listados/{tipo.value}/{nivel.value}/{slug}/"
       f"{seccion.letra}/{nombre_archivo}"
     )
-  return f"listados/{tipo.value}/{periodo}/{nivel.value}/general/{nombre_archivo}"
+  return (
+    f"periodo_lectivo/{etiqueta}/listados/{tipo.value}/{nivel.value}/general/"
+    f"{nombre_archivo}"
+  )

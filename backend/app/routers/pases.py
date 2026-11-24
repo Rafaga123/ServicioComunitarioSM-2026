@@ -449,7 +449,8 @@ def subir_pase_archivo(
 
   seccion = estudiante.seccion
   ruta_relativa = ruta_relativa_imagen(
-    pase.fecha,
+    seccion.periodo_lectivo,
+    "pases",
     seccion.grado.numero,
     seccion.letra,
     seccion.grado.nivel,

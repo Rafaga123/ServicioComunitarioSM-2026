@@ -343,11 +343,20 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
 - `GET /api/listados/documentos/paquete?tipo&periodo_lectivo` (admin) → `application/zip`, `Content-Disposition: attachment; filename="listados.zip"` con todos los PDFs de ese tipo+periodo.
 - `GET /api/listados/documentos/{documento_id}/archivo` → `FileResponse` PDF (attachment). 404 si no existe/fecha_eliminacion set.
 
-- Las rutas relativas incluyen el periodo como carpeta: `listados/nominas/2026/LICEO/1er_ano/A/nomina_2026_1er_ano_A.pdf` (general: `listados/nominas/2026/LICEO/general/nomina_2026_LICEO_general.pdf`). Si el nombre ya existe se usa un sufijo `_v2`, `_v3`, etc.
+- Estructura física dentro de `STORAGE_ROOT` (`periodo_lectivo/{etiqueta}/...`, donde la etiqueta de `2026` es `2026-2027`):
+
+  ```text
+  periodo_lectivo/2026-2027/
+  ├─ pases/{nivel}/{grado}/{letra}/estudiante-{id}/archivo.ext
+  ├─ reportes/{nivel}/{grado}/{letra}/estudiante-{id}/archivo.ext
+  └─ listados/{nominas|representantes|horarios}/{nivel}/{grado}/{letra}/archivo.pdf
+  ```
+
+- Ejemplo de PDF: `periodo_lectivo/2026-2027/listados/nominas/LICEO/1er_ano/A/nomina_2026-2027_1er_ano_A.pdf` (general: `periodo_lectivo/2026-2027/listados/nominas/LICEO/general/nomina_2026-2027_LICEO_general.pdf`). Si el nombre ya existe se usa `_v2`, `_v3`, etc.
 - Formato del encabezado de los PDFs (hoja carta, margen izquierdo 4 cm y 3 cm en los demás):
-  - Título por sección: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026/1er Grado "U"`.
-  - Título general: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026/ESCUELA general` (equivalente para `representantes` y `horarios`).
-  - Línea de metadatos, sin comillas: `ESCUELA • 1er Grado U • 2026`.
+  - Título por sección: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/1er Grado "U"`.
+  - Título general: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/ESCUELA general` (equivalente para `representantes` y `horarios`).
+  - Línea de metadatos, sin comillas: `ESCUELA • 1er Grado U • 2026-2027`.
 - Los representantes de ESCUELA cargados desde el PDF original solo tienen teléfono (no nombre): en la columna `Representante` del PDF se muestra `-`. Los representantes de LICEO conservan sus nombres reales.
 
 ---
@@ -366,7 +375,7 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
   - Campo multipart: `archivo` (campo pela).
   - Validación (400): extensión ∉ {jpg, jpeg, png, webp}; MIME ∉ {image/jpeg, image/jpg, image/png, image/webp}; tamaño > `ARCHIVOS_MAX_BYTES` (5 MB).
   - Nombre base sanitizado (sin nulos/dirs/`..`), ≤100 chars.
-  - Ruta relativa generada: `{anio}/{mes:02d}/{nivel_lower}/{slug_grado}/{letra_upper}/estudiante-{id}/{id_registro}_{uuid8}.{ext}` (slugs: 1→`1er_grado`, 7→`1er_ano`, ...).
+  - Ruta relativa generada: `periodo_lectivo/{etiqueta}/{pases|reportes}/{nivel_lower}/{slug_grado}/{letra_upper}/estudiante-{id}/{id_registro}_{uuid8}.{ext}` (slugs: 1→`1er_grado`, 7→`1er_ano`, ...). La etiqueta del periodo activo `2026` es `2026-2027`.
   - `archivo_url` en la respuesta = esa ruta relativa; también `archivo_mime`, `archivo_tamano` (bytes), `archivo_hash` (SHA-256 hex), `archivo_subido_por` (id del usuario), `archivo_fecha` (Caracas).
 - **Descarga**: solo por `GET /api/{pases,reportes}/{id}/archivo`. `?inline=true` → `Content-Disposition: inline`; por defecto `attachment`. 409 si el archivo físico no existe.
 - **Quitar adjunto** (`DELETE /api/{pases,reportes}/{id}/archivo`): solo desvincula (metadatos en null). El archivo físico queda en `STORAGE_ROOT` (no hay endpoint de borrado físico).

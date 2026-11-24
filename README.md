@@ -886,8 +886,8 @@ o, sin sección: `{ "nivel": "ESCUELA", "periodo_lectivo": 2026 }`.
 - `periodo_lectivo` es opcional: por defecto se usa el activo (400 si no hay activo y no se indicó uno).
 - `horarios` requiere `id_seccion`; los listados generales requieren `nivel`.
 - Los PDF usan hoja carta, margen izquierdo de 4 cm y 3 cm en los demás lados.
-- La ruta incluye el año: `listados/nominas/2026/ESCUELA/1er_grado/U/nomina_2026_1er_grado_U.pdf` (si ya existe, se agrega `_v2`, `_v3`, …).
-- Título: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026/1er Grado "U"`. Metadatos: `ESCUELA • 1er Grado U • 2026`.
+- La ruta incluye el periodo lectivo: `periodo_lectivo/2026-2027/listados/nominas/ESCUELA/1er_grado/U/nomina_2026-2027_1er_grado_U.pdf` (si ya existe, se agrega `_v2`, `_v3`, …).
+- Título: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/1er Grado "U"`. Metadatos: `ESCUELA • 1er Grado U • 2026-2027`.
 - Los representantes de ESCUELA del export original solo tienen teléfono; en la columna `Representante` se muestra `-`. Los de LICEO conservan su nombre real.
 
 ### 6.16 Auditorías (`/api/auditorias`)
@@ -979,7 +979,7 @@ Cada operación de escritura registra automáticamente una auditoría con:
 ### 7.9 Listados y PDFs
 
 - Los PDF se generan para el período activo salvo que se envíe `periodo_lectivo`.
-- Las rutas de almacenamiento llevan el año como primera carpeta.
+- Las rutas de almacenamiento llevan el periodo como primera carpeta (`2026` → `2026-2027`).
 - Si el archivo destino ya existe, se conserva y se genera un nombre único con sufijo.
 - Los representantes sin nombre (placeholders de ESCUELA) se muestran como `-`, conservando su teléfono.
 
@@ -988,6 +988,19 @@ Cada operación de escritura registra automáticamente una auditoría con:
 - Solo imágenes JPG/JPEG/PNG/WebP, máximo 5 MB.
 - La subida es multipart con el campo `archivo`; `archivo_url` es solo de lectura.
 - Al desvincular con `DELETE /{id}/archivo` se limpia la metadata, pero el archivo físico permanece en `STORAGE_ROOT`.
+
+### 7.11 Estructura física
+
+Todo se guarda bajo `STORAGE_ROOT` (`C:\sistema` por defecto):
+
+```text
+periodo_lectivo/2026-2027/
+├─ pases/{nivel}/{grado}/{letra}/estudiante-{id}/archivo.ext
+├─ reportes/{nivel}/{grado}/{letra}/estudiante-{id}/archivo.ext
+└─ listados/{nominas|representantes|horarios}/{nivel}/{grado}/{letra}/archivo.pdf
+```
+
+La BD sigue guardando el año como entero (`2026`); la etiqueta `2026-2027` se deriva para rutas, nombres de archivo, títulos y metadatos.
 
 ---
 

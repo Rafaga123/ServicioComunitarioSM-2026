@@ -347,7 +347,8 @@ def subir_reporte_archivo(
 
   seccion = estudiante.seccion
   ruta_relativa = ruta_relativa_imagen(
-    reporte.fecha,
+    seccion.periodo_lectivo,
+    "reportes",
     seccion.grado.numero,
     seccion.letra,
     seccion.grado.nivel,

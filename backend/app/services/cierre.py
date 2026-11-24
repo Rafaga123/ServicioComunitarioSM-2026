@@ -32,6 +32,7 @@ from app.services import listados as servicio_listados
 from app.utils.auditoria import registrar_auditoria
 from app.utils.fechas import ahora_caracas
 from app.utils.pdf import construir_pdf
+from app.utils.periodos import etiqueta_periodo
 from app.utils.storage import hash_contenido, nombre_unico, ruta_absoluta
 
 GRADOS_PROMOVIDOS_MAX = 11  # 11 = 5to Año, último grado del liceo (egreso)
@@ -207,7 +208,7 @@ def _guardar_doc_staged(
     nivel=nivel.value if nivel else None,
     grado=None,
     seccion=documento.seccion_descripcion,
-    periodo_lectivo=periodo,
+    periodo_lectivo=etiqueta_periodo(periodo),
   )
   ruta_relativa = servicio_listados.ruta_relativa_listado(
     tipo, periodo, nivel, documento.grado, seccion, documento.nombre_archivo

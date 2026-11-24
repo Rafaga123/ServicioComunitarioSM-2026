@@ -77,12 +77,12 @@ def construir_pdf(
   nivel: str | None = None,
   grado: str | None = None,
   seccion: str | None = None,
-  periodo_lectivo: int | None = None,
+  periodo_lectivo: str | None = None,
 ) -> bytes:
   """Construye el PDF de un listado.
 
   Encabezado institucional (`INSTITUCION_NOMBRE`), metadatos de alcance
-  (nivel/grado/sección/periodo) y una tabla de `filas` con `encabezados` como
+  (nivel/grado/sección/periodo, p. ej. «2026-2027») y una tabla de `filas` con `encabezados` como
   encabezado de columna. `col_anchos` en centímetros; se convierten a puntos y
   se escalan proporcionalmente si superan el ancho útil de la hoja carta.
   """
