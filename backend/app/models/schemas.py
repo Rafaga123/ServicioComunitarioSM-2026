@@ -611,6 +611,7 @@ class PeticionDocumentoGenerado(SQLModel):
 # ====
 class PeticionResumenGestion(SQLModel):
   nivel: en.NivelEducativo | None = None
+  periodo_lectivo: int | None = None
   representantes: int
   estudiantes: int
   secciones: int

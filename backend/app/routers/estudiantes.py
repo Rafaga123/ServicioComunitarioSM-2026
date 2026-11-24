@@ -22,6 +22,7 @@ from app.models.schemas import ActualizarEstudiante, CrearEstudiante, PeticionEs
 from app.models.session import get_session
 from app.utils.auditoria import registrar_auditoria
 from app.utils.nombres import nombre_completo
+from app.utils.periodos import periodo_lectivo_efectivo
 from app.utils.security import (
   obtener_usuario_actual,
   requerir_roles,
@@ -161,6 +162,7 @@ def listar_estudiantes(
   consulta = consulta.join(Grados, Secciones.id_grado == Grados.id)
 
   nivel = resolver_nivel(usuario_actual, nivel)
+  periodo_lectivo = periodo_lectivo_efectivo(session, periodo_lectivo)
   if nivel is not None:
     consulta = consulta.where(Grados.nivel == nivel)
   if id_grado is not None:
@@ -180,6 +182,7 @@ def buscar_estudiantes(
   termino: str,
   paginacion: PaginacionBusqueda = Depends(),
   nivel: NivelEducativo | None = None,
+  periodo_lectivo: int | None = None,
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
@@ -195,8 +198,11 @@ def buscar_estudiantes(
   )
 
   nivel = resolver_nivel(usuario_actual, nivel)
+  periodo_lectivo = periodo_lectivo_efectivo(session, periodo_lectivo)
   if nivel is not None:
     consulta = consulta.where(Grados.nivel == nivel)
+  if periodo_lectivo is not None:
+    consulta = consulta.where(Secciones.periodo_lectivo == periodo_lectivo)
 
   items, total = paginar(session, consulta, paginacion)
 

@@ -38,6 +38,7 @@ from app.services import listados as servicio_listados
 from app.utils.auditoria import registrar_auditoria
 from app.utils.fechas import ahora_caracas
 from app.utils.pdf import construir_pdf
+from app.utils.periodos import periodo_lectivo_efectivo
 from app.utils.security import (
   obtener_usuario_actual,
   requerir_roles,
@@ -114,6 +115,8 @@ def _resolver_filtros(
       )
     nivel = nivel or grado.nivel
 
+  if periodo is None:
+    periodo = periodo_lectivo_efectivo(session, None)
   if periodo is None:
     raise HTTPException(400, "Indica periodo_lectivo")
 
@@ -226,6 +229,7 @@ def listar_documentos(
   consulta = select(DocumentosGenerados).where(
     DocumentosGenerados.fecha_eliminacion.is_(None)
   )
+  periodo_lectivo = periodo_lectivo_efectivo(session, periodo_lectivo)
   if tipo is not None:
     consulta = consulta.where(DocumentosGenerados.tipo == tipo)
   if periodo_lectivo is not None:

@@ -45,6 +45,7 @@ from app.models.schemas import (
 from app.models.session import get_session
 from app.utils.auditoria import registrar_auditoria
 from app.utils.nombres import nombre_completo
+from app.utils.periodos import periodo_lectivo_efectivo
 from app.utils.security import (
   requerir_roles,
   resolver_nivel,
@@ -247,6 +248,7 @@ def listar_pases(
   consulta = consulta.join(Grados, Secciones.id_grado == Grados.id)
 
   nivel = resolver_nivel(usuario_actual, nivel)
+  periodo_lectivo = periodo_lectivo_efectivo(session, periodo_lectivo)
   if nivel is not None:
     consulta = consulta.where(Grados.nivel == nivel)
   if id_estudiante is not None:
