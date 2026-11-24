@@ -573,6 +573,7 @@ Reglas:
 - `periodo_lectivo` es un año entero, por ejemplo `2026`.
 - Única sección activa por `(id_grado, letra, periodo_lectivo)`.
 - `id_docente_titular` es opcional y **solo para secciones de escuela**; debe ser un docente de escuela del mismo nivel del operador.
+- Un docente solo puede ser titular de **una sección activa por período lectivo**; si ya es titular de otra, `409`.
 - Las secciones de liceo no llevan docente titular.
 - Para dar de baja una sección primero hay que trasladar a sus estudiantes y dar de baja sus horarios; si no, `409`.
 
@@ -687,6 +688,7 @@ Reglas:
 - El docente debe ser de liceo y estar vinculado a la asignatura.
 - Choque de sección (`id_seccion + id_bloque + periodo_lectivo + dia_semana`) → `409`.
 - Choque de docente (`id_docente + id_bloque + periodo_lectivo + dia_semana`) → `409`.
+- Un docente titular de otra sección no puede programarse aquí (`409`): está ocupado con su sección y solo puede dar clases en ella.
 - La respuesta incluye datos de apoyo: `seccion`, `grado`, `nivel`, `bloque`, `bloque_orden`, `hora_inicio`, `hora_fin`, `asignatura` y `docente`.
 
 #### Consulta de clase por estudiante (cualquier autenticado)
@@ -949,6 +951,7 @@ python -m scripts.normalizar_textos_auditoria
 - El docente debe ser de liceo y estar vinculado a la asignatura.
 - No puede haber dos clases para la misma sección en el mismo bloque/día/período.
 - No puede haber dos clases para el mismo docente en el mismo bloque/día/período.
+- El titular de una sección es único por período y no puede programarse en otra sección.
 - La consulta por estudiante resuelve la sección del estudiante y el bloque por `id_bloque` o por `hora`.
 
 ### 7.4 Secciones

@@ -129,6 +129,7 @@ Recomendación de campo: `nivel` → filtra secciones/horarios/asignaturas; `num
 **`POST /api/secciones/`** — body `CrearSeccion = { id_grado: int, letra: "A"|"B"|"U", periodo_lectivo: int (≥2000), id_docente_titular?: int|null }` → `201 PeticionSeccion`.
 - `letra` se normaliza a mayúsculas (A/B/U obligatorios).
 - Titular debe ser de ESCUELA (solo se puede nombrar a titular a una sección de escuela con docente de escuela).
+- 409 si el docente ya es titular de otra sección activa del mismo `periodo_lectivo`: `El docente ya es titular de otra sección en este período lectivo`.
 - 400 si ya existe sección activa con ese (grado, letra, periodo_lectivo).
 
 **`PUT /api/secciones/{id}`** — body `ActualizarSeccion = { letra?, periodo_lectivo?, id_docente_titular? }` → `200 PeticionSeccion`.
@@ -236,6 +237,7 @@ Validaciones de negocio (código):
 - `asignatura.id_grado == seccion.id_grado` y `asignatura.periodo_lectivo == periodo_lectivo`.
 - Solo docentes de LICEO y vinculados a la asignatura.
 - Colisión: no puede haber otra clase de la misma sección + bloque + periodo + día, ni de la misma clase del mismo docente + bloque + periodo + día. (409)
+- 409 si el docente es titular de otra sección: `El docente es titular de otra sección y no puede impartir clases fuera de ella`. Puede dar clases en la sección que titula.
 - Rango de bloques: `hora_inicio` ≥ 07:00 y `hora_fin` ≤ 12:40 (400 si fuera); 409 si `orden` duplicado o bloque solapado.
 - Recomendación: desplegables: usar los campos de apoyo (`seccion`, `grado`, `nivel`, `bloque`, `asignatura`, `docente`) de `PeticionHorario`; la malla se construye con `hora_inicio`/`hora_fin` del bloque.
 
@@ -530,6 +532,12 @@ El backend ya expone todo; falta conectar botones en frontend:
 - No hace falta enviar texto desde el frontend: el backend normaliza los textos al guardar (`SUBIR ARCHIVO`, `CIERRE AÑO`, `2026-2027`, `1er año`, etc.).
 - Las auditorías históricas se normalizaron con `python -m scripts.normalizar_textos_auditoria` (ejecutado en esta rama).
 
-### 11.4 Otros pendientes menores
+### 11.4 Titular único por sección
+
+- El backend ya rechaza con `409` asignar el mismo docente como titular de dos secciones del mismo período. En el desplegable de titulares conviene ocultar/inhabilitar los docentes que ya figuran como titulares de otra sección del período elegido (el `detail` del `409` es suficiente si no se quiere filtrar).
+- La regla de negocio es: el titular está ocupado con su sección, por lo que **no puede dar clases en otra sección**. El backend también devuelve `409` al intentar programar un horario con un docente titular de sección distinta; sí puede programarse en la sección que titula.
+- Hoy la API solo permite nombrar titulares en secciones de ESCUELA y los horarios son de LICEO, así que la exclusividad es una defensa para datos cargados directamente o para un futuro cambio de regla.
+
+### 11.5 Otros pendientes menores
 
 - El listado general de docentes de ESCUELA muestra `Grado/Sección = -` mientras no haya `id_docente_titular` cargado en las secciones. No bloquea el PDF.
