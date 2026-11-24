@@ -924,7 +924,7 @@ La semilla se ejecuta en cada arranque y es idempotente. No resucita registros d
 
 ### 8.3 Datos de prueba locales (nóminas)
 
-`backend/scripts/nominas/` contiene el export original, organizado en `PDFs/` y `Exels/`, con los SQL y JSON en la raíz. Es una carpeta **ignorada por Git** porque incluye nombres y cédulas reales: no debe subirse al repositorio. Un clone nuevo no la trae; hay que copiarla manualmente desde el export local antes de cargar datos de prueba. Los scripts generadores (`excel.py`, `generar_sql.py`) reciben como `--carpeta` la ruta a `nominas/Exels`.
+`backend/scripts/nominas/` contiene el export original, organizado en `PDFs/` y `Excels/`, con los SQL y JSON en la raíz. Es una carpeta **ignorada por Git** porque incluye nombres y cédulas reales: no debe subirse al repositorio. Un clone nuevo no la trae; hay que copiarla manualmente desde el export local antes de cargar datos de prueba. Los scripts generadores (`excel.py`, `generar_sql.py`) reciben como `--carpeta` la ruta a `nominas/Excels`.
 
 Los SQL de esa carpeta están adaptados al esquema actual:
 
@@ -935,15 +935,23 @@ Los SQL de esa carpeta están adaptados al esquema actual:
 - las 4 colisiones docente+bloque+día del JSON se insertan tal cual vienen en el export;
 - todos los `INSERT` son idempotentes y pueden re-ejecutarse.
 
-Orden de carga desde `backend/` con la BD ya creada por la API:
+Carga completa en un solo comando, desde `backend/` y con la configuración de `.env`:
 
 ```powershell
-psql -h <host> -U <usuario> -d <base> -f scripts/nominas/00_todo_seed.sql
-.\.venv\Scripts\python.exe -m scripts.sembrar_horarios
-.\.venv\Scripts\python.exe -m scripts.crear_admin
+.\.venv\Scripts\python.exe -m scripts.cargar_datos_prueba
 ```
 
-`sembrar_horarios.py` lee por defecto `scripts/nominas/horarios_liceo_2026.json`; también puede pasarse otra ruta con `--json`.
+El cargador crea las tablas y la semilla base si faltan, y ejecuta en orden jerárquico: periodo → docentes → secciones → representantes → estudiantes → asignaturas → vínculos docentes → horarios → usuarios. Es idempotente: puede ejecutarse las veces que haga falta sin duplicar registros. Acepta `--sql`, `--json`, `--clave` y `--no-actualizar-horarios`.
+
+Usuarios creados por el cargador (todos con la clave de prueba `Prueba2026!`, sobreescribible con `--clave` o la variable `CLAVE_PRUEBA`):
+
+| Usuario | Rol | Nivel |
+| --- | --- | --- |
+| `admin_prueba` | ADMINISTRADOR | — |
+| `secretaria_liceo` | SECRETARIA | LICEO |
+| `secretaria_escuela` | SECRETARIA | ESCUELA |
+
+> Son cuentas de prueba: no usar estas claves en un entorno desplegado.
 
 > Los commits antiguos del repositorio todavía contienen `backend/scripts/docentes.sql` y `backend/scripts/horarios_liceo_2026.json`. Su eliminación del historial quedó pendiente de una decisión explícita.
 
