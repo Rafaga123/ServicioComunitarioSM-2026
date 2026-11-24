@@ -236,6 +236,8 @@ class PeticionEstudiante(SQLModel):
   segundo_apellido: str | None = None
 
   fecha_nacimiento: datetime
+  # Asignado por el cierre de año; solo se expone en lectura (no acepta PUT).
+  fecha_egreso: datetime | None = None
 
   # Datos de apoyo para listados y filtros por nivel.
   nivel: en.NivelEducativo | None = None

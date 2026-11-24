@@ -84,6 +84,7 @@ def _estudiante_dto(estudiante: Estudiantes) -> PeticionEstudiante:
     primer_apellido=estudiante.primer_apellido,
     segundo_apellido=estudiante.segundo_apellido,
     fecha_nacimiento=estudiante.fecha_nacimiento,
+    fecha_egreso=estudiante.fecha_egreso,
     nivel=grado.nivel,
     id_grado=seccion.id_grado,
     grado_numero=grado.numero,
