@@ -2,9 +2,9 @@
 
 API REST para la gestión académica y disciplinaria de una escuela y un liceo. Está construida con **FastAPI + SQLModel + PostgreSQL** y separa la información por nivel educativo (`ESCUELA` / `LICEO`).
 
-> **Estado actual:** Fases 1–6 completadas en `backend-dev`. El backend expone **14 routers**, **47 rutas** y **84 operaciones** documentadas en OpenAPI (verificado con `app.openapi()`; la ruta nueva es `POST /api/auth/logout`). El contrato detallado para el frontend está en [`docs/ENTREGA_FRONTEND.md`](docs/ENTREGA_FRONTEND.md).
+> **Estado actual:** Fases 1–6 completadas en `backend-dev`. El backend expone **14 routers**, **47 rutas** y **84 operaciones** documentadas en OpenAPI. No se agregaron rutas: la revocación de JWT y el límite de login se implementaron dentro de `/auth/login`, `/auth/logout` y el CRUD de usuarios. El contrato detallado para el frontend está en [`docs/ENTREGA_FRONTEND.md`](docs/ENTREGA_FRONTEND.md).
 >
-> **Importante:** no hay migraciones (Alembic). `create_all()` **no altera** tablas existentes: para esquemas antiguos se usa `python -m scripts.cargar_datos_prueba --recrear-tablas`, que hace `drop_all()` antes de cargar y por eso es destructivo. Sin ese flag, la BD se crea/actualiza desde la semilla sin borrar datos.
+> **Importante:** no hay migraciones (Alembic). `create_all()` **no altera** tablas existentes, pero en el arranque se ejecutan dos migraciones no destructivas: `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS version_tokens INTEGER NOT NULL DEFAULT 0` y `ALTER TYPE tipodocumento ADD VALUE IF NOT EXISTS 'docentes'`. Para el resto de cambios de esquema se usa `python -m scripts.cargar_datos_prueba --recrear-tablas`, que hace `drop_all()` antes de cargar y por eso es destructivo. La tabla nueva `tokens_revocados` sí la crea `create_all()` automáticamente.
 
 ---
 
@@ -92,6 +92,10 @@ Copy-Item .env.example .env
 | `SECRET_KEY` | Sí | Clave para firmar los JWT. **Mínimo 32 bytes** o la API no arranca |
 | `ALGORITHM` | No | Algoritmo del JWT. Por defecto `HS256` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | No | Duración del token en minutos. Por defecto `360` |
+| `LIMITE_LOGIN_INTENTOS` | No | Fallos permitidos por `(IP, usuario)` en la ventana. Por defecto `5` |
+| `LIMITE_LOGIN_IP` | No | Intentos totales permitidos por IP en la ventana. Por defecto `20` |
+| `LIMITE_LOGIN_VENTANA_SEGUNDOS` | No | Tamaño de la ventana deslizante. Por defecto `60` |
+| `TOKENS_REVOCADOS_RETENCION_HORAS` | No | Horas que se conserva un `jti` revocado después de su `exp`. Por defecto `24` |
 
 Genera una `SECRET_KEY` segura con:
 
@@ -118,7 +122,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 Al arrancar, la API:
 
 1. Crea las extensiones `unaccent` y `pg_trgm`.
-2. Crea las 15 tablas si no existen.
+2. Crea las 16 tablas si no existen.
 3. Carga la semilla de grados y bloques horarios si falta.
 4. Imprime la IP local y las URLs de Swagger.
 
@@ -160,7 +164,7 @@ ServicioComunitarioSM-2026/
 │   │   │   ├── paginacion.py      # Envelope {items, total, offset, size}
 │   │   │   └── semilla.py         # 11 grados y 10 bloques institucionales
 │   │   ├── models/
-│   │   │   ├── db.py              # 15 tablas SQLModel
+│   │   │   ├── db.py              # 16 tablas SQLModel
 │   │   │   ├── enums.py           # Enums de la API
 │   │   │   ├── schemas.py         # Contratos de entrada/salida
 │   │   │   └── session.py         # Engine, sesión y creación del esquema
@@ -229,12 +233,20 @@ Todas las rutas protegidas esperan:
 Authorization: Bearer <access_token>
 ```
 
-El token incluye `sub` (id del usuario), `rol`, `nivel` y `exp` (epoch seconds). En cada petición el servidor vuelve a leer el usuario desde la BD, así que una baja o un cambio de rol surten efecto sin esperar a que expire el token.
+El token incluye `sub` (id del usuario), `rol`, `nivel`, `jti` (UUID único por emisión), `ver` (versión de tokens del usuario) y `exp` (epoch seconds). En cada petición el servidor vuelve a leer el usuario desde la BD, así que una baja o un cambio de rol surten efecto sin esperar a que expire el token.
 
-- `401`: token ausente, inválido o expirado. El `detail` distingue `La sesión ha expirado. Inicia sesión nuevamente.` de `No se pudieron validar las credenciales (token inválido)`. En ambos casos el frontend debe limpiar la sesión local.
+- `401`: token ausente, inválido, expirado, revocado u obsoleto. El `detail` distingue cuatro casos:
+  - `La sesión ha expirado. Inicia sesión nuevamente.`
+  - `No se pudieron validar las credenciales (token inválido)`
+  - `La sesión fue cerrada. Inicia sesión nuevamente.`
+  - `La clave o los permisos del usuario cambiaron. Inicia sesión nuevamente.`
+  En todos ellos el frontend debe limpiar la sesión local.
 - `403`: token válido, pero sin permisos o sin acceso al nivel solicitado.
-- `POST /api/auth/logout` auditoriza el cierre de sesión, pero **no revoca** el JWT: el frontend también debe eliminar el token almacenado.
-- No hay refresh token ni endpoint de logout/revocación por ahora.
+- `429`: demasiados intentos de login. Incluye `Retry-After` en segundos.
+- `POST /api/auth/logout` inserta el `jti` en `tokens_revocados` y registra `CIERRE DE SESIÓN` en la misma transacción. El token usado deja de servir de inmediato; otros tokens del mismo usuario siguen válidos. Es idempotente: un segundo logout con el mismo token devuelve `204`.
+- Cambiar clave (propia o por admin), dar de baja un usuario o transferir el rol de administrador incrementa `usuarios.version_tokens` y revoca **todas** las sesiones anteriores de los usuarios afectados.
+- La tabla `tokens_revocados` se limpia al arrancar y, de forma perezosa, máximo una vez por hora desde login/logout. Se borran las filas con `expira_en < ahora_caracas() - TOKENS_REVOCADOS_RETENCION_HORAS`.
+- No hay refresh token. El límite de login es en memoria por proceso: con múltiples workers debe moverse a Redis o al proxy.
 
 ### 4.3 Paginación
 
@@ -394,7 +406,7 @@ Los `422` usan el formato estándar de FastAPI:
 | --- | --- | --- | --- |
 | POST | `/api/auth/login` | Público | Form-data `username` y `password`. Devuelve `access_token` y `token_type` |
 | GET | `/api/auth/me` | Autenticado | Devuelve `id`, `nombre`, `rol` y `nivel` del usuario actual |
-| POST | `/api/auth/logout` | Autenticado | `204`; registra `CIERRE DE SESIÓN`. No revoca el token: borrarlo en el cliente |
+| POST | `/api/auth/logout` | Autenticado | `204`; revoca el `jti` del token usado y registra `CIERRE DE SESIÓN` |
 
 Ejemplo de respuesta de `/api/auth/me`:
 
@@ -1091,7 +1103,7 @@ Si la base viene de una versión anterior del esquema, `create_all()` no agrega 
 .\.venv\Scripts\python.exe -m scripts.cargar_datos_prueba --recrear-tablas
 ```
 
-Ese flag hace `drop_all()` antes de crear las tablas y cargar; borra todos los datos de las 15 tablas.
+Ese flag hace `drop_all()` antes de crear las tablas y cargar; borra todos los datos de las 16 tablas.
 
 Usuarios creados por el cargador (todos con la clave de prueba `Prueba123*`, sobreescribible con `--clave` o la variable `CLAVE_PRUEBA`):
 
@@ -1129,7 +1141,7 @@ Usuarios creados por el cargador (todos con la clave de prueba `Prueba123*`, sob
 | `auditorias` | Bitácora de operaciones |
 | `documentos_generados` | PDFs de listados generados |
 
-Todas las tablas incluyen `fecha_creacion`, `fecha_actualizacion` y `fecha_eliminacion`.
+Todas las tablas incluyen `fecha_creacion`, `fecha_actualizacion` y `fecha_eliminacion`. La excepción es `tokens_revocados`: hereda las tres columnas por convención, pero se limpia con `DELETE` físico porque es una tabla de control, no dato de negocio.
 
 ### 9.2 Orden recomendado para cargar datos
 
@@ -1190,7 +1202,7 @@ headers: {
 }
 ```
 
-Para cerrar sesión, llama `POST /api/auth/logout` con el Bearer token y después borra el token local. Un `401` (expirado o inválido) también debe limpiar la sesión en el cliente. Las notas detalladas para `frontend-dev` están en [`docs/ENTREGA_FRONTEND.md`](docs/ENTREGA_FRONTEND.md), sección 11.
+Para cerrar sesión (botón manual **o** temporizador de inactividad), llama `POST /api/auth/logout` con el Bearer token y después borra el token local. Si solo borras el token local, el backend no se entera y un token robado sigue válido hasta `exp`. Cualquier `401` (expirado, revocado, clave cambiada, baja) debe limpiar la sesión en el cliente. Las notas detalladas para `frontend-dev` están en [`docs/ENTREGA_FRONTEND.md`](docs/ENTREGA_FRONTEND.md), sección 11.
 
 ### 10.3 Ejemplo de listado paginado
 
@@ -1244,8 +1256,9 @@ Con el frontend servido desde el mismo backend y el mismo puerto, las peticiones
 
 ### 10.6 Errores que el frontend debe manejar
 
-- `401`: redirigir al login o renovar sesión (no hay refresh token).
+- `401`: limpiar sesión y redirigir al login (no hay refresh token).
 - `403`: mostrar “sin permisos” o “fuera de tu nivel”.
+- `429`: demasiados intentos de login; esperar los segundos indicados en `Retry-After`.
 - `404`: recurso inexistente o dado de baja.
 - `409`: conflicto de negocio (choque de horario, sección con alumnos, etc.).
 - `422`: errores de formulario; `detail` es una lista de campos.
@@ -1263,9 +1276,10 @@ Con el frontend servido desde el mismo backend y el mismo puerto, las peticiones
 
 ### 11.2 Limitaciones actuales
 
-- **No hay Alembic.** `create_all()` no altera tablas existentes; para cambios de columnas en esquemas viejos se usa `--recrear-tablas` (destructivo). La única migración automática es `ALTER TYPE tipodocumento ADD VALUE IF NOT EXISTS 'docentes'`, ejecutada en el arranque.
-- **No hay logout ni revocación de JWT.** El token dura 360 minutos por defecto.
-- **No hay refresh token.**
+- **No hay Alembic.** `create_all()` no altera tablas existentes. Las migraciones automáticas del arranque son `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS version_tokens ...` y `ALTER TYPE tipodocumento ADD VALUE IF NOT EXISTS 'docentes'`. Para otros cambios de columna se usa `--recrear-tablas` (destructivo).
+- **Logout con revocación por `jti`** y revocación masiva por `version_tokens` (cambio de clave, baja, transferencia de admin).
+- **No hay refresh token.** El token dura 360 minutos por defecto.
+- **El límite de login es en memoria por proceso.** No sobrevive a reinicios ni es compartido entre workers; en despliegues con balanceador, moverlo a Redis o al gateway.
 - **No hay endpoint de restauración** de registros dados de baja.
 - **No hay Docker/compose** ni instalador `.exe` todavía.
 - La subida de archivos admite solo imágenes; no hay vista previa ni borrado físico de adjuntos.

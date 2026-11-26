@@ -13,13 +13,14 @@
 
 | Método | Ruta | Detalle |
 |---|---|---|
-| `POST /api/auth/login` | body `application/x-www-form-urlencoded`: `username` (nombre del Usuario), `password` | Devuelve `200 {access_token, token_type: "bearer"}`. `401` si credenciales incorrectas. |
+| `POST /api/auth/login` | body `application/x-www-form-urlencoded`: `username` (nombre del Usuario), `password` | Devuelve `200 {access_token, token_type: "bearer"}`. `401` si credenciales incorrectas; `429` si se superó el límite de intentos, con header `Retry-After`. |
 | `GET /api/auth/me` | — | Devuelve el `PeticionUsuario` del usuario del token. |
-| `POST /api/auth/logout` | Bearer token | `204`. Registra `CIERRE DE SESIÓN` en auditorías. El token sigue vivo hasta `exp`: **el frontend debe borrarlo de localStorage**. |
+| `POST /api/auth/logout` | Bearer token | `204`. Revoca el `jti` del token usado y registra `CIERRE DE SESIÓN`. El token deja de servir de inmediato; el frontend **igual debe borrarlo de localStorage**. Llamarlo dos veces con el mismo token también devuelve `204`. |
 
 - El JWT es HS256, firmado con `SECRET_KEY`, expira en `ACCESS_TOKEN_EXPIRE_MINUTES` (defecto 360 min).
-- Claims del token: `sub` (string con el id del usuario), `rol`, `nivel` (nulo si no hay), `exp` (epoch seconds).
-- Token vencido → `401` con `detail: "La sesión ha expirado. Inicia sesión nuevamente."` y `WWW-Authenticate: Bearer error="invalid_token", error_description="token expirado"`. Token inválido → `401` con `detail: "No se pudieron validar las credenciales (token inválido)"`.
+- Claims del token: `sub` (string con el id del usuario), `rol`, `nivel` (nulo si no hay), `jti` (UUID de la emisión), `ver` (versión de tokens del usuario), `exp` (epoch seconds).
+- `401` posibles: `"La sesión ha expirado. Inicia sesión nuevamente."`, `"No se pudieron validar las credenciales (token inválido)"`, `"La sesión fue cerrada. Inicia sesión nuevamente."` y `"La clave o los permisos del usuario cambiaron. Inicia sesión nuevamente."`. En los cuatro casos: limpiar sesión y redirigir al login.
+- Login con demasiados intentos → `429` con `detail` en español y header `Retry-After` (segundos). Mostrar ese tiempo al usuario.
 - `Content-Type` de todos los POST: `application/json` (excepto login `x-www-form-urlencoded` y uploads multipart).
 - Login correcto: auditoría `modulo: "USUARIOS"`, `accion: "INICIO DE SESIÓN"`.
 - Cierre de sesión: auditoría `modulo: "USUARIOS"`, `accion: "CIERRE DE SESIÓN"`.
@@ -45,8 +46,9 @@ Todos los GET que devuelven lista tienen respuesta estándar:
 | `201` | POST creado |
 | `204` | DELETE/PUT sin contenido de retorno |
 | `400` | Validación de datos (campo, rango, duplicado) |
-| `401` | Token inválido o expirado. El frontend debe limpiar la sesión local y redirigir al login; el `detail` distingue expiración de token inválido. |
+| `401` | Token inválido, expirado, revocado u obsoleto. El frontend debe limpiar la sesión local y redirigir al login; el `detail` distingue las cuatro causas. |
 | `403` | Sin rol/nivel permitido |
+| `429` | Demasiados intentos de login. Leer `Retry-After` y esperar ese tiempo antes de reintentar. |
 | `404` | Registro no encontrado |
 | `409` | Conflicto (dependencias, duplicado de nota) |
 | `422` | Body inválido (Pydantic) |
@@ -99,13 +101,13 @@ Filtros: `nivel`, `rol`, `offset`, `size`.
 
 **`GET /api/usuarios/{id}`** → `PeticionUsuario`.
 
-**`PUT /api/usuarios/{id}`** — body `ActualizarUsuario = { nombre?, rol?, nivel? }` (opcionales; `nombre` debe ser no vacío 1-100 si presente) → `200 PeticionUsuario`. 400: nombre duplicado, cambio de rol sin nivel, intento de demote a admin.
+**`PUT /api/usuarios/{id}`** — body `ActualizarUsuario = { nombre?, rol?, nivel?, clave? }` (opcionales; `nombre` 1-100, `clave` 8-72). Si el admin envía `clave`, se hashea y **todas las sesiones de ese usuario quedan revocadas**: deberá iniciar sesión con la clave nueva. → `200 PeticionUsuario`. 400: nombre duplicado, cambio de rol sin nivel, intento de demote a admin. La clave nunca aparece en la auditoría ni en la respuesta.
 
 **`DELETE /api/usuarios/{id}`** → `204`. 400: no se puede dar de baja a admin (transfiere rol antes).
 
 **`POST /api/usuarios/{id}/transferir-admin`** → `200 PeticionUsuario`.
 
-**`PUT /api/usuarios/me/clave`** — body `CambiarClave = { clave_actual: str, clave_nueva: str(8-72) }` → `204`. 400 si la clave actual no es correcta.
+**`PUT /api/usuarios/me/clave`** — body `CambiarClave = { clave_actual: str, clave_nueva: str(8-72) }` → `204`. 400 si la clave actual no es correcta. Tras el éxito, **todas** las sesiones del usuario quedan revocadas, incluida la que hizo el cambio: hay que volver a loguearse.
 
 ---
 
@@ -512,11 +514,12 @@ Consulte las columnas `id_*`, `periodo_lectivo`, `fecha_*` y los campos `*_apoyo
 
 ### 11.1 Sesión, logout y expiración del JWT
 
-- Botón **Cerrar sesión**: llamar `POST /api/auth/logout` con el Bearer token **antes** de borrar `localStorage.token`. El backend audita el cierre; si solo se borra el token local no queda auditoría.
-- El JWT es stateless: el endpoint de logout **no revoca** el token. Es obligatorio eliminar el token local y limpiar el estado reactivo de `auth.js`.
-- `api.js` ya limpia token y redirige al recibir cualquier `401` (`apiFetch` y `apiDescargar`). Mantener ese comportamiento; el `detail` del backend ahora distingue `"La sesión ha expirado..."` de token inválido.
-- El `exp` del token viaja en el claim `exp` (epoch seconds). Para que la sesión se cierre **sin esperar una petición**, agregar en frontend un temporizador o control en `visibilitychange/focus` que compare `exp * 1000 <= Date.now()` y ejecute el mismo limpiado de sesión. `sincronizarSesion()` de `auth.js` solo lo revisa al cargar el módulo.
-- Opcional: al iniciar la app llamar `GET /api/auth/me` para validar el token contra el backend (cuenta dada de baja, rol/nivel cambiado). Un `401` ya dispara el cierre local.
+- Botón **Cerrar sesión**: llamar `POST /api/auth/logout` con el Bearer token **antes** de borrar `localStorage.token`. El backend revoca el `jti` y audita el cierre; si solo se borra el token local no queda auditoría **ni revocación**.
+- **Inactividad:** el temporizador (o `visibilitychange/focus`) debe ejecutar el **mismo** `POST /api/auth/logout` antes de limpiar `localStorage` y el estado de `auth.js`. El frontend decide **cuándo** cerrar; el backend decide que el token **ya no sirve**. Sin esa llamada, un token robado sigue válido hasta `exp`.
+- El `exp` del token viaja en el claim `exp` (epoch seconds). Comparar `exp * 1000 <= Date.now()` para detectar expiración local. `sincronizarSesion()` de `auth.js` solo lo revisa al cargar el módulo, así que hace falta un temporizador.
+- Cualquier `401` (expirado, inválido, cerrado, clave cambiada, usuario dado de baja o admin transferido) debe limpiar token y estado reactivo y redirigir al login. No hace falta distinguirlos en la UI: todos terminan en la misma pantalla.
+- `429` en login: mostrar `Retry-After` y deshabilitar el botón ese tiempo. No reintentar automáticamente en bucle.
+- Opcional: al iniciar la app llamar `GET /api/auth/me` para validar el token contra el backend. Es la forma de detectar revocaciones ocurridas mientras el usuario estaba fuera.
 
 ### 11.2 Listados y botones de exportar (aún sin UI)
 
