@@ -138,6 +138,8 @@ def cambiar_clave(
     )
 
   usuario_actual.clave = obtener_hash_clave(clave_in.clave_nueva)
+  # La sesión usada para cambiar la clave también queda revocada.
+  usuario_actual.version_tokens += 1
 
   session.add(usuario_actual)
   session.flush()
@@ -179,6 +181,10 @@ def actualizar_usuario(
 
   datos_actualizar = usuario_in.model_dump(exclude_unset=True, exclude_none=True)
 
+  # La clave se hashea y se trata aparte: nunca se asigna tal cual como
+  # los demás campos con el bucle genérico de setattr.
+  clave_nueva = datos_actualizar.pop("clave", None)
+
   _validar_combinacion_rol_nivel(
     datos_actualizar.get("rol", usuario_db.rol),
     datos_actualizar.get("nivel", usuario_db.nivel),
@@ -205,6 +211,12 @@ def actualizar_usuario(
     if getattr(usuario_db, campo) != valor
   }
 
+  # Reset de clave por el admin: sube la versión y revoca TODAS las sesiones
+  # anteriores de ese usuario, sin importar cuántas estuvieran abiertas.
+  if clave_nueva is not None:
+    cambios["clave"] = obtener_hash_clave(clave_nueva)
+    cambios["version_tokens"] = usuario_db.version_tokens + 1
+
   if not cambios:
     return usuario_db
 
@@ -214,15 +226,19 @@ def actualizar_usuario(
   session.add(usuario_db)
   session.flush()
 
+  descripcion = (
+    f"Se actualizaron los datos del usuario '{usuario_db.nombre}' "
+    f"con el rol {usuario_db.rol.value}."
+  )
+  if clave_nueva is not None:
+    descripcion += " Se restableció su clave y se cerraron sus sesiones."
+
   registrar_auditoria(
     session,
     usuario_actual.id,
     ModuloAuditoria.usuarios,
     "ACTUALIZAR",
-    (
-      f"Se actualizaron los datos del usuario '{usuario_db.nombre}' "
-      f"con el rol {usuario_db.rol.value}."
-    ),
+    descripcion,
   )
 
   session.commit()
@@ -246,6 +262,9 @@ def eliminar_usuario(
     )
 
   marcar_eliminado(session, usuario_db)
+  # La baja ya bloqueaba en validar_token; el +1 la hace explícita e
+  # irreversible aunque luego se reactive la cuenta.
+  usuario_db.version_tokens += 1
   session.flush()
 
   registrar_auditoria(
@@ -275,6 +294,11 @@ def transferir_admin(
 
   nuevo_admin.rol = RolesUsuario.administrador
   nuevo_admin.nivel = None
+
+  # Cambió el privilegio: nadie debe seguir operando con el token que
+  # decía el rol anterior. Aplica al entrante y al saliente.
+  nuevo_admin.version_tokens += 1
+  usuario_actual.version_tokens += 1
 
   session.add(nuevo_admin)
   marcar_eliminado(session, usuario_actual)
