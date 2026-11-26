@@ -828,7 +828,7 @@ const alPresionarTecla = (event) => {
 
 // ───────────── Clases reutilizables ─────────────
 const inp =
-  'h-11 w-full rounded-xl border border-[#b8c2d3] bg-white px-3 text-[15px] text-[#1b2a2f] placeholder:text-[#5b6a72] transition focus:border-[#233E47] focus:outline-none focus:ring-4 focus:ring-[#b4d0f8]/70 disabled:cursor-not-allowed disabled:bg-[#f1f4f0]'
+  'h-11 w-full rounded-xl border border-[#b8c2d3] bg-white px-3 text-[15px] text-[#1b2a2f] placeholder:text-[#41515b] transition focus:border-[#233E47] focus:outline-none focus:ring-4 focus:ring-[#b4d0f8]/70 disabled:cursor-not-allowed disabled:bg-[#f1f4f0]'
 const ro =
   'h-11 w-full rounded-xl border border-[#dbe2d0] bg-[#f1f4f0] px-3 text-[15px] font-semibold text-[#233E47]'
 const chip =
@@ -841,7 +841,7 @@ const btnP =
 const btnS =
   'inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#233E47] bg-white px-5 text-[15px] font-bold text-[#233E47] transition hover:bg-[#eef3fb] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#91a5c9] disabled:cursor-not-allowed disabled:opacity-50'
 const th =
-  'whitespace-nowrap bg-[#eef2f6] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[#4a5a63]'
+  'whitespace-nowrap bg-[#eef2f6] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[#34434b]'
 const td =
   'whitespace-nowrap border-t border-[#e3e8ee] px-3 py-2.5 text-sm text-[#1b2a2f]'
 const tipoCls = (tipo) =>
@@ -863,16 +863,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="mx-auto flex w-full max-w-[1320px] flex-col gap-6 font-sans text-[#1b2a2f]">
-    <!-- Las dos tarjetas crecen a la misma altura en escritorio. -->
-    <div class="flex flex-col gap-6 xl:flex-row xl:items-stretch">
-      <!-- ═══════════ SECCIÓN 1: Buscar estudiante y registrar pase ═══════════ -->
-      <section :class="[card, 'flex flex-col xl:w-1/2']" aria-labelledby="t1">
+  <div class="mx-auto flex w-full max-w-[1600px] flex-col gap-6 font-sans text-[#1b2a2f]">
+    <!-- ═══════════ SECCIÓN 1: Buscar estudiante y registrar pase ═══════════ -->
+      <section :class="card" aria-labelledby="t1">
         <header class="mb-5 flex items-center gap-3">
           <span class="grid h-9 w-9 place-items-center rounded-full bg-[#233E47] text-sm font-bold text-white">1</span>
           <div>
             <h2 id="t1" class="text-xl font-bold text-[#233E47]">Registrar pase</h2>
-            <p class="text-sm text-[#4a5a63]">Busca al estudiante y completa los datos del pase.</p>
+            <p class="text-sm text-[#34434b]">Busca al estudiante y completa los datos del pase.</p>
           </div>
         </header>
 
@@ -880,10 +878,10 @@ onBeforeUnmount(() => {
           <div class="flex-1">
             <label for="cedula" :class="lbl">Cédula, nombre o apellido</label>
             <div class="relative mt-1.5">
-              <svg aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5b6a72]" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#41515b]" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
               </svg>
-              <input v-model="termino" id="cedula" type="search" autocomplete="off" autofocus placeholder="Ej. 31458920" class="h-12 w-full rounded-xl border-2 border-[#233E47] bg-white pl-11 pr-4 text-lg font-medium placeholder:text-[#5b6a72] focus:outline-none focus:ring-4 focus:ring-[#b4d0f8]/70"/>
+              <input v-model="termino" id="cedula" type="search" autocomplete="off" autofocus placeholder="Buscar estudiante" class="h-12 w-full rounded-xl border-2 border-[#233E47] bg-white pl-11 pr-4 text-lg font-medium placeholder:text-[#41515b] focus:outline-none focus:ring-4 focus:ring-[#b4d0f8]/70"/>
             </div>
           </div>
           <div class="flex gap-2">
@@ -904,7 +902,7 @@ onBeforeUnmount(() => {
             <button type="button" class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-[#eef3fb]" @click="seleccionarEstudiante(r)">
               <span>
                 <span class="block font-semibold text-[#1b2a2f]">{{ nomEst(r) }}</span>
-                <span class="block text-sm text-[#4a5a63]">{{ fmtCedula(r.cedula) }} · {{ gradoSeccion(r) }} · {{ etiquetaNivel(r.nivel) }}</span>
+                <span class="block text-sm text-[#34434b]">{{ fmtCedula(r.cedula) }} · {{ gradoSeccion(r) }} · {{ etiquetaNivel(r.nivel) }}</span>
               </span>
               <span class="text-sm font-semibold text-[#3454c5]">Seleccionar</span>
             </button>
@@ -930,7 +928,7 @@ onBeforeUnmount(() => {
         <form @submit.prevent="registrar" class="mt-6">
           <fieldset :disabled="!estudiante || guardando" class="flex flex-col gap-5 disabled:opacity-60">
             <legend class="sr-only">Datos del pase</legend>
-            <div class="grid gap-4 md:grid-cols-2">
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div>
                 <label for="nombre" :class="lbl">Nombre y apellido del estudiante</label>
                 <input id="nombre" :value="estudiante ? nomEst(estudiante) : ''" placeholder="Se completa al buscar" readonly :class="[ro, 'mt-1.5']"/>
@@ -939,9 +937,13 @@ onBeforeUnmount(() => {
                 <label for="grado" :class="lbl">Grado y sección</label>
                 <input id="grado" :value="estudiante ? gradoSeccion(estudiante) : ''" placeholder="—" readonly :class="[ro, 'mt-1.5']"/>
               </div>
+              <div>
+                <label for="nivel" :class="lbl">Nivel</label>
+                <input id="nivel" :value="estudiante ? etiquetaNivel(estudiante.nivel) : ''" placeholder="—" readonly :class="[ro, 'mt-1.5']"/>
+              </div>
             </div>
 
-            <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+            <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
               <fieldset>
                 <legend :class="lbl">Tipo</legend>
                 <div class="mt-1.5 grid grid-cols-2 gap-2">
@@ -978,14 +980,14 @@ onBeforeUnmount(() => {
             <div>
               <span :class="lbl">
                 Asignatura y docente
-                <span class="font-normal text-[#5b6a72]">(automático)</span>
+                <span class="font-normal text-[#41515b]">(automático)</span>
               </span>
-              <div class="mt-1.5 min-h-[3.25rem] rounded-xl border border-[#dbe2d0] bg-[#f1f4f0] px-3 py-2.5 text-[15px]" aria-live="polite">
-                <p v-if="!estudiante" class="text-sm text-[#5b6a72]">Se completa al buscar al estudiante.</p>
-                <p v-else-if="derivado.cargando" class="text-sm text-[#4a5a63]">Consultando el horario…</p>
+              <div class="mt-1.5 grid min-h-[3.5rem] gap-x-6 gap-y-1 rounded-xl border border-[#dbe2d0] bg-[#f1f4f0] px-3 py-2.5 text-[15px] lg:grid-cols-2" aria-live="polite">
+                <p v-if="!estudiante" class="text-sm text-[#41515b] lg:col-span-2">Se completa al buscar al estudiante.</p>
+                <p v-else-if="derivado.cargando" class="text-sm text-[#34434b] lg:col-span-2">Consultando el horario…</p>
                 <template v-else-if="derivado.encontrado && derivado.origen === 'HORARIO'">
                   <p class="font-semibold text-[#233E47]">{{ derivado.asignatura || 'Asignatura sin nombre' }}</p>
-                  <p class="text-sm text-[#4a5a63]">
+                  <p class="text-sm text-[#34434b]">
                     {{ derivado.docente || 'Docente sin nombre' }}
                     <span v-if="derivado.bloque"> · {{ derivado.bloque }}</span>
                     <span v-if="derivado.horaInicio && derivado.horaFin"> ({{ derivado.horaInicio }}–{{ derivado.horaFin }})</span>
@@ -993,17 +995,17 @@ onBeforeUnmount(() => {
                 </template>
                 <template v-else-if="derivado.encontrado && derivado.origen === 'TITULAR'">
                   <p class="font-semibold text-[#233E47]">{{ derivado.docente || 'Docente sin nombre' }}</p>
-                  <p class="text-sm text-[#4a5a63]">Docente titular de la sección · Escuela</p>
+                  <p class="text-sm text-[#34434b]">Docente titular de la sección · Escuela</p>
                 </template>
                 <template v-else-if="derivado.error">
                   <p class="text-sm font-semibold text-[#8a1c14]">{{ derivado.error }}</p>
-                  <p class="text-sm text-[#4a5a63]">El pase se puede registrar sin asignatura ni docente.</p>
-                  <button type="button" class="mt-2 text-sm font-semibold text-[#3454c5] hover:underline" @click="resolverAsignacion">Reintentar</button>
+                  <p class="text-sm text-[#34434b]">El pase se puede registrar sin asignatura ni docente.</p>
+                  <button type="button" class="mt-1 text-sm font-semibold text-[#3454c5] hover:underline lg:col-span-2" @click="resolverAsignacion">Reintentar</button>
                 </template>
-                <p v-else-if="estudiante.nivel === 'ESCUELA'" class="text-sm text-[#4a5a63]">
+                <p v-else-if="estudiante.nivel === 'ESCUELA'" class="text-sm text-[#34434b] lg:col-span-2">
                   La sección no tiene docente titular; el pase se registrará sin docente.
                 </p>
-                <p v-else class="text-sm text-[#4a5a63]">
+                <p v-else class="text-sm text-[#34434b] lg:col-span-2">
                   Sin clase registrada para ese día y hora; el pase se registrará sin asignatura ni docente.
                 </p>
               </div>
@@ -1016,8 +1018,7 @@ onBeforeUnmount(() => {
                 Para registrar otro, indica qué directivo lo autorizó.
               </p>
               <label for="autoriza" :class="[lbl, 'mt-3 block']">Autorizado por</label>
-              <input v-model="form.autorizador" id="autoriza" list="autoridades" placeholder="Ej. Coordinación" required :class="[inp, 'mt-1.5']"/>
-              <datalist id="autoridades"><option value="Coordinación" /><option value="Dirección" /><option value="Control de estudios" /></datalist>
+              <input v-model="form.autorizador" id="autoriza" list="autoridades" placeholder="Directivo" required :class="[inp, 'mt-1.5']"/>
             </div>
 
             <div class="flex flex-wrap gap-3">
@@ -1034,13 +1035,13 @@ onBeforeUnmount(() => {
       </section>
 
       <!-- ═══════════ SECCIÓN 2: Pases del estudiante + representante ═══════════ -->
-      <section :class="[card, 'flex flex-col xl:w-1/2']" aria-labelledby="t2">
+      <section :class="card" aria-labelledby="t2">
         <header class="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-3">
             <span class="grid h-9 w-9 place-items-center rounded-full bg-[#233E47] text-sm font-bold text-white">2</span>
             <div>
               <h2 id="t2" class="text-xl font-bold text-[#233E47]">Pases del estudiante y representante</h2>
-              <p v-if="estudiante" class="text-sm text-[#4a5a63]">
+              <p v-if="estudiante" class="text-sm text-[#34434b]">
                 {{ nomEst(estudiante) }} · {{ fmtCedula(estudiante.cedula) }} · {{ gradoSeccion(estudiante) }} · {{ etiquetaNivel(estudiante.nivel) }}
               </p>
             </div>
@@ -1050,22 +1051,22 @@ onBeforeUnmount(() => {
           </span>
         </header>
 
-        <div v-if="!estudiante" class="flex flex-col items-center gap-2 rounded-xl bg-[#f3f6f1] px-4 py-12 text-center text-[#4a5a63]">
-          <svg aria-hidden="true" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#91a5c9" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <div v-if="!estudiante" class="flex flex-col items-center gap-2 rounded-xl bg-[#f3f6f1] px-4 py-12 text-center text-[#34434b]">
+          <svg aria-hidden="true" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#34434b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
           </svg>
           <p class="font-semibold text-[#233E47]">Aún no hay un estudiante seleccionado</p>
           <p class="text-sm">Busca por cédula, nombre o apellido para ver sus pases y los datos de su representante.</p>
         </div>
 
-        <div v-else class="flex min-h-0 flex-1 flex-col gap-5">
+        <div v-else class="grid min-h-0 flex-1 gap-5 xl:grid-cols-[minmax(0,3fr)_minmax(300px,1fr)]">
           <!-- Pases del estudiante -->
-          <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div class="flex min-h-0 min-w-0 flex-col">
             <h3 class="mb-2 text-base font-bold text-[#233E47]">Pases registrados ({{ pasesEstudiante.length }})</h3>
 
-            <p v-if="cargandoPasesEst" class="rounded-xl bg-[#f3f6f1] px-4 py-8 text-center text-sm text-[#4a5a63]">Cargando pases…</p>
+            <p v-if="cargandoPasesEst" class="rounded-xl bg-[#f3f6f1] px-4 py-8 text-center text-sm text-[#34434b]">Cargando pases…</p>
             <p v-else-if="errorPasesEst" class="rounded-xl bg-[#fbd5d2] px-4 py-4 text-center text-sm font-semibold text-[#8a1c14]">{{ errorPasesEst }}</p>
-            <div v-else-if="pasesEstudiante.length" class="min-h-0 flex-1 overflow-auto rounded-xl border border-[#e3e8ee]">
+            <div v-else-if="pasesEstudiante.length" class="min-h-0 overflow-auto rounded-xl border border-[#e3e8ee]">
               <table class="w-full border-collapse">
                 <thead class="sticky top-0 z-10">
                   <tr>
@@ -1091,14 +1092,14 @@ onBeforeUnmount(() => {
                 </tbody>
               </table>
             </div>
-            <p v-else class="rounded-xl bg-[#f3f6f1] px-4 py-8 text-center text-sm text-[#4a5a63]">Este estudiante aún no tiene pases registrados.</p>
+            <p v-else class="rounded-xl bg-[#f3f6f1] px-4 py-8 text-center text-sm text-[#34434b]">Este estudiante aún no tiene pases registrados.</p>
           </div>
 
           <!-- Representante: solo datos de contacto, sin botón de llamada -->
-          <aside class="mt-auto rounded-xl border border-[#d5dbe6] bg-[#f6f9fe] p-5">
+          <aside class="self-start rounded-xl border border-[#d5dbe6] bg-[#f6f9fe] p-5">
             <h3 class="mb-3 text-base font-bold text-[#233E47]">Representante</h3>
 
-            <p v-if="representante.cargando" class="text-sm text-[#4a5a63]">Cargando representante…</p>
+            <p v-if="representante.cargando" class="text-sm text-[#34434b]">Cargando representante…</p>
             <p v-else-if="representante.error" class="text-sm font-semibold text-[#8a1c14]">{{ representante.error }}</p>
             <template v-else-if="representante.datos">
               <div class="flex items-center gap-3">
@@ -1112,18 +1113,17 @@ onBeforeUnmount(() => {
               </div>
               <dl class="mt-4 grid grid-cols-1 gap-4 text-sm">
                 <div>
-                  <dt class="text-xs font-semibold uppercase tracking-wide text-[#4a5a63]">Teléfono</dt>
+                  <dt class="text-xs font-semibold uppercase tracking-wide text-[#34434b]">Teléfono</dt>
                   <dd class="mt-1">{{ representante.datos.telefono || '—' }}</dd>
                 </div>
               </dl>
             </template>
-            <p v-else class="rounded-xl bg-[#f3f6f1] px-4 py-3 text-sm text-[#4a5a63]">
+            <p v-else class="rounded-xl bg-[#f3f6f1] px-4 py-3 text-sm text-[#34434b]">
               {{ estudiante.idRepresentante ? 'No se pudo cargar el representante.' : 'El estudiante no tiene un representante registrado.' }}
             </p>
           </aside>
         </div>
       </section>
-    </div>
 
     <!-- ═══════════ SECCIÓN 3: Historial completo ═══════════ -->
     <section :class="card" aria-labelledby="t3">
@@ -1132,7 +1132,7 @@ onBeforeUnmount(() => {
           <span class="grid h-9 w-9 place-items-center rounded-full bg-[#233E47] text-sm font-bold text-white">3</span>
           <div>
             <h2 id="t3" class="text-xl font-bold text-[#233E47]">Historial de pases</h2>
-            <p class="text-sm text-[#4a5a63]">
+            <p class="text-sm text-[#34434b]">
               {{ totalFiltrado }} {{ totalFiltrado === 1 ? 'pase' : 'pases' }} registrados
               <span v-if="cargando"> · actualizando…</span>
             </p>
@@ -1178,7 +1178,7 @@ onBeforeUnmount(() => {
               </td>
             </tr>
             <tr v-if="!filasPagina.length">
-              <td colspan="9" class="px-4 py-10 text-center text-sm text-[#4a5a63]">
+              <td colspan="9" class="px-4 py-10 text-center text-sm text-[#34434b]">
                 <span v-if="buscandoTodos">Cargando la lista para filtrar…</span>
                 <span v-else-if="api.error" class="font-semibold text-[#8a1c14]">{{ api.error }}</span>
                 <span v-else-if="filtrando">No hay pases que coincidan con los filtros.</span>
@@ -1189,7 +1189,7 @@ onBeforeUnmount(() => {
         </table>
       </div>
 
-      <footer class="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-[#4a5a63]">
+      <footer class="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-[#34434b]">
         <div class="flex flex-wrap items-center gap-3">
           <span>Mostrando {{ desde }}–{{ hasta }} de {{ totalFiltrado }}</span>
           <label class="flex items-center gap-2">
@@ -1221,7 +1221,7 @@ onBeforeUnmount(() => {
       >
         <header class="flex items-start justify-between gap-4 border-b border-[#e3e8ee] bg-[#f6f9fe] px-6 py-5">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-wide text-[#4a5a63]">Detalle del pase</p>
+            <p class="text-xs font-semibold uppercase tracking-wide text-[#34434b]">Detalle del pase</p>
             <h2 id="detalle-pase-titulo" class="mt-1 text-xl font-bold text-[#233E47]">
               Pase #{{ detalle.pase.id }}
             </h2>
@@ -1229,12 +1229,12 @@ onBeforeUnmount(() => {
               <span :class="['rounded-full px-2.5 py-0.5 text-xs font-bold', tipoCls(detalle.pase.tipo)]">
                 {{ tipoLabel(detalle.pase.tipo) }}
               </span>
-              <span class="text-sm text-[#4a5a63]">{{ fmtFecha(detalle.pase.fechaISO) }} · {{ detalle.pase.hora || '—' }}</span>
+              <span class="text-sm text-[#34434b]">{{ fmtFecha(detalle.pase.fechaISO) }} · {{ detalle.pase.hora || '—' }}</span>
             </div>
           </div>
           <button
             type="button"
-            class="grid h-9 w-9 flex-none place-items-center rounded-full text-lg text-[#4a5a63] transition hover:bg-[#e3e8ee] hover:text-[#233E47]"
+            class="grid h-9 w-9 flex-none place-items-center rounded-full text-lg text-[#34434b] transition hover:bg-[#e3e8ee] hover:text-[#233E47]"
             aria-label="Cerrar detalle del pase"
             @click="cerrarDetalle"
           >
@@ -1247,65 +1247,65 @@ onBeforeUnmount(() => {
           <p v-if="detalle.error" role="alert" class="mb-4 rounded-xl bg-[#fbd5d2] px-4 py-2 text-sm font-semibold text-[#8a1c14]">{{ detalle.error }}</p>
 
           <section aria-labelledby="detalle-estudiante">
-            <h3 id="detalle-estudiante" class="text-sm font-bold uppercase tracking-wide text-[#4a5a63]">Estudiante</h3>
+            <h3 id="detalle-estudiante" class="text-sm font-bold uppercase tracking-wide text-[#34434b]">Estudiante</h3>
             <dl class="mt-3 grid gap-4 text-sm sm:grid-cols-3">
               <div class="sm:col-span-2">
-                <dt class="text-xs font-semibold uppercase tracking-wide text-[#4a5a63]">Nombre y apellido</dt>
+                <dt class="text-xs font-semibold uppercase tracking-wide text-[#34434b]">Nombre y apellido</dt>
                 <dd class="mt-1 font-semibold text-[#1b2a2f]">
                   {{ detalle.estudiante ? nomEst(detalle.estudiante) : detalle.pase.estudiante || '—' }}
                 </dd>
               </div>
               <div>
-                <dt class="text-xs font-semibold uppercase tracking-wide text-[#4a5a63]">Cédula</dt>
+                <dt class="text-xs font-semibold uppercase tracking-wide text-[#34434b]">Cédula</dt>
                 <dd class="mt-1 font-semibold text-[#1b2a2f]">
                   {{ fmtCedula(detalle.estudiante?.cedula || detalle.pase.cedula) }}
                 </dd>
               </div>
               <div>
-                <dt class="text-xs font-semibold uppercase tracking-wide text-[#4a5a63]">Nivel</dt>
+                <dt class="text-xs font-semibold uppercase tracking-wide text-[#34434b]">Nivel</dt>
                 <dd class="mt-1">{{ etiquetaNivel(detalle.estudiante?.nivel || detalle.pase.nivel) }}</dd>
               </div>
               <div>
-                <dt class="text-xs font-semibold uppercase tracking-wide text-[#4a5a63]">Grado y sección</dt>
+                <dt class="text-xs font-semibold uppercase tracking-wide text-[#34434b]">Grado y sección</dt>
                 <dd class="mt-1">{{ detalle.estudiante ? gradoSeccion(detalle.estudiante) : '—' }}</dd>
               </div>
               <div>
-                <dt class="text-xs font-semibold uppercase tracking-wide text-[#4a5a63]">Período lectivo</dt>
+                <dt class="text-xs font-semibold uppercase tracking-wide text-[#34434b]">Período lectivo</dt>
                 <dd class="mt-1">{{ detalle.estudiante?.periodoLectivo || detalle.pase.periodoLectivo || '—' }}</dd>
               </div>
             </dl>
           </section>
 
           <section class="mt-5 border-t border-[#e3e8ee] pt-5" aria-labelledby="detalle-datos">
-            <h3 id="detalle-datos" class="text-sm font-bold uppercase tracking-wide text-[#4a5a63]">Datos del pase</h3>
+            <h3 id="detalle-datos" class="text-sm font-bold uppercase tracking-wide text-[#34434b]">Datos del pase</h3>
             <dl class="mt-3 grid gap-4 text-sm sm:grid-cols-2">
               <div>
-                <dt class="text-xs font-semibold uppercase tracking-wide text-[#4a5a63]">Motivo</dt>
+                <dt class="text-xs font-semibold uppercase tracking-wide text-[#34434b]">Motivo</dt>
                 <dd class="mt-1 font-semibold text-[#1b2a2f]">{{ detalle.pase.motivo }}</dd>
               </div>
               <div>
-                <dt class="text-xs font-semibold uppercase tracking-wide text-[#4a5a63]">Docente</dt>
+                <dt class="text-xs font-semibold uppercase tracking-wide text-[#34434b]">Docente</dt>
                 <dd class="mt-1">{{ detalle.pase.docente || '—' }}</dd>
               </div>
               <div>
-                <dt class="text-xs font-semibold uppercase tracking-wide text-[#4a5a63]">Asignatura</dt>
+                <dt class="text-xs font-semibold uppercase tracking-wide text-[#34434b]">Asignatura</dt>
                 <dd class="mt-1">{{ detalle.pase.asignatura || 'No aplica' }}</dd>
               </div>
               <div>
-                <dt class="text-xs font-semibold uppercase tracking-wide text-[#4a5a63]">Autorizado por</dt>
+                <dt class="text-xs font-semibold uppercase tracking-wide text-[#34434b]">Autorizado por</dt>
                 <dd class="mt-1">{{ detalle.pase.autorizador || 'No aplica' }}</dd>
               </div>
               <div>
-                <dt class="text-xs font-semibold uppercase tracking-wide text-[#4a5a63]">Registrado por</dt>
+                <dt class="text-xs font-semibold uppercase tracking-wide text-[#34434b]">Registrado por</dt>
                 <dd class="mt-1">{{ detalle.pase.usuario || '—' }}</dd>
               </div>
               <div class="sm:col-span-2">
-                <dt class="text-xs font-semibold uppercase tracking-wide text-[#4a5a63]">Adjunto</dt>
+                <dt class="text-xs font-semibold uppercase tracking-wide text-[#34434b]">Adjunto</dt>
                 <dd class="mt-1 flex flex-col gap-2">
                   <span v-if="detalle.pase.archivoNombre">
                     {{ detalle.pase.archivoNombre }} · {{ fmtTamano(detalle.pase.archivoTamano) }}
                   </span>
-                  <span v-else class="text-[#4a5a63]">Sin adjunto</span>
+                  <span v-else class="text-[#34434b]">Sin adjunto</span>
 
                   <p v-if="archivo.error" role="alert" class="rounded-lg bg-[#fbd5d2] px-3 py-2 text-xs font-semibold text-[#8a1c14]">
                     {{ archivo.error }}
@@ -1352,20 +1352,20 @@ onBeforeUnmount(() => {
           </section>
 
           <section class="mt-5 border-t border-[#e3e8ee] pt-5" aria-labelledby="detalle-representante">
-            <h3 id="detalle-representante" class="text-sm font-bold uppercase tracking-wide text-[#4a5a63]">Representante</h3>
+            <h3 id="detalle-representante" class="text-sm font-bold uppercase tracking-wide text-[#34434b]">Representante</h3>
             <template v-if="detalle.representante">
               <dl class="mt-3 grid gap-4 text-sm sm:grid-cols-2">
                 <div>
-                  <dt class="text-xs font-semibold uppercase tracking-wide text-[#4a5a63]">Nombre</dt>
+                  <dt class="text-xs font-semibold uppercase tracking-wide text-[#34434b]">Nombre</dt>
                   <dd class="mt-1 font-semibold text-[#1b2a2f]">{{ nomPersona(detalle.representante) }}</dd>
                 </div>
                 <div>
-                  <dt class="text-xs font-semibold uppercase tracking-wide text-[#4a5a63]">Teléfono</dt>
+                  <dt class="text-xs font-semibold uppercase tracking-wide text-[#34434b]">Teléfono</dt>
                   <dd class="mt-1">{{ detalle.representante.telefono || '—' }}</dd>
                 </div>
               </dl>
             </template>
-            <p v-else class="mt-3 rounded-xl bg-[#f3f6f1] px-4 py-3 text-sm text-[#4a5a63]">
+            <p v-else class="mt-3 rounded-xl bg-[#f3f6f1] px-4 py-3 text-sm text-[#34434b]">
               {{ detalle.cargando ? 'Cargando representante…' : 'El estudiante no tiene un representante registrado.' }}
             </p>
           </section>
@@ -1391,17 +1391,17 @@ onBeforeUnmount(() => {
       >
         <header class="flex items-start justify-between gap-4 border-b border-[#e3e8ee] bg-[#f6f9fe] px-6 py-5">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-wide text-[#4a5a63]">Editar pase</p>
+            <p class="text-xs font-semibold uppercase tracking-wide text-[#34434b]">Editar pase</p>
             <h2 id="editar-pase-titulo" class="mt-1 text-xl font-bold text-[#233E47]">
               Pase #{{ edicion.pase.id }}
             </h2>
-            <p v-if="edicion.estudiante" class="mt-1 text-sm text-[#4a5a63]">
+            <p v-if="edicion.estudiante" class="mt-1 text-sm text-[#34434b]">
               {{ nomEst(edicion.estudiante) }} · {{ fmtCedula(edicion.estudiante.cedula) }} · {{ gradoSeccion(edicion.estudiante) }}
             </p>
           </div>
           <button
             type="button"
-            class="grid h-9 w-9 flex-none place-items-center rounded-full text-lg text-[#4a5a63] transition hover:bg-[#e3e8ee] hover:text-[#233E47]"
+            class="grid h-9 w-9 flex-none place-items-center rounded-full text-lg text-[#34434b] transition hover:bg-[#e3e8ee] hover:text-[#233E47]"
             aria-label="Cerrar edición del pase"
             @click="cerrarEdicion"
           >
@@ -1455,13 +1455,13 @@ onBeforeUnmount(() => {
             <div>
               <span :class="lbl">
                 Asignatura y docente
-                <span class="font-normal text-[#5b6a72]">(automático)</span>
+                <span class="font-normal text-[#41515b]">(automático)</span>
               </span>
               <div class="mt-1.5 min-h-[3.25rem] rounded-xl border border-[#dbe2d0] bg-[#f1f4f0] px-3 py-2.5 text-[15px]" aria-live="polite">
-                <p v-if="derivadoEdicion.cargando" class="text-sm text-[#4a5a63]">Consultando el horario…</p>
+                <p v-if="derivadoEdicion.cargando" class="text-sm text-[#34434b]">Consultando el horario…</p>
                 <template v-else-if="derivadoEdicion.encontrado && derivadoEdicion.origen === 'HORARIO'">
                   <p class="font-semibold text-[#233E47]">{{ derivadoEdicion.asignatura || 'Asignatura sin nombre' }}</p>
-                  <p class="text-sm text-[#4a5a63]">
+                  <p class="text-sm text-[#34434b]">
                     {{ derivadoEdicion.docente || 'Docente sin nombre' }}
                     <span v-if="derivadoEdicion.bloque"> · {{ derivadoEdicion.bloque }}</span>
                     <span v-if="derivadoEdicion.horaInicio && derivadoEdicion.horaFin"> ({{ derivadoEdicion.horaInicio }}–{{ derivadoEdicion.horaFin }})</span>
@@ -1469,17 +1469,17 @@ onBeforeUnmount(() => {
                 </template>
                 <template v-else-if="derivadoEdicion.encontrado && derivadoEdicion.origen === 'TITULAR'">
                   <p class="font-semibold text-[#233E47]">{{ derivadoEdicion.docente || 'Docente sin nombre' }}</p>
-                  <p class="text-sm text-[#4a5a63]">Docente titular de la sección · Escuela</p>
+                  <p class="text-sm text-[#34434b]">Docente titular de la sección · Escuela</p>
                 </template>
                 <template v-else-if="derivadoEdicion.error">
                   <p class="text-sm font-semibold text-[#8a1c14]">{{ derivadoEdicion.error }}</p>
-                  <p class="text-sm text-[#4a5a63]">El pase se puede guardar sin asignatura ni docente.</p>
+                  <p class="text-sm text-[#34434b]">El pase se puede guardar sin asignatura ni docente.</p>
                   <button type="button" class="mt-2 text-sm font-semibold text-[#3454c5] hover:underline" @click="derivadorEdicion.resolver">Reintentar</button>
                 </template>
-                <p v-else-if="edicion.estudiante?.nivel === 'ESCUELA'" class="text-sm text-[#4a5a63]">
+                <p v-else-if="edicion.estudiante?.nivel === 'ESCUELA'" class="text-sm text-[#34434b]">
                   La sección no tiene docente titular; el pase se guardará sin docente.
                 </p>
-                <p v-else class="text-sm text-[#4a5a63]">
+                <p v-else class="text-sm text-[#34434b]">
                   Sin clase registrada para ese día y hora; el pase se guardará sin asignatura ni docente.
                 </p>
               </div>
@@ -1519,7 +1519,7 @@ onBeforeUnmount(() => {
         class="w-full max-w-md rounded-2xl border border-[#d5dbe6] bg-white p-6 shadow-2xl"
       >
         <h3 id="baja-pase-titulo" class="text-lg font-bold text-[#233E47]">Confirmar baja</h3>
-        <p class="mt-3 text-sm text-[#4a5a63]">
+        <p class="mt-3 text-sm text-[#34434b]">
           ¿Dar de baja el pase #{{ baja.pase.id }} de
           <b class="text-[#1b2a2f]">{{ baja.pase.estudiante || 'este estudiante' }}</b>
           del {{ fmtFecha(baja.pase.fechaISO) }}? Esta acción no se puede deshacer.
