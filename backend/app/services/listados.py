@@ -83,6 +83,9 @@ def _nombre_archivo(
   if grado is not None and seccion is not None:
     slug = GRADO_SLUGS.get(grado.numero, grado.nombre.lower().replace(" ", "_"))
     return f"{stem}_{etiqueta}_{slug}_{seccion.letra}.pdf"
+  if grado is not None:
+    slug = GRADO_SLUGS.get(grado.numero, grado.nombre.lower().replace(" ", "_"))
+    return f"{stem}_{etiqueta}_{slug}.pdf"
   return f"{stem}_{etiqueta}_{nivel.value}_general.pdf"
 
 
@@ -97,6 +100,8 @@ def _titulo(
   etiqueta = etiqueta_periodo(periodo)
   if seccion is not None and grado is not None:
     return f'{titulo} {etiqueta}/{grado.nombre} "{seccion.letra.upper()}"'
+  if grado is not None:
+    return f"{titulo} {etiqueta}/{grado.nombre} general"
   return f"{titulo} {etiqueta}/{nivel.value} general"
 
 
@@ -225,7 +230,7 @@ def _datos_horarios(
       celdas = []
       for dia in range(1, 6):
         horario = por_bloque_dia.get((bloque.id, dia))
-        celdas.append(horario.asignatura.nombre if horario is not None else "")
+        celdas.append(horario.asignatura.nombre if horario is not None else "/")
     filas.append([hora, *celdas])
 
   vistos: set[tuple[str, str]] = set()
@@ -248,9 +253,12 @@ def _datos_horarios(
 # Consultas general (por nivel y periodo, sin sección)
 # =====
 def _filas_nominas_general(
-  session: Session, periodo: int, nivel: NivelEducativo
+  session: Session,
+  periodo: int,
+  nivel: NivelEducativo,
+  grado: Grados | None = None,
 ) -> list[list[str]]:
-  estudiantes = session.exec(
+  consulta = (
     select(Estudiantes)
     .join(Secciones, Estudiantes.id_seccion == Secciones.id)
     .join(Grados, Secciones.id_grado == Grados.id)
@@ -261,7 +269,18 @@ def _filas_nominas_general(
       Secciones.fecha_eliminacion.is_(None),
       Grados.fecha_eliminacion.is_(None),
     )
-    .order_by(Estudiantes.primer_apellido, Estudiantes.primer_nombre, Estudiantes.id)
+  )
+  if grado is not None:
+    consulta = consulta.where(Secciones.id_grado == grado.id)
+
+  estudiantes = session.exec(
+    consulta.order_by(
+      Grados.numero,
+      Secciones.letra,
+      Estudiantes.primer_apellido,
+      Estudiantes.primer_nombre,
+      Estudiantes.id,
+    )
   ).all()
   return [
     [
@@ -276,9 +295,12 @@ def _filas_nominas_general(
 
 
 def _filas_representantes_general(
-  session: Session, periodo: int, nivel: NivelEducativo
+  session: Session,
+  periodo: int,
+  nivel: NivelEducativo,
+  grado: Grados | None = None,
 ) -> list[list[str]]:
-  repes = session.exec(
+  consulta_repes = (
     select(Representantes)
     .join(Estudiantes, Estudiantes.id_representante == Representantes.id)
     .join(Secciones, Estudiantes.id_seccion == Secciones.id)
@@ -290,14 +312,18 @@ def _filas_representantes_general(
       Secciones.fecha_eliminacion.is_(None),
       Representantes.fecha_eliminacion.is_(None),
     )
-    .distinct()
-    .order_by(
+  )
+  if grado is not None:
+    consulta_repes = consulta_repes.where(Secciones.id_grado == grado.id)
+
+  repes = session.exec(
+    consulta_repes.distinct().order_by(
       Representantes.primer_apellido, Representantes.primer_nombre, Representantes.id
     )
   ).all()
   filas = []
   for rep in repes:
-    ests = session.exec(
+    consulta_estudiantes = (
       select(Estudiantes)
       .join(Secciones, Estudiantes.id_seccion == Secciones.id)
       .join(Grados, Secciones.id_grado == Grados.id)
@@ -307,8 +333,18 @@ def _filas_representantes_general(
         Grados.nivel == nivel,
         Estudiantes.fecha_eliminacion.is_(None),
         Secciones.fecha_eliminacion.is_(None),
+        Grados.fecha_eliminacion.is_(None),
       )
-      .order_by(Estudiantes.primer_apellido, Estudiantes.primer_nombre, Estudiantes.id)
+    )
+    if grado is not None:
+      consulta_estudiantes = consulta_estudiantes.where(
+        Secciones.id_grado == grado.id
+      )
+
+    ests = session.exec(
+      consulta_estudiantes.order_by(
+        Estudiantes.primer_apellido, Estudiantes.primer_nombre, Estudiantes.id
+      )
     ).all()
     filas.append(
       [
@@ -321,9 +357,15 @@ def _filas_representantes_general(
 
 
 def _filas_docentes_general(
-  session: Session, periodo: int, nivel: NivelEducativo
+  session: Session,
+  periodo: int,
+  nivel: NivelEducativo,
+  grado: Grados | None = None,
 ) -> list[list[str]]:
   """Lista activa de docentes de un nivel con su detalle del periodo.
+
+  `grado` se acepta por uniformidad con `FILAS_GENERAL`, pero se ignora:
+  los docentes se listan siempre por nivel.
 
   En LICEO se muestran las asignaturas con el año correspondiente para no
   repetir `Matemática` de varios grados como si fuera la misma línea. En
@@ -401,7 +443,8 @@ FILAS_POR_SECCION: dict[
 }
 
 FILAS_GENERAL: dict[
-  TipoDocumento, Callable[[Session, int, NivelEducativo], list[list[str]]]
+  TipoDocumento,
+  Callable[[Session, int, NivelEducativo, Grados | None], list[list[str]]],
 ] = {
   TipoDocumento.nominas: _filas_nominas_general,
   TipoDocumento.representantes: _filas_representantes_general,
@@ -463,9 +506,9 @@ def construir_documento(
     encabezados = HEADERS_SECCION[tipo]
     col_anchos = COL_ANCHOS_SECCION[tipo]
   else:
-    nombre_archivo = _nombre_archivo(tipo, periodo, nivel, None, None)
-    descripcion = "general"
-    filas = FILAS_GENERAL[tipo](session, periodo, nivel)
+    nombre_archivo = _nombre_archivo(tipo, periodo, nivel, grado, None)
+    descripcion = f"{grado.nombre} general" if grado else "general"
+    filas = FILAS_GENERAL[tipo](session, periodo, nivel, grado)
     encabezados = HEADERS_GENERAL[tipo]
     if tipo == TipoDocumento.docentes and nivel == NivelEducativo.escuela:
       encabezados = ["Cédula", "Docente", "Grado/Sección"]
@@ -508,7 +551,8 @@ def ruta_relativa_listado(
   El periodo lectivo es la primera carpeta y usa su etiqueta legible.
 
   Sección: `2026-2027/listados/nominas/LICEO/1er_ano/A/nomina_2026-2027_1er_ano_A.pdf`.
-  General: `2026-2027/listados/nominas/LICEO/general/nomina_2026-2027_LICEO_general.pdf`.
+  General por nivel: `2026-2027/listados/nominas/LICEO/generales/nomina_2026-2027_LICEO_general.pdf`.
+  General por grado: `.../generales/nomina_2026-2027_1er_ano.pdf`.
   """
   etiqueta = etiqueta_periodo(periodo)
   if seccion is not None:
@@ -517,4 +561,4 @@ def ruta_relativa_listado(
       f"{etiqueta}/listados/{tipo.value}/{nivel.value}/{slug}/"
       f"{seccion.letra}/{nombre_archivo}"
     )
-  return f"{etiqueta}/listados/{tipo.value}/{nivel.value}/general/{nombre_archivo}"
+  return f"{etiqueta}/listados/{tipo.value}/{nivel.value}/generales/{nombre_archivo}"
