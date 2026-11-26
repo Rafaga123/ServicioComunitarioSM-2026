@@ -9,7 +9,7 @@ const sidebarOpen = ref(false)
 
 <template>
 
-    <div class="flex h-screen w-full overflow-hidden bg-gray-50">
+    <div class="flex h-screen w-full overflow-hidden">
 
         <!-- Fondo oscuro en móvil: tocar fuera del menú lo cierra -->
         <div

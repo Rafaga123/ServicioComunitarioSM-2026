@@ -77,6 +77,7 @@ const buscando = ref(false)
 const errorBusqueda = ref('')
 const estudiante = ref(null)
 let solicitudBusqueda = 0
+let temporizadorBusqueda = null
 
 const error = ref('')
 const exito = ref('')
@@ -277,6 +278,7 @@ watch([() => form.fecha, () => form.hora], () => {
 
 // ───────────── Búsqueda de estudiante ─────────────
 const buscar = async () => {
+  clearTimeout(temporizadorBusqueda)
   const texto = termino.value.trim()
   if (!texto) {
     errorBusqueda.value = 'Escribe la cédula, el nombre o el apellido del estudiante.'
@@ -311,6 +313,27 @@ const buscar = async () => {
     if (solicitud === solicitudBusqueda) buscando.value = false
   }
 }
+
+// Búsqueda reactiva: se dispara sola 350 ms después de dejar de escribir.
+// La asignación de la cédula al seleccionar un estudiante no cuenta como
+// búsqueda nueva; si el usuario edita el texto, se descarta la selección previa.
+watch(termino, () => {
+  clearTimeout(temporizadorBusqueda)
+  const texto = termino.value.trim()
+  if (estudiante.value) {
+    if (texto === estudiante.value.cedula) return
+    estudiante.value = null
+    pasesEstudiante.value = []
+    errorPasesEst.value = ''
+    representante.datos = null
+    representante.error = ''
+  }
+  if (texto.length < 2) return
+  temporizadorBusqueda = setTimeout(() => {
+    temporizadorBusqueda = null
+    buscar()
+  }, 350)
+})
 
 const seleccionarEstudiante = (est) => {
   estudiante.value = est
@@ -371,6 +394,30 @@ const nivelCls = {
   warn: 'bg-[#fdebc0] text-[#6b4200]',
   bad: 'bg-[#fbd5d2] text-[#8a1c14]',
 }
+
+// El bloqueo se muestra como toast flotante para no alterar el alto de la tarjeta.
+const toastBloqueoDescartado = ref(false)
+const mostrarToastBloqueo = computed(
+  () =>
+    Boolean(estudiante.value) &&
+    nivelAlerta.value === 'bad' &&
+    !toastBloqueoDescartado.value,
+)
+let temporizadorToast
+watch(
+  [estudiante, () => form.tipo, () => form.fecha, pasesDelTipoMes],
+  () => {
+    toastBloqueoDescartado.value = false
+  },
+)
+watch(mostrarToastBloqueo, (visible) => {
+  clearTimeout(temporizadorToast)
+  if (visible) {
+    temporizadorToast = setTimeout(() => {
+      toastBloqueoDescartado.value = true
+    }, 10000)
+  }
+})
 
 // ───────────── Registro ─────────────
 const registrar = async () => {
@@ -828,22 +875,25 @@ const alPresionarTecla = (event) => {
 
 // ───────────── Clases reutilizables ─────────────
 const inp =
-  'h-11 w-full rounded-xl border border-[#b8c2d3] bg-white px-3 text-[15px] text-[#1b2a2f] placeholder:text-[#41515b] transition focus:border-[#233E47] focus:outline-none focus:ring-4 focus:ring-[#b4d0f8]/70 disabled:cursor-not-allowed disabled:bg-[#f1f4f0]'
+  'clay-field h-11 w-full rounded-xl border border-[#b8c2d3] bg-white px-3 text-[15px] text-[#1b2a2f] placeholder:text-[#41515b] transition focus:border-[#233E47] focus:outline-none focus:ring-4 focus:ring-[#b4d0f8]/70 disabled:cursor-not-allowed disabled:bg-[#f1f4f0]'
 const ro =
-  'h-11 w-full rounded-xl border border-[#dbe2d0] bg-[#f1f4f0] px-3 text-[15px] font-semibold text-[#233E47]'
-const chip =
-  'flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-[#b8c2d3] bg-white px-4 py-2 text-center text-sm font-semibold text-[#233E47] transition hover:bg-[#eef3fb] peer-checked:border-[#233E47] peer-checked:bg-[#233E47] peer-checked:text-white peer-focus-visible:ring-4 peer-focus-visible:ring-[#b4d0f8]'
+  'clay-field h-11 w-full rounded-xl border border-[#dbe2d0] bg-[#f1f4f0] px-3 text-[15px] font-semibold text-[#233E47]'
 const lbl = 'text-sm font-semibold text-[#233E47]'
 const card =
-  'rounded-2xl border border-[#d5dbe6] bg-white p-5 shadow-sm md:p-6 w-full'
+  'clay-card flex w-full flex-col p-5 md:p-6'
 const btnP =
-  'inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#233E47] px-5 text-[15px] font-bold text-white transition hover:bg-[#1a2f36] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#91a5c9] disabled:cursor-not-allowed disabled:opacity-50'
+  'clay-btn inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#233E47] px-5 text-[15px] font-bold text-white transition hover:bg-[#1a2f36] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#91a5c9] disabled:cursor-not-allowed disabled:opacity-50'
 const btnS =
-  'inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#233E47] bg-white px-5 text-[15px] font-bold text-[#233E47] transition hover:bg-[#eef3fb] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#91a5c9] disabled:cursor-not-allowed disabled:opacity-50'
+  'clay-btn clay-btn-soft inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#233E47] bg-white px-5 text-[15px] font-bold text-[#233E47] transition hover:bg-[#eef3fb] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#91a5c9] disabled:cursor-not-allowed disabled:opacity-50'
 const th =
   'whitespace-nowrap bg-[#eef2f6] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[#34434b]'
 const td =
   'whitespace-nowrap border-t border-[#e3e8ee] px-3 py-2.5 text-sm text-[#1b2a2f]'
+// Tabla compacta de pases del estudiante: cabe sin scroll horizontal en columnas estrechas.
+const thPases =
+  'bg-[#eef2f6] px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-[#34434b]'
+const tdPases =
+  'border-t border-[#e3e8ee] px-2 py-2 text-xs text-[#1b2a2f] align-top'
 const tipoCls = (tipo) =>
   tipo === 'ENTRADA'
     ? 'bg-[#ccd5ae] text-[#233E47]'
@@ -858,33 +908,48 @@ onBeforeUnmount(() => {
   derivadorAlta.cancelar()
   derivadorEdicion.cancelar()
   clearTimeout(temporizadorExito)
+  clearTimeout(temporizadorToast)
+  clearTimeout(temporizadorBusqueda)
   window.removeEventListener('keydown', alPresionarTecla)
 })
 </script>
 
 <template>
-  <div class="mx-auto flex w-full max-w-[1600px] flex-col gap-6 font-sans text-[#1b2a2f]">
-    <!-- ═══════════ SECCIÓN 1: Buscar estudiante y registrar pase ═══════════ -->
-      <section :class="card" aria-labelledby="t1">
-        <header class="mb-5 flex items-center gap-3">
-          <span class="grid h-9 w-9 place-items-center rounded-full bg-[#233E47] text-sm font-bold text-white">1</span>
-          <div>
+  <div class="pases-page -m-6 min-h-[calc(100vh-4rem)] p-6 md:-m-8 md:p-8">
+    <div class="pases-mesh" aria-hidden="true"></div>
+    <div class="relative z-10 mx-auto flex w-full max-w-[1600px] flex-col gap-6 font-sans text-[#1b2a2f]">
+      <!-- Bento grid: el formulario ocupa dos filas, las tarjetas laterales una y el historial todo el ancho -->
+      <div class="grid grid-cols-1 items-stretch gap-6 md:grid-cols-12">
+        <!-- ═══════════ SECCIÓN 1: Buscar estudiante y registrar pase ═══════════ -->
+        <section :class="[card, 'relative z-20 md:col-span-7 md:row-span-2']" aria-labelledby="t1">
+          <header class="mb-5">
             <h2 id="t1" class="text-xl font-bold text-[#233E47]">Registrar pase</h2>
             <p class="text-sm text-[#34434b]">Busca al estudiante y completa los datos del pase.</p>
-          </div>
-        </header>
+          </header>
 
-        <form @submit.prevent="buscar" class="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div class="flex-1">
+        <form @submit.prevent="buscar" class="flex flex-wrap items-end gap-3">
+          <div class="min-w-[12rem] flex-1">
             <label for="cedula" :class="lbl">Cédula, nombre o apellido</label>
             <div class="relative mt-1.5">
               <svg aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#41515b]" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
               </svg>
-              <input v-model="termino" id="cedula" type="search" autocomplete="off" autofocus placeholder="Buscar estudiante" class="h-12 w-full rounded-xl border-2 border-[#233E47] bg-white pl-11 pr-4 text-lg font-medium placeholder:text-[#41515b] focus:outline-none focus:ring-4 focus:ring-[#b4d0f8]/70"/>
+              <input v-model="termino" id="cedula" type="search" autocomplete="off" autofocus placeholder="Buscar estudiante" class="clay-field h-12 w-full rounded-xl border-2 border-[#233E47] bg-white pl-11 pr-4 text-lg font-medium placeholder:text-[#41515b] focus:outline-none focus:ring-4 focus:ring-[#b4d0f8]/70"/>
+              <!-- Desplegable: flota sobre el formulario sin aumentar su altura. -->
+              <ul v-if="resultados.length" class="absolute left-0 right-0 top-full z-30 mt-2 max-h-[19rem] divide-y divide-[#e3e8ee] overflow-y-auto rounded-xl border border-[#e3e8ee] bg-white shadow-xl">
+                <li v-for="r in resultados" :key="r.id">
+                  <button type="button" class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition hover:bg-[#eef3fb]" @click="seleccionarEstudiante(r)">
+                    <span class="min-w-0">
+                      <span class="line-clamp-2 text-sm font-semibold text-[#1b2a2f]">{{ nomEst(r) }}</span>
+                      <span class="block truncate text-xs text-[#34434b]">{{ fmtCedula(r.cedula) }} · {{ gradoSeccion(r) }} · {{ etiquetaNivel(r.nivel) }}</span>
+                    </span>
+                    <span class="shrink-0 text-xs font-semibold text-[#3454c5]">Seleccionar</span>
+                  </button>
+                </li>
+              </ul>
             </div>
           </div>
-          <div class="flex gap-2">
+          <div class="flex shrink-0 gap-2">
             <button type="submit" :class="btnP" class="!h-12" :disabled="buscando">
               {{ buscando ? 'Buscando…' : 'Buscar' }}
             </button>
@@ -896,29 +961,7 @@ onBeforeUnmount(() => {
         <p v-if="error" role="alert" class="mt-3 rounded-xl bg-[#fbd5d2] px-4 py-3 text-sm font-semibold text-[#8a1c14]">{{ error }}</p>
         <p v-if="exito" role="status" class="mt-3 rounded-xl bg-[#ccd5ae] px-4 py-3 text-sm font-semibold text-[#233E47]">✔ {{ exito }}</p>
 
-        <!-- Varios estudiantes coinciden: el usuario elige uno. -->
-        <ul v-if="resultados.length" class="mt-3 divide-y divide-[#e3e8ee] overflow-hidden rounded-xl border border-[#e3e8ee]">
-          <li v-for="r in resultados" :key="r.id">
-            <button type="button" class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-[#eef3fb]" @click="seleccionarEstudiante(r)">
-              <span>
-                <span class="block font-semibold text-[#1b2a2f]">{{ nomEst(r) }}</span>
-                <span class="block text-sm text-[#34434b]">{{ fmtCedula(r.cedula) }} · {{ gradoSeccion(r) }} · {{ etiquetaNivel(r.nivel) }}</span>
-              </span>
-              <span class="text-sm font-semibold text-[#3454c5]">Seleccionar</span>
-            </button>
-          </li>
-        </ul>
-
-        <div v-if="estudiante && nivelAlerta === 'bad'" role="alert" class="mt-3 flex items-center gap-3 rounded-xl bg-[#b42318] px-4 py-3 text-white">
-          <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9" /><path d="M5.6 5.6l12.8 12.8" />
-          </svg>
-          <p>
-            <b class="block text-lg">{{ form.tipo === 'ENTRADA' ? 'NO PUEDE INGRESAR' : 'LÍMITE ALCANZADO' }}</b>
-            <span class="text-sm">Acumula {{ pasesDelTipoMes }} pases de {{ tipoLabel(form.tipo).toLowerCase() }} este mes. Para registrar otro se requiere autorización de un directivo.</span>
-          </p>
-        </div>
-        <div v-else-if="estudiante && nivelAlerta === 'warn'" class="mt-3 rounded-xl bg-[#fdebc0] px-4 py-3 text-sm font-semibold text-[#6b4200]">
+        <div v-if="estudiante && nivelAlerta === 'warn'" class="mt-3 rounded-xl bg-[#fdebc0] px-4 py-3 text-sm font-semibold text-[#6b4200]">
           Advertencia: lleva {{ pasesDelTipoMes }} pases de {{ tipoLabel(form.tipo).toLowerCase() }} este mes. El próximo necesitará autorización de un directivo.
         </div>
         <div v-else-if="estudiante && pasesDelTipoMes === 1" class="mt-3 rounded-xl bg-[#eef3fb] px-4 py-3 text-sm font-semibold text-[#233E47]">
@@ -928,8 +971,8 @@ onBeforeUnmount(() => {
         <form @submit.prevent="registrar" class="mt-6">
           <fieldset :disabled="!estudiante || guardando" class="flex flex-col gap-5 disabled:opacity-60">
             <legend class="sr-only">Datos del pase</legend>
-            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <div>
+            <div class="grid gap-4 md:grid-cols-2">
+              <div class="md:col-span-2">
                 <label for="nombre" :class="lbl">Nombre y apellido del estudiante</label>
                 <input id="nombre" :value="estudiante ? nomEst(estudiante) : ''" placeholder="Se completa al buscar" readonly :class="[ro, 'mt-1.5']"/>
               </div>
@@ -943,26 +986,30 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
-              <fieldset>
-                <legend :class="lbl">Tipo</legend>
-                <div class="mt-1.5 grid grid-cols-2 gap-2">
-                  <label v-for="t in TIPOS" :key="t" class="relative">
-                    <input type="radio" name="tipo" :value="t" v-model="form.tipo" class="peer sr-only" required/>
-                    <span :class="chip">{{ tipoLabel(t) }}</span>
+            <fieldset>
+              <legend :class="lbl">Tipo y motivo</legend>
+              <div class="mt-1.5 flex flex-wrap items-center gap-x-6 gap-y-3">
+                <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Tipo de pase">
+                  <button
+                    v-for="t in TIPOS"
+                    :key="t"
+                    type="button"
+                    class="clay-tipo-btn"
+                    :class="{ 'is-active': form.tipo === t }"
+                    :aria-pressed="form.tipo === t"
+                    @click="form.tipo = t"
+                  >
+                    {{ tipoLabel(t) }}
+                  </button>
+                </div>
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-2 border-l border-[#d5dbe6] pl-6 max-sm:border-0 max-sm:pl-0">
+                  <label v-for="mo in motivosDelTipo" :key="mo" class="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-[#34434b]">
+                    <input type="radio" name="motivo" :value="mo" v-model="form.motivo" class="clay-radio" required/>
+                    <span>{{ mo }}</span>
                   </label>
                 </div>
-              </fieldset>
-              <fieldset>
-                <legend :class="lbl">Motivo</legend>
-                <div class="mt-1.5 flex flex-wrap gap-2">
-                  <label v-for="mo in motivosDelTipo" :key="mo" class="relative">
-                    <input type="radio" name="motivo" :value="mo" v-model="form.motivo" class="peer sr-only" required/>
-                    <span :class="chip">{{ mo }}</span>
-                  </label>
-                </div>
-              </fieldset>
-            </div>
+              </div>
+            </fieldset>
 
             <div class="grid gap-4 sm:grid-cols-2">
               <div>
@@ -1012,96 +1059,103 @@ onBeforeUnmount(() => {
             </div>
 
             <!-- Solo se pide cuando el estudiante ya completó los 3 pases del mes. -->
-            <div v-if="requiereAutorizacion" class="rounded-xl border border-[#f0d28a] bg-[#fdebc0] p-4">
-              <p class="text-sm font-semibold text-[#6b4200]">
-                El estudiante ya tiene {{ pasesDelTipoMes }} pases de {{ tipoLabel(form.tipo).toLowerCase() }} este mes.
-                Para registrar otro, indica qué directivo lo autorizó.
-              </p>
-              <label for="autoriza" :class="[lbl, 'mt-3 block']">Autorizado por</label>
-              <input v-model="form.autorizador" id="autoriza" list="autoridades" placeholder="Directivo" required :class="[inp, 'mt-1.5']"/>
+            <div v-if="requiereAutorizacion" class="grid gap-4 sm:grid-cols-2">
+              <div class="sm:col-span-2">
+                <label for="autoriza" :class="lbl">Autorizado por el directivo</label>
+                <input v-model="form.autorizador" id="autoriza" list="autoridades" placeholder="Nombre del directivo" required :class="[inp, 'mt-1.5']"/>
+              </div>
             </div>
 
-            <div class="flex flex-wrap gap-3">
-              <button type="submit" :class="btnP" :disabled="guardando">
-                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M5 12l5 5L20 7" />
-                </svg>
-                {{ guardando ? 'Registrando…' : 'Registrar pase' }}
-              </button>
-              <button type="button" @click="reiniciarFormulario" :class="btnS" :disabled="guardando">Limpiar datos</button>
-            </div>
+            <button type="submit" :class="btnP" class="self-center" :disabled="guardando">
+              <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12l5 5L20 7" />
+              </svg>
+              {{ guardando ? 'Registrando…' : 'Registrar pase' }}
+            </button>
           </fieldset>
         </form>
       </section>
 
-      <!-- ═══════════ SECCIÓN 2: Pases del estudiante + representante ═══════════ -->
-      <section :class="card" aria-labelledby="t2">
-        <header class="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <div class="flex items-center gap-3">
-            <span class="grid h-9 w-9 place-items-center rounded-full bg-[#233E47] text-sm font-bold text-white">2</span>
-            <div>
-              <h2 id="t2" class="text-xl font-bold text-[#233E47]">Pases del estudiante y representante</h2>
-              <p v-if="estudiante" class="text-sm text-[#34434b]">
-                {{ nomEst(estudiante) }} · {{ fmtCedula(estudiante.cedula) }} · {{ gradoSeccion(estudiante) }} · {{ etiquetaNivel(estudiante.nivel) }}
-              </p>
+        <!-- ═══════════ SECCIÓN 2: Pases del estudiante ═══════════ -->
+        <section :class="[card, 'md:col-span-5']" aria-labelledby="t2">
+            <header class="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 id="t2" class="text-xl font-bold text-[#233E47]">Pases del estudiante</h2>
+                <p v-if="estudiante" class="text-sm text-[#34434b]">
+                  {{ nomEst(estudiante) }} · {{ fmtCedula(estudiante.cedula) }} · {{ gradoSeccion(estudiante) }} · {{ etiquetaNivel(estudiante.nivel) }}
+                </p>
+              </div>
+              <span v-if="estudiante" :class="['rounded-full px-3 py-1 text-sm font-bold', nivelCls[nivelAlerta]]">
+                Pases de {{ tipoLabel(form.tipo).toLowerCase() }} este mes: {{ pasesDelTipoMes }} de {{ LIMITE_PASES }}
+              </span>
+            </header>
+
+            <div v-if="!estudiante" class="clay-inset flex min-h-[10rem] flex-1 flex-col items-center justify-center gap-2 rounded-xl bg-[#f3f6f1] px-4 py-8 text-center text-[#34434b]">
+              <svg aria-hidden="true" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#34434b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 8h6M9 12h6M9 16h3" />
+              </svg>
+              <p class="font-semibold text-[#233E47]">Aún no hay un estudiante seleccionado</p>
+              <p class="text-sm">Busca por cédula, nombre o apellido para ver sus pases.</p>
             </div>
-          </div>
-          <span v-if="estudiante" :class="['rounded-full px-3 py-1 text-sm font-bold', nivelCls[nivelAlerta]]">
-            Pases de {{ tipoLabel(form.tipo).toLowerCase() }} este mes: {{ pasesDelTipoMes }} de {{ LIMITE_PASES }}
-          </span>
-        </header>
 
-        <div v-if="!estudiante" class="flex flex-col items-center gap-2 rounded-xl bg-[#f3f6f1] px-4 py-12 text-center text-[#34434b]">
-          <svg aria-hidden="true" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#34434b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
-          </svg>
-          <p class="font-semibold text-[#233E47]">Aún no hay un estudiante seleccionado</p>
-          <p class="text-sm">Busca por cédula, nombre o apellido para ver sus pases y los datos de su representante.</p>
-        </div>
-
-        <div v-else class="grid min-h-0 flex-1 gap-5 xl:grid-cols-[minmax(0,3fr)_minmax(300px,1fr)]">
+            <div v-else class="flex min-h-0 flex-1 flex-col gap-3">
           <!-- Pases del estudiante -->
           <div class="flex min-h-0 min-w-0 flex-col">
             <h3 class="mb-2 text-base font-bold text-[#233E47]">Pases registrados ({{ pasesEstudiante.length }})</h3>
 
-            <p v-if="cargandoPasesEst" class="rounded-xl bg-[#f3f6f1] px-4 py-8 text-center text-sm text-[#34434b]">Cargando pases…</p>
+            <p v-if="cargandoPasesEst" class="clay-inset flex flex-1 items-center justify-center rounded-xl bg-[#f3f6f1] px-4 py-8 text-center text-sm text-[#34434b]">Cargando pases…</p>
             <p v-else-if="errorPasesEst" class="rounded-xl bg-[#fbd5d2] px-4 py-4 text-center text-sm font-semibold text-[#8a1c14]">{{ errorPasesEst }}</p>
-            <div v-else-if="pasesEstudiante.length" class="min-h-0 overflow-auto rounded-xl border border-[#e3e8ee]">
-              <table class="w-full border-collapse">
+            <div v-else-if="pasesEstudiante.length" class="clay-inset min-h-0 flex-1 overflow-auto rounded-xl border border-[#e3e8ee]">
+              <table class="w-full table-fixed border-collapse">
+                <colgroup>
+                  <col class="w-[20%]" /><col class="w-[14%]" /><col class="w-[24%]" /><col class="w-[14%]" /><col class="w-[28%]" />
+                </colgroup>
                 <thead class="sticky top-0 z-10">
                   <tr>
-                    <th :class="th">Fecha</th><th :class="th">Hora</th><th :class="th">Tipo</th><th :class="th">Motivo</th><th :class="th">Asignatura</th><th :class="th">Docente</th><th :class="[th, 'text-right']">Acciones</th>
+                    <th :class="thPases">Fecha</th><th :class="thPases">Hora</th><th :class="thPases">Motivo</th><th :class="thPases">Tipo</th><th :class="[thPases, 'text-right']">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="p in pasesEstudiante" :key="p.id">
-                    <td :class="td">{{ fmtFecha(p.fechaISO) }}</td>
-                    <td :class="td">{{ p.hora || '—' }}</td>
-                    <td :class="td"><span :class="['rounded-full px-2.5 py-0.5 text-xs font-bold', tipoCls(p.tipo)]">{{ tipoLabel(p.tipo) }}</span></td>
-                    <td :class="td">{{ p.motivo }}</td>
-                    <td :class="td">{{ p.asignatura || '—' }}</td>
-                    <td :class="td">{{ p.docente || '—' }}</td>
-                    <td :class="[td, 'text-right']">
-                      <div class="flex justify-end gap-3">
-                        <button type="button" class="font-semibold text-[#3454c5] hover:underline" @click="verPase(p)">Ver</button>
-                        <button type="button" class="font-semibold text-[#233E47] hover:underline" @click="abrirEdicion(p)">Editar</button>
-                        <button type="button" class="font-semibold text-[#8a1c14] hover:underline" @click="pedirBaja(p)">Eliminar</button>
+                    <td :class="tdPases">{{ fmtFecha(p.fechaISO) }}</td>
+                    <td :class="tdPases">{{ p.hora || '—' }}</td>
+                    <td :class="tdPases">{{ p.motivo || '—' }}</td>
+                    <td :class="tdPases"><span :class="['inline-block rounded-full px-2 py-0.5 text-[11px] font-bold', tipoCls(p.tipo)]">{{ tipoLabel(p.tipo) }}</span></td>
+                    <td :class="[tdPases, 'text-right']">
+                      <div class="flex flex-wrap justify-end gap-x-2 gap-y-0.5 text-[11px] font-semibold">
+                        <button type="button" class="text-[#3454c5] hover:underline" @click="verPase(p)">Ver</button>
+                        <button type="button" class="text-[#233E47] hover:underline" @click="abrirEdicion(p)">Editar</button>
+                        <button type="button" class="text-[#8a1c14] hover:underline" @click="pedirBaja(p)">Eliminar</button>
                       </div>
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
-            <p v-else class="rounded-xl bg-[#f3f6f1] px-4 py-8 text-center text-sm text-[#34434b]">Este estudiante aún no tiene pases registrados.</p>
+            <p v-else class="clay-inset flex min-h-[8rem] flex-1 items-center justify-center rounded-xl bg-[#f3f6f1] px-4 py-8 text-center text-sm text-[#34434b]">Este estudiante aún no tiene pases registrados.</p>
           </div>
+            </div>
+          </section>
 
-          <!-- Representante: solo datos de contacto, sin botón de llamada -->
-          <aside class="self-start rounded-xl border border-[#d5dbe6] bg-[#f6f9fe] p-5">
-            <h3 class="mb-3 text-base font-bold text-[#233E47]">Representante</h3>
+        <!-- ═══════════ SECCIÓN 3: Datos del representante ═══════════ -->
+        <section :class="[card, 'md:col-span-5']" aria-labelledby="rep-titulo">
+            <header class="mb-5">
+              <h2 id="rep-titulo" class="text-xl font-bold text-[#233E47]">Datos del representante</h2>
+              <p v-if="estudiante" class="text-sm text-[#34434b]">{{ nomEst(estudiante) }}</p>
+            </header>
 
-            <p v-if="representante.cargando" class="text-sm text-[#34434b]">Cargando representante…</p>
-            <p v-else-if="representante.error" class="text-sm font-semibold text-[#8a1c14]">{{ representante.error }}</p>
-            <template v-else-if="representante.datos">
+            <div v-if="!estudiante" class="clay-inset flex min-h-[8rem] flex-1 flex-col items-center justify-center gap-2 rounded-xl bg-[#f3f6f1] px-4 py-8 text-center text-[#34434b]">
+              <svg aria-hidden="true" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#34434b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
+              </svg>
+              <p class="font-semibold text-[#233E47]">Aún no hay un estudiante seleccionado</p>
+              <p class="text-sm">Busca por cédula, nombre o apellido para ver los datos de su representante.</p>
+            </div>
+
+            <template v-else>
+              <p v-if="representante.cargando" class="clay-inset flex min-h-[8rem] flex-1 items-center justify-center rounded-xl bg-[#f3f6f1] px-4 py-6 text-center text-sm text-[#34434b]">Cargando representante…</p>
+              <p v-else-if="representante.error" class="rounded-xl bg-[#fbd5d2] px-4 py-4 text-center text-sm font-semibold text-[#8a1c14]">{{ representante.error }}</p>
+              <template v-else-if="representante.datos">
               <div class="flex items-center gap-3">
                 <span class="grid h-14 w-14 flex-none place-items-center rounded-full bg-[#b4d0f8] text-lg font-bold text-[#233E47]">
                   {{ iniciales(nomPersona(representante.datos)) }}
@@ -1118,18 +1172,15 @@ onBeforeUnmount(() => {
                 </div>
               </dl>
             </template>
-            <p v-else class="rounded-xl bg-[#f3f6f1] px-4 py-3 text-sm text-[#34434b]">
+            <p v-else class="clay-inset flex min-h-[8rem] flex-1 items-center justify-center rounded-xl bg-[#f3f6f1] px-4 py-6 text-center text-sm text-[#34434b]">
               {{ estudiante.idRepresentante ? 'No se pudo cargar el representante.' : 'El estudiante no tiene un representante registrado.' }}
             </p>
-          </aside>
-        </div>
-      </section>
+            </template>
+        </section>
 
-    <!-- ═══════════ SECCIÓN 3: Historial completo ═══════════ -->
-    <section :class="card" aria-labelledby="t3">
-      <header class="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-3">
-          <span class="grid h-9 w-9 place-items-center rounded-full bg-[#233E47] text-sm font-bold text-white">3</span>
+        <!-- ═══════════ SECCIÓN 4: Historial completo ═══════════ -->
+        <section :class="[card, 'md:col-span-12']" aria-labelledby="t3">
+        <header class="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 id="t3" class="text-xl font-bold text-[#233E47]">Historial de pases</h2>
             <p class="text-sm text-[#34434b]">
@@ -1137,8 +1188,7 @@ onBeforeUnmount(() => {
               <span v-if="cargando"> · actualizando…</span>
             </p>
           </div>
-        </div>
-      </header>
+        </header>
 
       <div class="mb-4 grid gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.3fr)]">
         <input v-model="filtroTexto" type="search" aria-label="Buscar por estudiante o cédula" placeholder="Buscar por estudiante o cédula" :class="inp" />
@@ -1152,11 +1202,11 @@ onBeforeUnmount(() => {
         </select>
       </div>
 
-      <div class="overflow-x-auto rounded-xl border border-[#e3e8ee]">
+      <div class="clay-inset overflow-x-auto rounded-xl border border-[#e3e8ee]">
         <table class="w-full border-collapse">
           <thead>
             <tr>
-              <th :class="th">Fecha</th><th :class="th">Hora</th><th :class="th">Estudiante</th><th :class="th">Nivel</th><th :class="th">Motivo</th><th :class="th">Docente</th><th :class="th">Registrado por</th><th :class="th">Tipo</th><th :class="[th, 'text-right']">Acciones</th>
+              <th :class="th">Fecha</th><th :class="th">Hora</th><th :class="th">Estudiante</th><th :class="th">Motivo</th><th :class="th">Docente</th><th :class="th">Tipo</th><th :class="[th, 'text-right']">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -1164,10 +1214,8 @@ onBeforeUnmount(() => {
               <td :class="td">{{ fmtFecha(p.fechaISO) }}</td>
               <td :class="td">{{ p.hora || '—' }}</td>
               <td :class="[td, 'font-semibold']">{{ p.estudiante || '—' }}</td>
-              <td :class="td">{{ etiquetaNivel(p.nivel) }}</td>
               <td :class="td">{{ p.motivo }}</td>
               <td :class="td">{{ p.docente || '—' }}</td>
-              <td :class="td">{{ p.usuario || '—' }}</td>
               <td :class="td"><span :class="['rounded-full px-2.5 py-0.5 text-xs font-bold', tipoCls(p.tipo)]">{{ tipoLabel(p.tipo) }}</span></td>
               <td :class="[td, 'text-right']">
                 <div class="flex justify-end gap-3">
@@ -1178,7 +1226,7 @@ onBeforeUnmount(() => {
               </td>
             </tr>
             <tr v-if="!filasPagina.length">
-              <td colspan="9" class="px-4 py-10 text-center text-sm text-[#34434b]">
+              <td colspan="7" class="px-4 py-10 text-center text-sm text-[#34434b]">
                 <span v-if="buscandoTodos">Cargando la lista para filtrar…</span>
                 <span v-else-if="api.error" class="font-semibold text-[#8a1c14]">{{ api.error }}</span>
                 <span v-else-if="filtrando">No hay pases que coincidan con los filtros.</span>
@@ -1205,7 +1253,8 @@ onBeforeUnmount(() => {
           <button type="button" :class="btnS" class="!h-10 !px-4" :disabled="pg === totalPaginas" @click="irPagina(pg + 1)">Siguiente</button>
         </div>
       </footer>
-    </section>
+      </section>
+      </div>
 
     <!-- ═══════════ MODAL: Detalle completo del pase ═══════════ -->
     <div
@@ -1217,7 +1266,7 @@ onBeforeUnmount(() => {
         role="dialog"
         aria-modal="true"
         aria-labelledby="detalle-pase-titulo"
-        class="w-full max-w-2xl overflow-hidden rounded-2xl border border-[#d5dbe6] bg-white shadow-2xl"
+        class="clay-card w-full max-w-2xl overflow-hidden"
       >
         <header class="flex items-start justify-between gap-4 border-b border-[#e3e8ee] bg-[#f6f9fe] px-6 py-5">
           <div>
@@ -1387,7 +1436,7 @@ onBeforeUnmount(() => {
         role="dialog"
         aria-modal="true"
         aria-labelledby="editar-pase-titulo"
-        class="w-full max-w-2xl overflow-hidden rounded-2xl border border-[#d5dbe6] bg-white shadow-2xl"
+        class="clay-card w-full max-w-2xl overflow-hidden"
       >
         <header class="flex items-start justify-between gap-4 border-b border-[#e3e8ee] bg-[#f6f9fe] px-6 py-5">
           <div>
@@ -1420,26 +1469,30 @@ onBeforeUnmount(() => {
           <fieldset :disabled="edicion.cargando || edicion.guardando" class="flex flex-col gap-5 disabled:opacity-60">
             <legend class="sr-only">Datos del pase</legend>
 
-            <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-              <fieldset>
-                <legend :class="lbl">Tipo</legend>
-                <div class="mt-1.5 grid grid-cols-2 gap-2">
-                  <label v-for="t in TIPOS" :key="`ed-${t}`" class="relative">
-                    <input type="radio" name="tipo-edicion" :value="t" v-model="edicion.form.tipo" class="peer sr-only" required />
-                    <span :class="chip">{{ tipoLabel(t) }}</span>
+            <fieldset>
+              <legend :class="lbl">Tipo y motivo</legend>
+              <div class="mt-1.5 flex flex-wrap items-center gap-x-6 gap-y-3">
+                <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Tipo de pase">
+                  <button
+                    v-for="t in TIPOS"
+                    :key="`ed-tipo-${t}`"
+                    type="button"
+                    class="clay-tipo-btn"
+                    :class="{ 'is-active': edicion.form.tipo === t }"
+                    :aria-pressed="edicion.form.tipo === t"
+                    @click="edicion.form.tipo = t"
+                  >
+                    {{ tipoLabel(t) }}
+                  </button>
+                </div>
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-2 border-l border-[#d5dbe6] pl-6 max-sm:border-0 max-sm:pl-0">
+                  <label v-for="mo in motivosEdicion" :key="`ed-${mo}`" class="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-[#34434b]">
+                    <input type="radio" name="motivo-edicion" :value="mo" v-model="edicion.form.motivo" class="clay-radio" required />
+                    <span>{{ mo }}</span>
                   </label>
                 </div>
-              </fieldset>
-              <fieldset>
-                <legend :class="lbl">Motivo</legend>
-                <div class="mt-1.5 flex flex-wrap gap-2">
-                  <label v-for="mo in motivosEdicion" :key="`ed-${mo}`" class="relative">
-                    <input type="radio" name="motivo-edicion" :value="mo" v-model="edicion.form.motivo" class="peer sr-only" required />
-                    <span :class="chip">{{ mo }}</span>
-                  </label>
-                </div>
-              </fieldset>
-            </div>
+              </div>
+            </fieldset>
 
             <div class="grid gap-4 sm:grid-cols-2">
               <div>
@@ -1485,14 +1538,12 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div v-if="requiereAutorizacionEdicion" class="rounded-xl border border-[#f0d28a] bg-[#fdebc0] p-4">
-              <p class="text-sm font-semibold text-[#6b4200]">
-                El estudiante ya tiene {{ pasesEdicionTipoMes }} pases de {{ tipoLabel(edicion.form.tipo).toLowerCase() }} este mes.
-                Para guardar este, indica qué directivo lo autorizó.
-              </p>
-              <label for="ed-autoriza" :class="[lbl, 'mt-3 block']">Autorizado por</label>
-              <input v-model="edicion.form.autorizador" id="ed-autoriza" list="autoridades-edicion" placeholder="Ej. Coordinación" required :class="[inp, 'mt-1.5']" />
-              <datalist id="autoridades-edicion"><option value="Coordinación" /><option value="Dirección" /><option value="Control de estudios" /></datalist>
+            <div v-if="requiereAutorizacionEdicion" class="grid gap-4 sm:grid-cols-2">
+              <div class="sm:col-span-2">
+                <label for="ed-autoriza" :class="lbl">Autorizado por el directivo</label>
+                <input v-model="edicion.form.autorizador" id="ed-autoriza" list="autoridades-edicion" placeholder="Nombre del directivo" required :class="[inp, 'mt-1.5']" />
+                <datalist id="autoridades-edicion"><option value="Coordinación" /><option value="Dirección" /><option value="Control de estudios" /></datalist>
+              </div>
             </div>
           </fieldset>
 
@@ -1516,7 +1567,7 @@ onBeforeUnmount(() => {
         role="dialog"
         aria-modal="true"
         aria-labelledby="baja-pase-titulo"
-        class="w-full max-w-md rounded-2xl border border-[#d5dbe6] bg-white p-6 shadow-2xl"
+        class="clay-card w-full max-w-md p-6"
       >
         <h3 id="baja-pase-titulo" class="text-lg font-bold text-[#233E47]">Confirmar baja</h3>
         <p class="mt-3 text-sm text-[#34434b]">
@@ -1540,5 +1591,266 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
+    </div>
+
+    <Teleport to="body">
+      <Transition name="toast">
+        <div
+          v-if="mostrarToastBloqueo"
+          role="alert"
+          aria-live="assertive"
+          class="pases-toast"
+        >
+          <span class="pases-toast-icon" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9" /><path d="M5.6 5.6l12.8 12.8" />
+            </svg>
+          </span>
+          <div class="min-w-0 flex-1">
+            <b class="block text-base font-bold">
+              {{ form.tipo === 'ENTRADA' ? 'NO PUEDE INGRESAR' : 'LÍMITE ALCANZADO' }}
+            </b>
+            <p class="mt-1 text-sm leading-snug">
+              Acumula {{ pasesDelTipoMes }} pases de {{ tipoLabel(form.tipo).toLowerCase() }} este mes. Para registrar otro se requiere autorización de un directivo.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="pases-toast-close"
+            aria-label="Cerrar aviso"
+            @click="toastBloqueoDescartado = true"
+          >
+            ✕
+          </button>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
+
+<style scoped>
+.pases-page {
+  position: relative;
+  isolation: isolate;
+  background: #dbeafe;
+}
+
+.pases-mesh {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--app-mesh-bg);
+  background-size: 180% 180%;
+  animation: mesh-drift 28s ease-in-out infinite alternate;
+}
+
+@keyframes mesh-drift {
+  0% { background-position: 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%; }
+  50% { background-position: 35% 25%, 65% 30%, 55% 65%, 35% 70%, 100% 100%; }
+  100% { background-position: 100% 100%, 0% 100%, 0% 0%, 100% 0%, 100% 100%; }
+}
+
+.clay-card {
+  border-radius: 2.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(233, 242, 255, 0.92));
+  box-shadow:
+    0 30px 55px -28px rgba(30, 64, 175, 0.45),
+    0 16px 30px -20px rgba(30, 64, 175, 0.28),
+    inset 0 3px 3px rgba(255, 255, 255, 0.98),
+    inset 0 -7px 14px rgba(148, 163, 184, 0.2);
+  backdrop-filter: blur(14px);
+}
+
+.clay-inset {
+  box-shadow:
+    inset 0 3px 8px rgba(148, 163, 184, 0.24),
+    inset 0 -3px 6px rgba(255, 255, 255, 0.85);
+}
+
+.clay-field {
+  box-shadow:
+    inset 0 3px 7px rgba(148, 163, 184, 0.24),
+    inset 0 -2px 3px rgba(255, 255, 255, 0.9),
+    0 2px 0 rgba(255, 255, 255, 0.75);
+}
+
+.clay-radio {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 2px solid #8fa3b8;
+  border-radius: 9999px;
+  background-color: #ffffff;
+  box-shadow: inset 0 1px 3px rgba(30, 64, 175, 0.22);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.clay-radio:checked {
+  border-color: #233e47;
+  background-color: #233e47;
+  box-shadow:
+    inset 0 0 0 3px #ffffff,
+    0 2px 5px -2px rgba(35, 62, 71, 0.55);
+}
+
+.clay-radio:hover {
+  border-color: #233e47;
+}
+
+.clay-radio:focus-visible {
+  outline: 3px solid #3454c5;
+  outline-offset: 2px;
+}
+
+/* Botones de tipo: mismo acabado clay, sin input radio. */
+.clay-tipo-btn {
+  display: inline-flex;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  background: linear-gradient(145deg, #f9fcff, #e2edf9);
+  padding: 0.45rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #34434b;
+  box-shadow:
+    0 8px 14px -12px rgba(30, 64, 175, 0.55),
+    inset 0 2px 2px rgba(255, 255, 255, 0.98),
+    inset 0 -3px 6px rgba(148, 163, 184, 0.22);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.clay-tipo-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow:
+    0 12px 18px -12px rgba(30, 64, 175, 0.6),
+    inset 0 2px 2px rgba(255, 255, 255, 0.98),
+    inset 0 -3px 6px rgba(148, 163, 184, 0.22);
+}
+
+.clay-tipo-btn.is-active {
+  border-color: rgba(35, 62, 71, 0.9);
+  background: linear-gradient(145deg, #355a68, #233e47);
+  color: #ffffff;
+  box-shadow:
+    0 12px 20px -12px rgba(35, 62, 71, 0.75),
+    inset 0 2px 0 rgba(255, 255, 255, 0.24),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.28);
+}
+
+.clay-tipo-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+
+.clay-tipo-btn:focus-visible {
+  outline: 3px solid #3454c5;
+  outline-offset: 3px;
+}
+
+/* Aviso de bloqueo flotante: no empuja el contenido de la tarjeta. */
+.pases-toast {
+  position: fixed;
+  top: 4.75rem;
+  right: 1.5rem;
+  z-index: 40;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  width: min(26rem, calc(100vw - 2rem));
+  padding: 1rem 1.15rem;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: linear-gradient(145deg, #c22a1d, #8a1c14);
+  color: #ffffff;
+  box-shadow:
+    0 22px 40px -18px rgba(138, 28, 20, 0.65),
+    inset 0 2px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.22);
+}
+
+.pases-toast-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.pases-toast-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  color: #ffffff;
+  transition: background-color 0.15s ease;
+}
+
+.pases-toast-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.pases-toast-close:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.toast-enter-active,
+.toast-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.97);
+}
+
+@media (max-width: 639px) {
+  .pases-toast {
+    top: auto;
+    right: 1rem;
+    bottom: 1rem;
+    left: 1rem;
+    width: auto;
+  }
+}
+
+.clay-btn {
+  box-shadow:
+    0 12px 20px -14px rgba(30, 64, 175, 0.65),
+    inset 0 2px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.16);
+}
+
+.clay-btn-soft {
+  box-shadow:
+    0 12px 20px -16px rgba(30, 64, 175, 0.45),
+    inset 0 2px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -3px 6px rgba(148, 163, 184, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pases-mesh {
+    animation: none;
+  }
+}
+</style>
