@@ -72,7 +72,7 @@ Todos los registros con `fecha_eliminacion` son listados/obtenidos solo si `fech
 | Rol | Permisos globales |
 |---|---|
 | `ADMINISTRADOR` | Todo (catálogos, CRUD, pases/reportes, listados, cierre de año, usuarios, permisos) |
-| `COORDINADOR` / `SECRETARIA` | Están limitados a su `nivel`; requieren `nivel` asignado (400/403 si no lo tienen). Sólo pueden operar dentro de pases, reportes, estudiantes, secciones, docentes, asignaturas, horarios, resumen, listados (generar). |
+| `COORDINADOR` / `SECRETARIA` | Están limitados a su `nivel`; requieren `nivel` asignado (400/403 si no lo tienen). Sólo pueden operar dentro de pases, reportes, estudiantes, secciones, docentes, asignaturas, horarios (solo lectura), resumen, listados (generar). |
 
 - Roles asignables desde API: `COORDINADOR`, `SECRETARIA` (no se asignan `ADMINISTRADOR` por CRUD).
 - Niveles: `ESCUELA`, `LICEO`. Grados: 1–6 → `ESCUELA`, 7–11 → `LICEO`.
@@ -223,6 +223,7 @@ Recomendación: UI de grilla: lista `/api/bloques-horarios/` para definir los tr
 **`GET /api/horarios/registros/`** → paginado `PeticionHorario`; filtros: `id_seccion`, `id_grado`, `id_asignatura`, `id_docente`, `id_bloque`, `periodo_lectivo`, `dia_semana` (1-5), `nivel`, `offset`, `size`.
 Orden: `dia_semana`, luego `bloque.orden`.
 **`GET /api/horarios/registros/{id}`** → `PeticionHorario`.
+- Los dos `GET` de registros son de lectura para cualquier autenticado, filtrados por nivel; `POST/PUT/DELETE` siguen siendo solo administrador. Una cuenta de `ESCUELA` recibe `200` con lista vacía porque no hay horarios de ese nivel; si fuerza `?nivel=LICEO`, recibe `403`.
 **`POST /api/horarios/registros/`** — body `CrearHorario = { id_seccion, id_bloque, id_asignatura, id_docente, periodo_lectivo (≥2000), dia_semana (1-5) }` → `201 PeticionHorario`.
 **`PUT /api/horarios/registros/{id}`** — body `ActualizarHorario = { id_seccion?, id_bloque?, id_asignatura?, id_docente?, periodo_lectivo?, dia_semana? }` → `200`.
 **`DELETE /api/horarios/registros/{id}`** → `204`.
@@ -541,3 +542,10 @@ El backend ya expone todo; falta conectar botones en frontend:
 ### 11.5 Otros pendientes menores
 
 - El listado general de docentes de ESCUELA muestra `Grado/Sección = -` mientras no haya `id_docente_titular` cargado en las secciones. No bloquea el PDF.
+
+### 11.6 Horarios para operadores (lectura)
+
+- `GET /api/horarios/registros/` y `GET /api/horarios/registros/{id}` ya están disponibles para cualquier autenticado, filtrados por nivel. Los botones de crear/editar/eliminar deben seguir visibles solo para `ADMINISTRADOR`.
+- Si `sesion.nivel === 'ESCUELA'`, mostrar un aviso: «Los horarios están disponibles solo para LICEO; la escuela no tiene horarios programados.» La API responde `200` con `items: []` y `total: 0`; no es un error.
+- Para `LICEO`, si la lista llega vacía por filtros, mostrar «No hay horarios registrados para los filtros seleccionados.»
+- No hace falta lógica nueva en `api.js`: una lista vacía es `200`; un `403` solo ocurre si un usuario de ESCUELA fuerza `?nivel=LICEO` o abre por ID un horario de otro nivel.
