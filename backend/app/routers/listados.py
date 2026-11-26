@@ -96,6 +96,12 @@ def _resolver_filtros(
   nivel = peticion.nivel
   periodo = peticion.periodo_lectivo
 
+  if peticion.id_seccion is not None and peticion.id_grado is not None:
+    raise HTTPException(
+      status_code=400,
+      detail="Indica una sección o un grado, no ambos",
+    )
+
   if peticion.id_seccion is not None:
     seccion = _obtener_seccion(session, peticion.id_seccion)
     grado = seccion.grado
