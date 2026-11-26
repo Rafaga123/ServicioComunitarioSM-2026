@@ -134,6 +134,11 @@ def nombre_unico(ruta_relativa: str, nombre_archivo: str) -> str:
   return f"{stem}_v{i}{sufijo}"
 
 
+def ruta_con_nombre(ruta_relativa: str, nombre_archivo: str) -> str:
+  """Reemplaza solo el nombre final de la ruta, no el texto en los padres."""
+  return Path(ruta_relativa).with_name(nombre_archivo).as_posix()
+
+
 def guardar_archivo(ruta_relativa: str, contenido: bytes) -> None:
   destino = ruta_absoluta(ruta_relativa)
   destino.parent.mkdir(parents=True, exist_ok=True)

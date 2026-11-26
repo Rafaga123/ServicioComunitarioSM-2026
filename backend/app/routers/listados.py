@@ -34,6 +34,7 @@ from app.models.enums import (
 )
 from app.models.schemas import PeticionDocumentoGenerado, SolicitudListado
 from app.models.session import get_session
+from app.services import firmas as servicio_firmas
 from app.services import listados as servicio_listados
 from app.utils.auditoria import registrar_auditoria
 from app.utils.fechas import ahora_caracas
@@ -42,6 +43,7 @@ from app.utils.periodos import etiqueta_periodo, periodo_lectivo_efectivo
 from app.utils.security import (
   obtener_usuario_actual,
   requerir_roles,
+  resolver_nivel,
   validar_acceso_nivel,
 )
 from app.utils.storage import (
@@ -50,6 +52,7 @@ from app.utils.storage import (
   leer_archivo,
   nombre_unico,
   ruta_absoluta,
+  ruta_con_nombre,
 )
 
 router = APIRouter(prefix="/listados", tags=["Listados"])
@@ -95,6 +98,12 @@ def _resolver_filtros(
   grado = None
   nivel = peticion.nivel
   periodo = peticion.periodo_lectivo
+
+  if peticion.id_seccion is not None and peticion.id_grado is not None:
+    raise HTTPException(
+      status_code=400,
+      detail="Indica una sección o un grado, no ambos",
+    )
 
   if peticion.id_seccion is not None:
     seccion = _obtener_seccion(session, peticion.id_seccion)
@@ -173,6 +182,12 @@ def generar_listado(
   documento = servicio_listados.construir_documento(
     tipo, periodo, nivel, grado, seccion, session
   )
+  firma = servicio_firmas.firma_si_activa(tipo, periodo, nivel, documento)
+  if firma is not None:
+    existente = servicio_firmas.documento_reutilizable(session, firma)
+    if existente is not None:
+      return _dto(existente)
+
   if tipo == TipoDocumento.horarios:
     assert documento.horario_cabecera is not None
     assert documento.horario_filas is not None
@@ -198,7 +213,7 @@ def generar_listado(
   )
   # Versionado: no sobrescribir un PDF que ya existe.
   nombre_archivo = nombre_unico(ruta_relativa, documento.nombre_archivo)
-  ruta_relativa = ruta_relativa.replace(documento.nombre_archivo, nombre_archivo)
+  ruta_relativa = ruta_con_nombre(ruta_relativa, nombre_archivo)
   guardar_archivo(ruta_relativa, pdf)
 
   registro = DocumentosGenerados(
@@ -217,6 +232,8 @@ def generar_listado(
   )
   session.add(registro)
   session.flush()
+  if firma is not None:
+    servicio_firmas.registrar_firma(session, firma, registro.id)
 
   registrar_auditoria(
     session,
@@ -239,11 +256,12 @@ def listar_documentos(
   id_seccion: int | None = None,
   paginacion: Paginacion = Depends(),
   session: Session = Depends(get_session),
-  usuario_actual: Usuarios = Depends(requerir_admin),
+  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
   consulta = select(DocumentosGenerados).where(
     DocumentosGenerados.fecha_eliminacion.is_(None)
   )
+  nivel = resolver_nivel(usuario_actual, nivel)
   periodo_lectivo = periodo_lectivo_efectivo(session, periodo_lectivo)
   if tipo is not None:
     consulta = consulta.where(DocumentosGenerados.tipo == tipo)
@@ -270,8 +288,28 @@ def descargar_documento(
   documento = session.get(DocumentosGenerados, documento_id)
   if not documento or documento.fecha_eliminacion is not None:
     raise HTTPException(404, "Documento no encontrado")
-  if documento.nivel is not None:
-    validar_acceso_nivel(usuario_actual, documento.nivel)
+
+  # El nivel puede faltar en registros antiguos; se deriva del grado o de la
+  # sección para no omitir el control de acceso.
+  nivel = documento.nivel
+  if nivel is None and documento.grado is not None:
+    nivel = documento.grado.nivel
+  if (
+    nivel is None
+    and documento.seccion is not None
+    and documento.seccion.grado is not None
+  ):
+    nivel = documento.seccion.grado.nivel
+  if nivel is None:
+    raise HTTPException(404, "Documento no encontrado")
+  validar_acceso_nivel(usuario_actual, nivel)
+
+  try:
+    ruta = ruta_absoluta(documento.ruta_relativa)
+  except ValueError as error:
+    raise HTTPException(404, "Documento no disponible") from error
+  if not ruta.is_file():
+    raise HTTPException(404, "Documento no disponible")
 
   registrar_auditoria(
     session,
@@ -284,7 +322,7 @@ def descargar_documento(
   session.commit()
 
   return FileResponse(
-    path=str(ruta_absoluta(documento.ruta_relativa)),
+    path=str(ruta),
     media_type=documento.mime or "application/pdf",
     filename=documento.nombre_archivo or f"listado-{documento.id}.pdf",
     content_disposition_type="attachment",

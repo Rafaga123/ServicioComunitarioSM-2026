@@ -541,8 +541,9 @@ class PeticionCierreAnio(SQLModel):
 class SolicitudListado(SQLModel):
   """Filtros para generar un listado PDF.
 
-  Una sección define grado/periodo; sin sección, se genera "general" por
-  nivel. `id_grado` solo admite grados de liceo (horarios).
+  Una sección define grado/periodo. Sin sección, `nivel` genera el listado
+  general de todo el nivel y `id_grado` genera el general de un solo grado
+  para nóminas y representantes. `id_grado` e `id_seccion` no se combinan.
   """
 
   periodo_lectivo: int | None = None

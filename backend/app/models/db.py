@@ -409,3 +409,22 @@ class DocumentosGenerados(EsquemaBase, table=True):
   grado: Grados | None = Relationship()
   seccion: Secciones | None = Relationship()
   usuario: Usuarios | None = Relationship()
+
+
+# Firma canónica de los datos que produjeron un PDF. Permite reutilizar el
+# documento cuando el listado no cambió y versionar cuando sí cambió.
+class DocumentosFirmas(EsquemaBase, table=True):
+  __tablename__ = "documentos_firmas"
+  __table_args__ = (
+    Index(
+      "uq_documentos_firmas_activa",
+      "firma",
+      unique=True,
+      postgresql_where=text("fecha_eliminacion IS NULL"),
+    ),
+  )
+  id: int | None = Field(default=None, primary_key=True)
+  firma: str = Field(index=True)
+  documento_id: int = Field(foreign_key="documentos_generados.id")
+
+  documento: DocumentosGenerados | None = Relationship()
