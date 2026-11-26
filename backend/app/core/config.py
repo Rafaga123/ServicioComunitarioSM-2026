@@ -58,3 +58,38 @@ except ValueError as error:
 
 if ACCESS_TOKEN_EXPIRE_MINUTES <= 0:
   raise RuntimeError("ACCESS_TOKEN_EXPIRE_MINUTES debe ser mayor que cero.")
+
+# Límite de intentos de inicio de sesión (anti fuerza bruta / flood).
+LIMITE_LOGIN_INTENTOS = os.getenv("LIMITE_LOGIN_INTENTOS", "5")
+LIMITE_LOGIN_IP = os.getenv("LIMITE_LOGIN_IP", "20")
+LIMITE_LOGIN_VENTANA_SEGUNDOS = os.getenv("LIMITE_LOGIN_VENTANA_SEGUNDOS", "60")
+
+# Horas que se conserva un jti revocado después de vencido el token.
+TOKENS_REVOCADOS_RETENCION_HORAS = os.getenv(
+  "TOKENS_REVOCADOS_RETENCION_HORAS", "24"
+)
+
+def _entero_positivo(nombre: str, valor: str) -> int:
+  """Convierte y valida una variable entera positiva de entorno."""
+
+  try:
+    numero = int(valor)
+  except ValueError as error:
+    raise RuntimeError(f"{nombre} debe ser un número entero.") from error
+
+  if numero <= 0:
+    raise RuntimeError(f"{nombre} debe ser mayor que cero.")
+
+  return numero
+
+
+LIMITE_LOGIN_INTENTOS = _entero_positivo(
+  "LIMITE_LOGIN_INTENTOS", LIMITE_LOGIN_INTENTOS
+)
+LIMITE_LOGIN_IP = _entero_positivo("LIMITE_LOGIN_IP", LIMITE_LOGIN_IP)
+LIMITE_LOGIN_VENTANA_SEGUNDOS = _entero_positivo(
+  "LIMITE_LOGIN_VENTANA_SEGUNDOS", LIMITE_LOGIN_VENTANA_SEGUNDOS
+)
+TOKENS_REVOCADOS_RETENCION_HORAS = _entero_positivo(
+  "TOKENS_REVOCADOS_RETENCION_HORAS", TOKENS_REVOCADOS_RETENCION_HORAS
+)
