@@ -20,6 +20,12 @@ def create_db_tables():
   # Migración no destructiva: `create_all()` no altera enums existentes.
   # Este valor es necesario para registrar PDFs de docentes.
   with engine.begin() as conn:
+    conn.execute(
+      text(
+        "ALTER TABLE usuarios "
+        "ADD COLUMN IF NOT EXISTS version_tokens INTEGER NOT NULL DEFAULT 0"
+      )
+    )
     conn.execute(text("ALTER TYPE tipodocumento ADD VALUE IF NOT EXISTS 'docentes'"))
 
 
