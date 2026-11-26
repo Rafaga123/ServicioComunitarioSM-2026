@@ -420,7 +420,7 @@ def cerrar_anio(
       session,
       usuario.id,
       ModuloAuditoria.cierre_anio,
-      "CIERRE_ANIO",
+      "CIERRE AÑO",
       f"Se cerró el periodo lectivo {pa.anio} y se activó {ps.anio}.",
     )
 

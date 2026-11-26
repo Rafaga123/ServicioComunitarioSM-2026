@@ -368,7 +368,7 @@ def subir_reporte_archivo(
     session,
     usuario_actual.id,
     ModuloAuditoria.reportes,
-    "SUBIR_ARCHIVO",
+    "SUBIR ARCHIVO",
     (
       f"Subió el adjunto '{nombre_base}' ({len(contenido)} bytes) "
       f"del reporte #{reporte.id} de '{nombre_completo(estudiante)}'."
@@ -396,7 +396,7 @@ def descargar_reporte_archivo(
     session,
     usuario_actual.id,
     ModuloAuditoria.reportes,
-    "DESCARGAR_ARCHIVO",
+    "DESCARGAR ARCHIVO",
     (
       f"Descargó el adjunto '{reporte.archivo_nombre}' "
       f"del reporte #{reporte.id} de '{nombre_completo(reporte.estudiante)}'."
@@ -431,7 +431,7 @@ def quitar_reporte_archivo(
     session,
     usuario_actual.id,
     ModuloAuditoria.reportes,
-    "QUITAR_ARCHIVO",
+    "QUITAR ARCHIVO",
     f"Quitó el adjunto del reporte #{reporte.id} de '{nombre_completo(estudiante)}'.",
   )
 

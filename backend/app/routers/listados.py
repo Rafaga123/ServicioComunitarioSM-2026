@@ -277,7 +277,7 @@ def descargar_documento(
     session,
     usuario_actual.id,
     ModuloAuditoria.documentos,
-    "DESCARGAR_ARCHIVO",
+    "DESCARGAR ARCHIVO",
     f"Descargó el PDF {documento.nombre_archivo} (#{documento.id}).",
   )
   session.flush()

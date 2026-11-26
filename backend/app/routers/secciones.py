@@ -100,6 +100,30 @@ def _validar_titular_escuela(
   validar_acceso_nivel(usuario, docente.nivel)
 
 
+def _validar_titular_unico(
+  session: Session,
+  docente_id: int | None,
+  periodo_lectivo: int,
+  excluir_id: int | None = None,
+) -> None:
+  """Un docente solo puede ser titular de una sección por período lectivo."""
+  if docente_id is None:
+    return
+
+  consulta = select(Secciones).where(
+    Secciones.id_docente_titular == docente_id,
+    Secciones.periodo_lectivo == periodo_lectivo,
+    Secciones.fecha_eliminacion.is_(None),
+  )
+  if excluir_id is not None:
+    consulta = consulta.where(Secciones.id != excluir_id)
+  if session.exec(consulta).first():
+    raise HTTPException(
+      status_code=status.HTTP_409_CONFLICT,
+      detail="El docente ya es titular de otra sección en este período lectivo",
+    )
+
+
 def _validar_duplicado_seccion(
   session: Session,
   id_grado: int,
@@ -211,6 +235,9 @@ def registrar_seccion(
   _validar_titular_escuela(
     session, usuario_actual, grado, seccion_in.id_docente_titular
   )
+  _validar_titular_unico(
+    session, seccion_in.id_docente_titular, seccion_in.periodo_lectivo
+  )
   _validar_duplicado_seccion(
     session, seccion_in.id_grado, seccion_in.letra, seccion_in.periodo_lectivo
   )
@@ -270,6 +297,7 @@ def actualizar_seccion(
     )
 
   _validar_titular_escuela(session, usuario_actual, seccion_db.grado, nuevo_titular)
+  _validar_titular_unico(session, nuevo_titular, nuevo_periodo, excluir_id=seccion_id)
 
   for campo, valor in datos_actualizar.items():
     setattr(seccion_db, campo, valor)

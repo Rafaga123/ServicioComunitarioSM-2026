@@ -146,7 +146,7 @@ def cambiar_clave(
     session,
     usuario_actual.id,
     ModuloAuditoria.usuarios,
-    "CAMBIAR_CLAVE",
+    "CAMBIAR CLAVE",
     f"El usuario '{usuario_actual.nombre}' cambió su clave.",
   )
 
@@ -284,7 +284,7 @@ def transferir_admin(
     session,
     usuario_actual.id,
     ModuloAuditoria.usuarios,
-    "TRANSFERIR_ADMIN",
+    "TRANSFERIR ADMIN",
     (
       f"El administrador '{usuario_actual.nombre}' transfirió el rol "
       f"a '{nuevo_admin.nombre}'."
