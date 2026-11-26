@@ -1013,16 +1013,18 @@ python -m scripts.normalizar_textos_auditoria
 
 ### 7.11 Estructura física
 
-Todo se guarda bajo `STORAGE_ROOT` (`C:\sistema` por defecto):
+Todo se guarda bajo `STORAGE_ROOT` (`C:\sistema` por defecto). Las tres carpetas son hermanas dentro del período lectivo:
 
 ```text
 2026-2027/
 ├─ pases/{nivel}/{grado}/{letra}/estudiante-{id}/archivo.ext
 ├─ reportes/{nivel}/{grado}/{letra}/estudiante-{id}/archivo.ext
-└─ listados/{nominas|representantes|horarios|docentes}/{nivel}/{grado|general}/{letra}/archivo.pdf
+└─ listados/{tipo}/{nivel}/
+   ├─ {grado}/{letra}/archivo.pdf
+   └─ generales/archivo.pdf
 ```
 
-La BD sigue guardando el año como entero (`2026`); la etiqueta `2026-2027` se deriva para rutas, nombres de archivo, títulos y metadatos.
+Las carpetas se crean bajo demanda: `pases/` y `reportes/` aparecen al subir el primer adjunto de ese tipo, y `listados/` al generar el primer PDF. No se crean las tres al arrancar. La BD sigue guardando el año como entero (`2026`); la etiqueta `2026-2027` se deriva para rutas, nombres de archivo, títulos y metadatos.
 
 ---
 
