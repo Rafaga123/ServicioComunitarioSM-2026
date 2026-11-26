@@ -1,7 +1,7 @@
 # Pendientes
 
-Estado al **2026-11-26**, rama `backend-dev`, Tareas 1 y 2
-(commits `f9060` y `b934b`, más el cierre de Tarea 2).
+Estado al **2026-11-26**, rama `backend-dev`, Tareas 1, 2 y 3
+(commits `f9060`, `b934b` y `612a4`, más el cierre de Tarea 3).
 
 ## 1. Listados (`/api/listados`)
 
@@ -21,6 +21,15 @@ Estado al **2026-11-26**, rama `backend-dev`, Tareas 1 y 2
       valida ruta/archivo y devuelve `404` si no está disponible. El historial
       `/documentos` es autenticado con filtro por nivel; el paquete ZIP sigue
       siendo solo para administrador.
+
+- [x] **Política de duplicados (Tarea 3).** Firma canónica en `documentos_firmas`
+      con bloqueo `pg_advisory_xact_lock(hashtext(firma))`. Aplica al endpoint,
+      al script batch y al cierre de año. El reemplazo del nombre de archivo ya
+      no es global (`ruta_con_nombre()`). Gobernada por
+      `REUTILIZAR_DOCUMENTOS_IGUALES` (default `False`).
+
+- [ ] **Activar `REUTILIZAR_DOCUMENTOS_IGUALES=True`** en el entorno cuando se
+      apruebe el cambio de comportamiento (hoy queda desactivado).
 
 - [ ] **Pruebas `TestClient`** de la matriz de validación y de las rutas relativas.
 

@@ -34,6 +34,7 @@ from app.models.enums import (
 )
 from app.models.schemas import PeticionDocumentoGenerado, SolicitudListado
 from app.models.session import get_session
+from app.services import firmas as servicio_firmas
 from app.services import listados as servicio_listados
 from app.utils.auditoria import registrar_auditoria
 from app.utils.fechas import ahora_caracas
@@ -51,6 +52,7 @@ from app.utils.storage import (
   leer_archivo,
   nombre_unico,
   ruta_absoluta,
+  ruta_con_nombre,
 )
 
 router = APIRouter(prefix="/listados", tags=["Listados"])
@@ -180,6 +182,12 @@ def generar_listado(
   documento = servicio_listados.construir_documento(
     tipo, periodo, nivel, grado, seccion, session
   )
+  firma = servicio_firmas.firma_si_activa(tipo, periodo, nivel, documento)
+  if firma is not None:
+    existente = servicio_firmas.documento_reutilizable(session, firma)
+    if existente is not None:
+      return _dto(existente)
+
   if tipo == TipoDocumento.horarios:
     assert documento.horario_cabecera is not None
     assert documento.horario_filas is not None
@@ -205,7 +213,7 @@ def generar_listado(
   )
   # Versionado: no sobrescribir un PDF que ya existe.
   nombre_archivo = nombre_unico(ruta_relativa, documento.nombre_archivo)
-  ruta_relativa = ruta_relativa.replace(documento.nombre_archivo, nombre_archivo)
+  ruta_relativa = ruta_con_nombre(ruta_relativa, nombre_archivo)
   guardar_archivo(ruta_relativa, pdf)
 
   registro = DocumentosGenerados(
@@ -224,6 +232,8 @@ def generar_listado(
   )
   session.add(registro)
   session.flush()
+  if firma is not None:
+    servicio_firmas.registrar_firma(session, firma, registro.id)
 
   registrar_auditoria(
     session,

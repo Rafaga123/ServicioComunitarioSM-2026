@@ -92,6 +92,7 @@ Copy-Item .env.example .env
 | `SECRET_KEY` | Sí | Clave para firmar los JWT. **Mínimo 32 bytes** o la API no arranca |
 | `ALGORITHM` | No | Algoritmo del JWT. Por defecto `HS256` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | No | Duración del token en minutos. Por defecto `360` |
+| `REUTILIZAR_DOCUMENTOS_IGUALES` | No | `True` reutiliza un PDF si los datos del listado no cambiaron. Por defecto `False` |
 
 Genera una `SECRET_KEY` segura con:
 
@@ -908,6 +909,7 @@ La respuesta ya trae `Content-Disposition: attachment`; `ruta_relativa` es inter
 - En `/api/listados/documentos`, el operador solo puede consultar su nivel; si fuerza otro `?nivel=`, recibe `403`. El administrador puede filtrar por cualquiera o ver ambos.
 - Los PDF usan hoja carta, margen izquierdo de 4 cm y 3 cm en los demás lados.
 - La ruta incluye el periodo lectivo: `2026-2027/listados/nominas/ESCUELA/1er_grado/U/nomina_2026-2027_1er_grado_U.pdf`. Los generales usan `generales/`: `2026-2027/listados/nominas/ESCUELA/generales/nomina_2026-2027_ESCUELA_general.pdf` o `.../nomina_2026-2027_1er_grado.pdf`. Si el nombre ya existe, se agrega `_v2`, `_v3`, ….
+- Duplicados: con `REUTILIZAR_DOCUMENTOS_IGUALES=True` se calcula una firma SHA-256 de tipo, periodo, nivel, grado/sección, filas, encabezados, anchos y título. Si la firma coincide y el archivo sigue en disco, la misma petición devuelve el documento existente con `201` y no crea otro PDF; si los datos cambiaron, se genera una versión nueva. La comprobación usa `pg_advisory_xact_lock(hashtext(firma))` para evitar duplicados concurrentes. Las firmas viven en la tabla `documentos_firmas`, creada con `create_all()`. Con el flag en `False` (default) siempre se genera un PDF nuevo.
 - Las nóminas generales se ordenan por grado, sección y apellidos. Los representantes generales se ordenan por apellido del representante.
 - Título: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/1er Grado "U"`. En general por grado: `.../1er Grado general`. Metadatos: `ESCUELA • 1er Grado U • 2026-2027`.
 - Los representantes de ESCUELA del export original solo tienen teléfono; en la columna `Representante` se muestra `-`. Los de LICEO conservan su nombre real.

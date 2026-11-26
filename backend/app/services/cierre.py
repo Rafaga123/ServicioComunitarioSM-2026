@@ -28,12 +28,18 @@ from app.models.db import (
 )
 from app.models.enums import ModuloAuditoria, NivelEducativo, TipoDocumento
 from app.models.schemas import PeticionCierreAnio
+from app.services import firmas as servicio_firmas
 from app.services import listados as servicio_listados
 from app.utils.auditoria import registrar_auditoria
 from app.utils.fechas import ahora_caracas
 from app.utils.pdf import construir_pdf, construir_pdf_horarios
 from app.utils.periodos import etiqueta_periodo
-from app.utils.storage import hash_contenido, nombre_unico, ruta_absoluta
+from app.utils.storage import (
+  hash_contenido,
+  nombre_unico,
+  ruta_absoluta,
+  ruta_con_nombre,
+)
 
 GRADOS_PROMOVIDOS_MAX = 11  # 11 = 5to Año, último grado del liceo (egreso)
 
@@ -196,10 +202,16 @@ def _guardar_doc_staged(
   grado: Grados,
   seccion: Secciones,
   staging_root: Path,
-) -> DocumentosGenerados:
+) -> tuple[DocumentosGenerados, str | None] | None:
+  """Prepara un PDF en staging; devuelve `None` si la firma ya existe."""
   documento = servicio_listados.construir_documento(
     tipo, periodo, nivel, grado, seccion, session
   )
+  firma = servicio_firmas.firma_si_activa(tipo, periodo, nivel, documento)
+  if firma is not None:
+    if servicio_firmas.documento_reutilizable(session, firma) is not None:
+      return None
+
   if tipo == TipoDocumento.horarios:
     assert documento.horario_cabecera is not None
     assert documento.horario_filas is not None
@@ -224,7 +236,7 @@ def _guardar_doc_staged(
     tipo, periodo, nivel, documento.grado, seccion, documento.nombre_archivo
   )
   nombre_archivo = nombre_unico(ruta_relativa, documento.nombre_archivo)
-  ruta_relativa = ruta_relativa.replace(documento.nombre_archivo, nombre_archivo)
+  ruta_relativa = ruta_con_nombre(ruta_relativa, nombre_archivo)
 
   staging_file = staging_root / ruta_relativa
   staging_file.parent.mkdir(parents=True, exist_ok=True)
@@ -245,7 +257,7 @@ def _guardar_doc_staged(
     generado_por=usuario.id,
   )
   session.add(registro)
-  return registro
+  return registro, firma
 
 
 def _guardar_doc_general_staged(
@@ -255,11 +267,16 @@ def _guardar_doc_general_staged(
   periodo: int,
   nivel: NivelEducativo,
   staging_root: Path,
-) -> DocumentosGenerados:
-  """Prepara un PDF general por nivel (p. ej. el listado de docentes)."""
+) -> tuple[DocumentosGenerados, str | None] | None:
+  """Prepara un PDF general por nivel; devuelve `None` si la firma ya existe."""
   documento = servicio_listados.construir_documento(
     tipo, periodo, nivel, None, None, session
   )
+  firma = servicio_firmas.firma_si_activa(tipo, periodo, nivel, documento)
+  if firma is not None:
+    if servicio_firmas.documento_reutilizable(session, firma) is not None:
+      return None
+
   pdf = construir_pdf(
     documento.titulo,
     documento.encabezados,
@@ -273,7 +290,7 @@ def _guardar_doc_general_staged(
     tipo, periodo, nivel, None, None, documento.nombre_archivo
   )
   nombre_archivo = nombre_unico(ruta_relativa, documento.nombre_archivo)
-  ruta_relativa = ruta_relativa.replace(documento.nombre_archivo, nombre_archivo)
+  ruta_relativa = ruta_con_nombre(ruta_relativa, nombre_archivo)
 
   staging_file = staging_root / ruta_relativa
   staging_file.parent.mkdir(parents=True, exist_ok=True)
@@ -292,7 +309,7 @@ def _guardar_doc_general_staged(
     generado_por=usuario.id,
   )
   session.add(registro)
-  return registro
+  return registro, firma
 
 
 def cerrar_anio(
@@ -313,7 +330,14 @@ def cerrar_anio(
     )
 
   staging_root = Path(STORAGE_ROOT) / ".staging" / str(uuid.uuid4())
-  documentos: list[DocumentosGenerados] = []
+  documentos: list[tuple[DocumentosGenerados, str | None]] = []
+
+  def anadir_documento(
+    resultado: tuple[DocumentosGenerados, str | None] | None,
+  ) -> None:
+    if resultado is not None:
+      documentos.append(resultado)
+
   movidos: list[Path] = []
   promovidos = 0
   egresados = 0
@@ -327,7 +351,7 @@ def cerrar_anio(
     # 1. Generar PDFs de listados por sección activa.
     for seccion in _secciones_activas(session, pa.anio):
       nivel = seccion.grado.nivel
-      documentos.append(
+      anadir_documento(
         _guardar_doc_staged(
           session,
           usuario,
@@ -339,7 +363,7 @@ def cerrar_anio(
           staging_root,
         )
       )
-      documentos.append(
+      anadir_documento(
         _guardar_doc_staged(
           session,
           usuario,
@@ -352,7 +376,7 @@ def cerrar_anio(
         )
       )
       if nivel == NivelEducativo.liceo:
-        documentos.append(
+        anadir_documento(
           _guardar_doc_staged(
             session,
             usuario,
@@ -367,7 +391,7 @@ def cerrar_anio(
 
     # 1b. Listado general de docentes por nivel.
     for nivel in (NivelEducativo.escuela, NivelEducativo.liceo):
-      documentos.append(
+      anadir_documento(
         _guardar_doc_general_staged(
           session,
           usuario,
@@ -379,7 +403,8 @@ def cerrar_anio(
       )
 
     # 2. Mover archivos de staging al destino final.
-    for doc in documentos:
+    conservados: list[tuple[DocumentosGenerados, str | None]] = []
+    for doc, firma in documentos:
       destino = ruta_absoluta(doc.ruta_relativa)
       destino.parent.mkdir(parents=True, exist_ok=True)
       if destino.exists():
@@ -392,6 +417,14 @@ def cerrar_anio(
         continue
       shutil.move(str(staging_root / doc.ruta_relativa), str(destino))
       movidos.append(destino)
+      conservados.append((doc, firma))
+
+    # Los IDs existen recién después del flush; ahí se asocian las firmas de
+    # los documentos que efectivamente se conservaron.
+    session.flush()
+    for doc, firma in conservados:
+      if firma is not None:
+        servicio_firmas.registrar_firma(session, firma, doc.id)
 
     # 3. Traspaso de estudiantes y clonación de estructura.
     secciones_nuevas = _crear_secciones_nuevas(
