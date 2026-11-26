@@ -8,6 +8,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.platypus import (
   Paragraph,
   SimpleDocTemplate,
@@ -15,11 +16,68 @@ from reportlab.platypus import (
   Table,
 )
 
-from app.core.config import INSTITUCION_NOMBRE
+from app.core.config import INSTITUCION_NOMBRE, LOGO_PATH
 
 # Hoja carta con márgenes institucionales: 4 cm a la izquierda y 3 cm al resto.
 MARGEN_IZQUIERDO = 4 * cm
 MARGEN = 3 * cm
+
+# El membrete se dibuja dentro del área útil: 4 cm a la izquierda y 3 cm
+# en el resto de márgenes. El PNG original mide 455x548 (≈0.83).
+LOGO_ALTO = 2.0 * cm
+LOGO_ANCHO = LOGO_ALTO * 455 / 548
+LOGO_X = MARGEN_IZQUIERDO
+LOGO_Y = letter[1] - MARGEN - LOGO_ALTO
+
+# Texto a la derecha del logo, sin salirse del margen derecho de 3 cm.
+COLOR_MEMBRETE = colors.HexColor("#1b2a47")
+MEMBRETE_X = LOGO_X + LOGO_ANCHO + 0.25 * cm
+INSTITUCION_Y = letter[1] - MARGEN - 0.35 * cm
+TITULO_Y = letter[1] - MARGEN - 1.05 * cm
+ESPACIO_MEMBRETE = LOGO_ALTO + 0.35 * cm
+
+
+def _tamano_ajustado(
+  texto: str, fuente: str, tamano_max: float, tamano_min: float, ancho_max: float
+) -> float:
+  """Reduce la fuente hasta que el texto quepa en una sola línea."""
+  tamano = tamano_max
+  while tamano > tamano_min and stringWidth(texto, fuente, tamano) > ancho_max:
+    tamano -= 0.25
+  return max(tamano, tamano_min)
+
+
+def _membrete(titulo: str):
+  """Devuelve el callback que dibuja logo + membrete en todas las páginas."""
+  def dibujar(canvas, doc) -> None:
+    if not LOGO_PATH.is_file():
+      raise FileNotFoundError(f"No se encontró el logo institucional: {LOGO_PATH}")
+    canvas.saveState()
+    try:
+      canvas.drawImage(
+        str(LOGO_PATH),
+        LOGO_X,
+        LOGO_Y,
+        width=LOGO_ANCHO,
+        height=LOGO_ALTO,
+        mask="auto",
+      )
+      ancho_texto = letter[0] - MEMBRETE_X - MARGEN
+      canvas.setFillColor(COLOR_MEMBRETE)
+
+      size_institucion = _tamano_ajustado(
+        INSTITUCION_NOMBRE, "Helvetica-Bold", 10.0, 8.5, ancho_texto
+      )
+      canvas.setFont("Helvetica-Bold", size_institucion)
+      canvas.drawString(MEMBRETE_X, INSTITUCION_Y, INSTITUCION_NOMBRE)
+
+      size_titulo = _tamano_ajustado(titulo, "Helvetica", 9.0, 7.5, ancho_texto)
+      canvas.setFont("Helvetica", size_titulo)
+      canvas.drawString(MEMBRETE_X, TITULO_Y, titulo)
+    finally:
+      canvas.restoreState()
+
+  return dibujar
 
 
 def _texto_parrafo(valor: object) -> str:
@@ -81,10 +139,11 @@ def construir_pdf(
 ) -> bytes:
   """Construye el PDF de un listado.
 
-  Encabezado institucional (`INSTITUCION_NOMBRE`), metadatos de alcance
-  (nivel/grado/sección/periodo, p. ej. «2026-2027») y una tabla de `filas` con `encabezados` como
-  encabezado de columna. `col_anchos` en centímetros; se convierten a puntos y
-  se escalan proporcionalmente si superan el ancho útil de la hoja carta.
+  El membrete institucional (logo, nombre y título con su alcance) se dibuja
+  en todas las páginas desde el canvas. El cuerpo contiene únicamente la
+  tabla de `filas` con `encabezados` como cabecera de columna. `col_anchos`
+  en centímetros; se convierten a puntos y se escalan proporcionalmente si
+  superan el ancho útil de la hoja carta.
   """
   buffer = BytesIO()
   ancho_util = letter[0] - MARGEN_IZQUIERDO - MARGEN
@@ -93,7 +152,7 @@ def construir_pdf(
     pagesize=letter,
     leftMargin=MARGEN_IZQUIERDO,
     rightMargin=MARGEN,
-    topMargin=MARGEN,
+    topMargin=MARGEN + ESPACIO_MEMBRETE,
     bottomMargin=MARGEN,
   )
   estilos = getSampleStyleSheet()
@@ -117,15 +176,7 @@ def construir_pdf(
 
   _validar_tabla(encabezados, filas, col_anchos)
 
-  elementos = [
-    Paragraph(f"{INSTITUCION_NOMBRE} — {titulo}", estilos["h1"]),
-    Spacer(1, 12),
-  ]
-
-  filas_info = [l for l in (nivel, grado, seccion, periodo_lectivo) if l is not None]
-  if filas_info:
-    elementos.append(Paragraph(" • ".join(f"{i}" for i in filas_info), estilos["h2"]))
-    elementos.append(Spacer(1, 10))
+  elementos: list = []
 
   fila_encabezado = [
     Paragraph(_texto_parrafo(encabezado), estilo_encabezado)
@@ -152,7 +203,12 @@ def construir_pdf(
   )
   elementos.append(tabla)
 
-  doc.build(elementos)
+  membrete = _membrete(titulo)
+  doc.build(
+    elementos,
+    onFirstPage=membrete,
+    onLaterPages=membrete,
+  )
   return buffer.getvalue()
 
 
@@ -174,18 +230,10 @@ def construir_pdf_horarios(
     pagesize=letter,
     leftMargin=MARGEN_IZQUIERDO,
     rightMargin=MARGEN,
-    topMargin=MARGEN,
+    topMargin=MARGEN + ESPACIO_MEMBRETE,
     bottomMargin=MARGEN,
   )
   estilos = getSampleStyleSheet()
-  estilo_titulo = ParagraphStyle(
-    "TituloHorario",
-    parent=estilos["BodyText"],
-    fontName="Helvetica-Bold",
-    fontSize=12,
-    leading=14,
-    alignment=TA_CENTER,
-  )
   estilo_encabezado = ParagraphStyle(
     "EncabezadoHorario",
     parent=estilos["BodyText"],
@@ -272,9 +320,11 @@ def construir_pdf_horarios(
       )
   tabla.setStyle(estilo_tabla)
 
+  subtitulo = (
+    f"HORARIO DE CLASES · {cabecera['periodo']} · "
+    f"{cabecera['curso']} {cabecera['seccion']}"
+  )
   elementos = [
-    Paragraph(f"{INSTITUCION_NOMBRE} — HORARIO DE CLASES", estilo_titulo),
-    Spacer(1, 10),
     tabla,
     Spacer(1, 14),
     Paragraph("Docentes:", estilo_titulo_seccion),
@@ -287,5 +337,10 @@ def construir_pdf_horarios(
       )
     )
 
-  doc.build(elementos)
+  membrete = _membrete(subtitulo)
+  doc.build(
+    elementos,
+    onFirstPage=membrete,
+    onLaterPages=membrete,
+  )
   return buffer.getvalue()
