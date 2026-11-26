@@ -1,4 +1,6 @@
 from datetime import UTC, datetime, timedelta
+from threading import Lock
+from time import monotonic
 
 from pydantic import NaiveDatetime
 from sqlalchemy import delete as delete_sql
@@ -74,3 +76,19 @@ def limpiar_tokens_revocados(session: Session) -> int:
     )
 
     return max(resultado.rowcount or 0, 0)
+
+_ultima_limpieza: float = monotonic()
+_bloqueo_limpieza = Lock()
+
+
+def limpiar_si_toca(session: Session) -> None:
+    """Ejecuta la limpieza como máximo una vez por hora. No hace commit."""
+
+    global _ultima_limpieza
+    ahora = monotonic()
+
+    with _bloqueo_limpieza:
+        if ahora - _ultima_limpieza < 3600:
+            return
+        limpiar_tokens_revocados(session)
+        _ultima_limpieza = ahora
