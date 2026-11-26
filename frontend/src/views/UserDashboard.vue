@@ -1,131 +1,190 @@
 <script setup>
-    import { ref, computed } from 'vue'
-    import { sesion, etiquetaNivel } from '@/services/auth'
+import { ref, computed, onMounted } from 'vue'
+import { sesion, etiquetaNivel, cargarPerfil, ROLES } from '@/services/auth'
+import { listarTodosPases } from '@/services/pases'
+import { listarAuditorias } from '@/services/auditorias'
+import { listarUsuarios } from '@/services/usuarios'
+import { listarReportes, listarTodosReportes } from '@/services/reportes'
 
-    // Rol y nivel salen del JWT; el nombre se completa con /auth/me.
-    const RolesUsuario = computed(() => sesion.usuario?.rol ?? 'SECRETARIA')
-    const nombreUsuario = computed(() => sesion.usuario?.nombre || '')
-    const nivelUsuario = computed(
-        () => etiquetaNivel(sesion.usuario?.nivel) || 'Todos los niveles'
-    )
+const RolesUsuario = computed(() => sesion.usuario?.rol ?? 'SECRETARIA')
+const nombreUsuario = computed(() => sesion.usuario?.nombre || '')
+const nivelUsuario = computed(
+    () => etiquetaNivel(sesion.usuario?.nivel) || 'Todos los niveles'
+)
+const nivelFiltro = computed(() => sesion.usuario?.nivel || undefined)
 
-    //Datos para secretaría (Retardos)
-    const statsSecretaria = ref([
-        { titulo: 'Retardos de Hoy', valor: 12 },
-        { titulo: 'Retardos de la Semana', valor: 38 },
-        { titulo: 'Estudiantes en Alerta', valor: 14 },
-        { titulo: 'Estudiantes Bloqueados', valor: 5 }
-    ])
+// ───────────── Fechas locales (evita desfase por UTC) ─────────────
+const dosDigitos = (numero) => String(numero).padStart(2, '0')
+const fechaISO = (fecha) =>
+    `${fecha.getFullYear()}-${dosDigitos(fecha.getMonth() + 1)}-${dosDigitos(fecha.getDate())}`
 
-    const ultimosRetardos = ref([
-        { id: 1, hora: '07:41', estudiante: 'Kevin Varela', curso: '2do A' },
-        { id: 2, hora: '07:35', estudiante: 'Miguel Villanueva', curso: '5to C' },
-        { id: 3, hora: '07:28', estudiante: 'Rafael Telles', curso: '3ro B' },
-        { id: 4, hora: '07:20', estudiante: 'Ángel Bastidas', curso: '1ro A' }
-    ])
+const hoy = new Date()
+const hoyISO = fechaISO(hoy)
+const inicioSemana = new Date(hoy)
+inicioSemana.setDate(inicioSemana.getDate() - ((inicioSemana.getDay() + 6) % 7))
+const inicioSemanaISO = fechaISO(inicioSemana)
 
-    //Datos para coordinación (Incidencias)
-    const statsCoordinador = ref([
-        { titulo: 'Incidencias en total', valor: 30 },
-        { titulo: 'Conductuales', valor: 19 },
-        { titulo: 'Académicas', valor: 11 },
-        { titulo: 'Reportes Pendientes', valor: 7 }
-    ])
+// ───────────── Datos reales del backend ─────────────
+const cargando = ref(true)
+const error = ref('')
+const pasesMes = ref([])
+const auditorias = ref([])
+const reportes = ref([])
+const totalReportes = ref(0)
+const totalUsuarios = ref(0)
 
-    const ultimasIncidencias = ref([
-        { id: 104, tipo: 'Conductual', estudiante: 'Miguel Vasquez', curso: '4to B', gravedad: 'Leve' },
-        { id: 103, tipo: 'Académico', estudiante: 'Rafael Telles', curso: '3ro B', gravedad: 'Leve' },
-        { id: 102, tipo: 'Conductual', estudiante: 'Brandon Lombano', curso: '5to A', gravedad: 'Grave' },
-        { id: 101, tipo: 'Académico', estudiante: 'Kevin Varela', curso: '2do A', gravedad: 'Leve' }
-    ])
+const cargarDatos = async () => {
+    cargando.value = true
+    error.value = ''
 
-    //Datos para administrador
-    const statsAdmin = ref([
-        { titulo: 'Retardos de la Semana', valor: 38 },
-        { titulo: 'Reportes Pendientes', valor: 7 },
-        { titulo: 'Estudiantes Bloqueados', valor: 5 },
-        { titulo: 'Usuarios Activos', valor: 8 }
-    ])
+    try {
+        const anio = hoy.getFullYear()
+        const mes = hoy.getMonth() + 1
+        const nivel = nivelFiltro.value
 
-    const ultimosMovimientos = ref([
-        { id: 1, hora: '08:15', usuario: 'Sec. Laura Gómez', accion: 'Registró pase de retardo #405' },
-        { id: 2, hora: '08:02', usuario: 'Coord. Carlos Méndez', accion: 'Cerró reporte disciplinario #169' },
-        { id: 3, hora: '07:50', usuario: 'Dir. Marta Lara', accion: 'Creó usuario nuevo (Secretaría)' },
-        { id: 4, hora: '07:41', usuario: 'Sec. Laura Gómez', accion: 'Registró pase de retardo #404' }
-    ])
-
-    const ultimasAuditorias = ref([
-        {
-            id: 1,
-            fechaHora: '15 nov, 07:45 AM',
-            usuario: 'rtelles',
-            accion: 'Crear',
-            modulo: 'Retardos',
-            detalle: 'Registro retardo #145'
-        },
-        {
-            id: 2,
-            fechaHora: '15 nov, 08:10 AM',
-            usuario: 'mvillanueva',
-            accion: 'Anular',
-            modulo: 'Retardos',
-            detalle: 'Anuló #142, motivo: error de registro'
-        },
-        {
-            id: 3,
-            fechaHora: '14 nov, 09:00 AM',
-            usuario: 'kvarela',
-            accion: 'Iniciar sesión',
-            modulo: 'Acceso',
-            detalle: 'Ingreso exitoso al sistema'
+        // Los retardos son pases de ENTRADA. Se trae el mes actual y, si la
+        // semana está cruzando de mes, también el anterior.
+        const actuales = await listarTodosPases({ tipo: 'ENTRADA', anio, mes, nivel })
+        let items = actuales.items
+        if (hoy.getDate() <= 7) {
+            const anterior = mes === 1 ? { anio: anio - 1, mes: 12 } : { anio, mes: mes - 1 }
+            const previos = await listarTodosPases({
+                tipo: 'ENTRADA',
+                ...anterior,
+                nivel,
+            })
+            items = [...previos.items, ...items]
         }
-    ])
+        pasesMes.value = items.sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)))
 
-    // --- DATOS COMPARTIDOS ---
-    const alertaEstudiantes = ref([
-        { id: 1, estudiante: 'Kevin Varela', curso: '2do A', nivel: '3 de 3', color: 'bg-red-100 text-red-700' },
-        { id: 2, estudiante: 'Miguel Villanueva', curso: '5to C', nivel: '2 de 3', color: 'bg-amber-100 text-amber-700' },
-        { id: 3, estudiante: 'Rafael Telles', curso: '3ro B', nivel: '2 de 3', color: 'bg-amber-100 text-amber-700' },
-        { id: 4, estudiante: 'Ángel Bastidas', curso: '1ro A', nivel: '3 de 3', color: 'bg-red-100 text-red-700' }
-    ])
-
-    const reportes = ref([
-        { id: 167, estudiante: 'Miguel Vasquez', tipo: 'Conductual', estado: 'Pendiente', color: 'bg-amber-100 text-amber-700' },
-        { id: 168, estudiante: 'Rafael Telles', tipo: 'Académico', estado: 'Pendiente', color: 'bg-amber-100 text-amber-700' },
-        { id: 169, estudiante: 'Brandon Lombano', tipo: 'Conductual', estado: 'Atendido', color: 'bg-green-100 text-green-700' }
-    ])
-
-    const retardosSemana = ref([
-        { dia: 'Lun', cantidad: 5, porcentaje: 30 },
-        { dia: 'Mar', cantidad: 12, porcentaje: 65 },
-        { dia: 'Mié', cantidad: 16, porcentaje: 85 },
-        { dia: 'Jue', cantidad: 9, porcentaje: 50 },
-        { dia: 'Vie', cantidad: 13, porcentaje: 70 }
-    ])
-
-    //Propiedad computada para mostrar las 4 tarjetas superiores según el rol
-    const tarjetasActuales = computed(() => {
-        if (RolesUsuario.value === 'ADMINISTRADOR') return statsAdmin.value
-        if (RolesUsuario.value === 'COORDINADOR') return statsCoordinador.value
-        return statsSecretaria.value
-    })
-
-    const obtenerClaseGravedad = (gravedad) => {
-        const nivel = (gravedad || '').toLowerCase().trim()
-
-        if (nivel === 'leve') {
-            return 'bg-green-100 text-green-700'
+        const rol = RolesUsuario.value
+        if (rol === ROLES.ADMINISTRADOR) {
+            const [aud, usuarios, reps] = await Promise.all([
+                listarAuditorias({ size: 5 }),
+                listarUsuarios({ size: 1 }),
+                listarReportes({ size: 1 }),
+            ])
+            auditorias.value = aud.items
+            totalUsuarios.value = usuarios.total
+            totalReportes.value = reps.total
+        } else if (rol === ROLES.COORDINADOR) {
+            const reps = await listarTodosReportes()
+            reportes.value = reps.items
+            totalReportes.value = reps.total
         }
-        if (nivel === 'grave') {
-            return 'bg-red-100 text-red-700'
-        }
-        return 'bg-gray-100 text-gray-700'
+    } catch (e) {
+        error.value = e?.message || 'No se pudo cargar la información del dashboard.'
+    } finally {
+        cargando.value = false
     }
+}
+
+onMounted(async () => {
+    if (sesion.token && !sesion.usuario?.nombre) await cargarPerfil()
+    await cargarDatos()
+})
+
+// ───────────── Derivados ─────────────
+const retardosHoy = computed(() =>
+    pasesMes.value.filter((p) => p.fechaISO === hoyISO)
+)
+
+const retardosSemana = computed(() =>
+    pasesMes.value.filter(
+        (p) => p.fechaISO >= inicioSemanaISO && p.fechaISO <= hoyISO
+    )
+)
+
+// El límite del sistema es 3 pases del mismo tipo al mes: 2 = alerta, 3+ = bloqueado.
+const porEstudiante = computed(() => {
+    const mapa = new Map()
+    for (const pase of pasesMes.value) {
+        const clave = pase.idEstudiante || pase.estudiante
+        if (!clave) continue
+        const actual = mapa.get(clave) || {
+            id: clave,
+            estudiante: pase.estudiante || '—',
+            nivel: pase.nivel || '',
+            cantidad: 0,
+        }
+        actual.cantidad += 1
+        mapa.set(clave, actual)
+    }
+    return [...mapa.values()].sort(
+        (a, b) => b.cantidad - a.cantidad || a.estudiante.localeCompare(b.estudiante)
+    )
+})
+
+const alertaEstudiantes = computed(() => porEstudiante.value.filter((e) => e.cantidad >= 2))
+const estudiantesBloqueados = computed(() => porEstudiante.value.filter((e) => e.cantidad >= 3))
+
+const retardosPorDia = computed(() => {
+    const dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie']
+    const conteos = [0, 0, 0, 0, 0]
+    for (const pase of retardosSemana.value) {
+        const indice = (new Date(`${pase.fechaISO}T00:00:00`).getDay() + 6) % 7
+        if (indice < 5) conteos[indice] += 1
+    }
+    const maximo = Math.max(1, ...conteos)
+    return dias.map((dia, indice) => ({
+        dia,
+        cantidad: conteos[indice],
+        porcentaje: Math.round((conteos[indice] / maximo) * 100),
+    }))
+})
+
+const hayRetardosSemana = computed(() => retardosPorDia.value.some((d) => d.cantidad > 0))
+
+// ───────────── Tarjetas superiores según el rol ─────────────
+const statsSecretaria = computed(() => [
+    { titulo: 'Retardos de Hoy', valor: retardosHoy.value.length },
+    { titulo: 'Retardos de la Semana', valor: retardosSemana.value.length },
+    { titulo: 'Estudiantes en Alerta', valor: alertaEstudiantes.value.length },
+    { titulo: 'Estudiantes Bloqueados', valor: estudiantesBloqueados.value.length },
+])
+
+const statsCoordinador = computed(() => [
+    { titulo: 'Incidencias en total', valor: totalReportes.value },
+    { titulo: 'Conductuales', valor: reportes.value.filter((r) => r.categoria === 'CONDUCTUAL').length },
+    { titulo: 'Académicas', valor: reportes.value.filter((r) => r.categoria === 'ACADEMICO').length },
+    { titulo: 'Graves', valor: reportes.value.filter((r) => r.gravedad === 'GRAVE').length },
+])
+
+const statsAdmin = computed(() => [
+    { titulo: 'Retardos de la Semana', valor: retardosSemana.value.length },
+    { titulo: 'Reportes registrados', valor: totalReportes.value },
+    { titulo: 'Estudiantes Bloqueados', valor: estudiantesBloqueados.value.length },
+    { titulo: 'Usuarios Activos', valor: totalUsuarios.value },
+])
+
+const tarjetasActuales = computed(() => {
+    if (RolesUsuario.value === ROLES.ADMINISTRADOR) return statsAdmin.value
+    if (RolesUsuario.value === ROLES.COORDINADOR) return statsCoordinador.value
+    return statsSecretaria.value
+})
+
+const valorStat = (valor) => (cargando.value ? '…' : valor)
+
+// ───────────── Presentación ─────────────
+const nivelLabel = (nivel) => (nivel ? etiquetaNivel(nivel) : '—')
+const horaDe = (valor) => String(valor || '').slice(11, 16) || '—'
+const fechaHoraDe = (valor) => {
+    const texto = String(valor || '')
+    return texto ? `${texto.slice(0, 10)} ${texto.slice(11, 16)}` : '—'
+}
+const categoriaLabel = (categoria) =>
+    ({ CONDUCTUAL: 'Conductual', ACADEMICO: 'Académica' })[categoria] || categoria || '—'
+
+const obtenerClaseGravedad = (gravedad) => {
+    if (gravedad === 'LEVE') return 'bg-green-100 text-green-700'
+    if (gravedad === 'GRAVE') return 'bg-red-100 text-red-700'
+    return 'bg-gray-100 text-gray-700'
+}
 </script>
 
 <template>
     <div class="space-y-6">
-        
+
         <!--Bienvenida al usuario y botones dinamicos-->
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -141,7 +200,7 @@
 
             <!--Botones según el rol-->
             <div class="flex flex-wrap items-center gap-3">
-            
+
             <!-- Botones para ADMINISTRADOR -->
             <template v-if="RolesUsuario === 'ADMINISTRADOR'">
                 <router-link :to="{ name: 'auditorias' }" class="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-[#1b2a47] shadow-sm transition hover:bg-gray-50">
@@ -172,27 +231,34 @@
             </div>
         </div>
 
+        <div v-if="error" role="alert" class="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#fbd5d2] px-4 py-3 text-sm font-semibold text-[#8a1c14]">
+            <span>{{ error }}</span>
+            <button type="button" class="rounded-lg border border-[#8a1c14] px-3 py-1 hover:bg-white/60" @click="cargarDatos">Reintentar</button>
+        </div>
+
         <!--Sección de estadísticas (Se adaptan automáticamente con computed)-->
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div v-for="(stat, index) in tarjetasActuales" :key="index" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">{{ stat.titulo }}</p>
-            <p class="mt-2 text-3xl font-extrabold text-[#1b2a47]">{{ stat.valor }}</p>
+            <p class="mt-2 text-3xl font-extrabold text-[#1b2a47]">{{ valorStat(stat.valor) }}</p>
             </div>
         </div>
 
         <!--Sección principal: tabla dinámica + columna lateral-->
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            
+
             <!--Tabla izquierda-->
             <div class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm lg:col-span-2 flex flex-col justify-between">
-            
+
             <!--Tabla de Últimos movimientos del sistema (administrador)-->
             <div v-if="RolesUsuario === 'ADMINISTRADOR'">
                 <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-bold text-[#1b2a47]">Últimos Movimientos en el Sistema</h2>
                 <router-link :to="{ name: 'auditorias' }" class="text-xs font-bold text-[#2c4a7a] hover:underline">Ir a auditoría</router-link>
                 </div>
-                <div class="overflow-x-auto">
+                <p v-if="cargando" class="py-10 text-center text-sm text-gray-500">Cargando movimientos…</p>
+                <p v-else-if="!auditorias.length" class="py-10 text-center text-sm text-gray-500">Todavía no hay movimientos registrados.</p>
+                <div v-else class="overflow-x-auto">
                 <table class="w-full text-left text-sm text-gray-600">
                     <thead class="border-b border-gray-100 text-xs uppercase text-gray-400">
                     <tr>
@@ -202,40 +268,45 @@
                     </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
-                    <tr v-for="mov in ultimosMovimientos" :key="mov.id" class="hover:bg-gray-50/50">
-                        <td class="py-3 font-medium text-gray-900">{{ mov.hora }}</td>
-                        <td class="py-3 font-medium text-[#2c4a7a]">{{ mov.usuario }}</td>
-                        <td class="py-3 text-gray-700">{{ mov.accion }}</td>
+                    <tr v-for="aud in auditorias" :key="aud.id" class="hover:bg-gray-50/50">
+                        <td class="py-3 font-medium text-gray-900">{{ horaDe(aud.fechaCreacion) }}</td>
+                        <td class="py-3 font-medium text-[#2c4a7a]">{{ aud.usuario || '—' }}</td>
+                        <td class="py-3 text-gray-700">
+                            {{ [aud.accion, aud.modulo].filter(Boolean).join(' · ') || '—' }}
+                            <span v-if="aud.descripcion" class="block text-xs text-gray-500">{{ aud.descripcion }}</span>
+                        </td>
                     </tr>
                     </tbody>
                 </table>
                 </div>
             </div>
 
-            <!--Tabla de últimas incidencias académicas/conductuales (coordinador) -->
+            <!--Tabla de últimas incidencias (coordinador)-->
             <div v-else-if="RolesUsuario === 'COORDINADOR'">
                 <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-bold text-[#1b2a47]">Últimas Incidencias Registradas</h2>
                 <router-link :to="{ name: 'reportes' }" class="text-xs font-bold text-[#2c4a7a] hover:underline">Ver todas</router-link>
                 </div>
-                <div class="overflow-x-auto">
+                <p v-if="cargando" class="py-10 text-center text-sm text-gray-500">Cargando incidencias…</p>
+                <p v-else-if="!reportes.length" class="py-10 text-center text-sm text-gray-500">Todavía no hay incidencias registradas.</p>
+                <div v-else class="overflow-x-auto">
                 <table class="w-full text-left text-sm text-gray-600">
                     <thead class="border-b border-gray-100 text-xs uppercase text-gray-400">
                     <tr>
                         <th class="pb-3 font-semibold w-1/4">Tipo</th>
                         <th class="pb-3 font-semibold w-1/3">Estudiante</th>
-                        <th class="pb-3 font-semibold w-1/5">Curso</th>
+                        <th class="pb-3 font-semibold w-1/5">Nivel</th>
                         <th class="pb-3 font-semibold">Gravedad</th>
                     </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
-                    <tr v-for="inc in ultimasIncidencias" :key="inc.id" class="hover:bg-gray-50/50">
-                        <td class="py-3 font-semibold text-[#1b2a47]">{{ inc.tipo }}</td>
-                        <td class="py-3 font-medium text-gray-900">{{ inc.estudiante }}</td>
-                        <td class="py-3">{{ inc.curso }}</td>
+                    <tr v-for="inc in reportes.slice(0, 4)" :key="inc.id" class="hover:bg-gray-50/50">
+                        <td class="py-3 font-semibold text-[#1b2a47]">{{ categoriaLabel(inc.categoria) }}</td>
+                        <td class="py-3 font-medium text-gray-900">{{ inc.estudiante || '—' }}</td>
+                        <td class="py-3">{{ nivelLabel(inc.nivel) }}</td>
                         <td class="py-3">
                             <span :class="obtenerClaseGravedad(inc.gravedad)" class="rounded-full px-2.5 py-0.5 text-xs font-semibold">
-                                {{ inc.gravedad }}
+                                {{ inc.gravedad || '—' }}
                             </span>
                         </td>
                     </tr>
@@ -244,26 +315,28 @@
                 </div>
             </div>
 
-            <!--Tabla de últimos retardos de hoy (secretaría) -->
+            <!--Tabla de últimos retardos de hoy (secretaría)-->
             <div v-else>
                 <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-bold text-[#1b2a47]">Últimos Retardos de Hoy</h2>
-                <span class="text-xs font-bold text-[#2c4a7a] cursor-pointer hover:underline">Ver todos</span>
+                <router-link :to="{ name: 'pases' }" class="text-xs font-bold text-[#2c4a7a] hover:underline">Ver todos</router-link>
                 </div>
-                <div class="overflow-x-auto">
+                <p v-if="cargando" class="py-10 text-center text-sm text-gray-500">Cargando retardos…</p>
+                <p v-else-if="!retardosHoy.length" class="py-10 text-center text-sm text-gray-500">No hay retardos registrados hoy.</p>
+                <div v-else class="overflow-x-auto">
                 <table class="w-full text-left text-sm text-gray-600">
                     <thead class="border-b border-gray-100 text-xs uppercase text-gray-400">
                     <tr>
                         <th class="pb-3 font-semibold w-1/4">Hora</th>
                         <th class="pb-3 font-semibold w-1/3">Estudiante</th>
-                        <th class="pb-3 font-semibold w-1/4">Curso</th>
+                        <th class="pb-3 font-semibold w-1/4">Nivel</th>
                     </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
-                    <tr v-for="item in ultimosRetardos" :key="item.id" class="hover:bg-gray-50/50">
-                        <td class="py-3 font-medium text-gray-900">{{ item.hora }}</td>
-                        <td class="py-3 font-medium text-gray-900">{{ item.estudiante }}</td>
-                        <td class="py-3">{{ item.curso }}</td>
+                    <tr v-for="item in retardosHoy.slice(0, 5)" :key="item.id" class="hover:bg-gray-50/50">
+                        <td class="py-3 font-medium text-gray-900">{{ item.hora || '—' }}</td>
+                        <td class="py-3 font-medium text-gray-900">{{ item.estudiante || '—' }}</td>
+                        <td class="py-3">{{ nivelLabel(item.nivel) }}</td>
                     </tr>
                     </tbody>
                 </table>
@@ -272,23 +345,25 @@
 
             </div>
 
-            <!--Estudiantes en Alerta (Visible para los 3 roles) -->
+            <!--Estudiantes en Alerta (Visible para los 3 roles)-->
             <div class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm flex flex-col justify-between">
             <div>
                 <h2 class="text-lg font-bold text-[#1b2a47] mb-4">Estudiantes en Alerta</h2>
-                <div class="space-y-4">
-                <div v-for="alerta in alertaEstudiantes" :key="alerta.id" class="flex items-center justify-between border-b border-gray-100 pb-3 last:border-0 last:pb-0">
+                <p v-if="cargando" class="py-8 text-center text-sm text-gray-500">Cargando estudiantes…</p>
+                <p v-else-if="!alertaEstudiantes.length" class="py-8 text-center text-sm text-gray-500">Sin estudiantes en alerta este mes.</p>
+                <div v-else class="space-y-4">
+                <div v-for="alerta in alertaEstudiantes.slice(0, 5)" :key="alerta.id" class="flex items-center justify-between border-b border-gray-100 pb-3 last:border-0 last:pb-0">
                     <div class="flex items-center gap-3">
                     <div class="w-10 h-10 rounded-full bg-[#f5f8fd] border border-[#c5cee0] flex items-center justify-center font-bold text-[#2c4a7a]">
-                        {{ alerta.estudiante.charAt(0) }}
+                        {{ (alerta.estudiante || '—').charAt(0) }}
                     </div>
                     <div>
                         <p class="text-sm font-semibold text-[#1b2a47]">{{ alerta.estudiante }}</p>
-                        <p class="text-xs text-[#4a5876]">{{ alerta.curso }}</p>
+                        <p class="text-xs text-[#4a5876]">{{ nivelLabel(alerta.nivel) }}</p>
                     </div>
                     </div>
-                    <span class="text-xs font-bold px-2.5 py-1 rounded-full" :class="alerta.color">
-                    {{ alerta.nivel }}
+                    <span class="text-xs font-bold px-2.5 py-1 rounded-full" :class="alerta.cantidad >= 3 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'">
+                    {{ alerta.cantidad }} de 3
                     </span>
                 </div>
                 </div>
@@ -299,23 +374,27 @@
 
         <!-- Sección Inferior: gráfica y reportes / auditorías -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
+
             <!-- Gráfica (Visible para Administrador y Secretaría) -->
             <div v-if="RolesUsuario === 'ADMINISTRADOR' || RolesUsuario === 'SECRETARIA'" class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
             <h2 class="text-lg font-bold text-[#1b2a47] mb-4">Retardos por Semana</h2>
-            <div class="h-44 flex items-end justify-around gap-2 bg-gray-50 rounded-xl p-4 border border-dashed border-gray-200">
-                <div v-for="(item, index) in retardosSemana" :key="index" class="flex flex-col items-center gap-1 h-full justify-end">
-                <span class="text-[10px] font-bold text-gray-500">{{ item.cantidad }}</span>
-                <div 
-                    class="w-10 bg-[#2c4a7a] rounded-t-lg transition-all duration-500 hover:bg-[#1b2a47]" 
-                    :style="{ height: item.porcentaje + '%' }"
-                    :title="`Día: ${item.dia} | Cantidad: ${item.cantidad} (${item.porcentaje}%)`">
+            <p v-if="cargando" class="py-16 text-center text-sm text-gray-500">Cargando gráfica…</p>
+            <p v-else-if="!hayRetardosSemana" class="py-16 text-center text-sm text-gray-500">Sin retardos registrados esta semana.</p>
+            <template v-else>
+                <div class="h-44 flex items-end justify-around gap-2 bg-gray-50 rounded-xl p-4 border border-dashed border-gray-200">
+                    <div v-for="(item, index) in retardosPorDia" :key="index" class="flex flex-col items-center gap-1 h-full justify-end">
+                    <span class="text-[10px] font-bold text-gray-500">{{ item.cantidad }}</span>
+                    <div
+                        class="w-10 bg-[#2c4a7a] rounded-t-lg transition-all duration-500 hover:bg-[#1b2a47]"
+                        :style="{ height: item.porcentaje + '%' }"
+                        :title="`Día: ${item.dia} | Cantidad: ${item.cantidad} (${item.porcentaje}%)`">
+                    </div>
+                    </div>
                 </div>
+                <div class="flex justify-around text-xs font-semibold text-gray-500 mt-3">
+                    <span v-for="(item, index) in retardosPorDia" :key="index">{{ item.dia }}</span>
                 </div>
-            </div>
-            <div class="flex justify-around text-xs font-semibold text-gray-500 mt-3">
-                <span v-for="(item, index) in retardosSemana" :key="index">{{ item.dia }}</span>
-            </div>
+            </template>
             </div>
 
             <!-- Resumen de Últimas Auditorías (administrador)-->
@@ -325,13 +404,15 @@
                 <h2 class="text-lg font-bold text-[#1b2a47]">Resumen de Auditorías</h2>
                 <router-link :to="{ name: 'auditorias' }" class="text-xs font-bold text-[#2c4a7a] hover:underline">Ver historial completo</router-link>
                 </div>
-                <div class="space-y-3">
-                <div v-for="aud in ultimasAuditorias" :key="aud.id" class="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
+                <p v-if="cargando" class="py-8 text-center text-sm text-gray-500">Cargando auditorías…</p>
+                <p v-else-if="!auditorias.length" class="py-8 text-center text-sm text-gray-500">Todavía no hay auditorías registradas.</p>
+                <div v-else class="space-y-3">
+                <div v-for="aud in auditorias" :key="aud.id" class="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
                     <div>
-                    <span class="text-xs font-bold text-[#2c4a7a] uppercase">{{ aud.modulo }}</span>
-                    <p class="text-sm font-medium text-[#1b2a47]">{{ aud.detalle }}</p>
+                    <span class="text-xs font-bold text-[#2c4a7a] uppercase">{{ aud.modulo || '—' }}</span>
+                    <p class="text-sm font-medium text-[#1b2a47]">{{ aud.descripcion || aud.accion || 'Sin detalle' }}</p>
                     </div>
-                    <span class="text-xs font-medium text-gray-500">{{ aud.fecha }}</span>
+                    <span class="text-xs font-medium text-gray-500">{{ fechaHoraDe(aud.fechaCreacion) }}</span>
                 </div>
                 </div>
             </div>
@@ -343,13 +424,15 @@
                 <h2 class="text-lg font-bold text-[#1b2a47]">Reportes Recientes (Conductuales y Académicos)</h2>
                 <router-link :to="{ name: 'reportes' }" class="text-xs font-bold text-[#2c4a7a] hover:underline">Gestionar todos</router-link>
             </div>
-            <div class="space-y-3">
-                <div v-for="item in reportes" :key="item.id" class="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
+            <p v-if="cargando" class="py-8 text-center text-sm text-gray-500">Cargando reportes…</p>
+            <p v-else-if="!reportes.length" class="py-8 text-center text-sm text-gray-500">Todavía no hay reportes registrados.</p>
+            <div v-else class="space-y-3">
+                <div v-for="item in reportes.slice(0, 5)" :key="item.id" class="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
                 <div>
-                    <span class="text-sm font-semibold text-[#1b2a47]">#{{ item.id }} · {{ item.estudiante }}</span>
-                    <span class="ml-2 text-xs text-gray-500">({{ item.tipo }})</span>
+                    <span class="text-sm font-semibold text-[#1b2a47]">#{{ item.id }} · {{ item.estudiante || '—' }}</span>
+                    <span class="ml-2 text-xs text-gray-500">({{ categoriaLabel(item.categoria) }})</span>
                 </div>
-                <span :class="['text-xs font-semibold px-2.5 py-1 rounded-full', item.color]">{{ item.estado }}</span>
+                <span :class="['text-xs font-semibold px-2.5 py-1 rounded-full', obtenerClaseGravedad(item.gravedad)]">{{ item.gravedad || '—' }}</span>
                 </div>
             </div>
             </div>
