@@ -358,14 +358,14 @@ Los `422` usan el formato estándar de FastAPI:
 | Secciones | Cualquier autenticado (filtrado por nivel) | Solo administrador |
 | Asignaturas | Cualquier autenticado (filtrado por nivel) | Solo administrador |
 | Bloques horarios | Cualquier autenticado | Solo administrador |
-| Horarios (registros) | Solo administrador | Solo administrador |
+| Horarios (registros) | Cualquier autenticado (filtrado por nivel) | Solo administrador |
 | Horarios (consulta de estudiante) | Cualquier autenticado (filtrado por nivel) | — |
 | Pases | Administrador, coordinador y secretaria | Administrador, coordinador y secretaria |
 | Reportes | Administrador, coordinador y secretaria | Administrador, coordinador y secretaria |
 | Gestión (resumen) | Cualquier autenticado (filtrado por nivel) | — |
 | Auditorías | Solo administrador | — |
 
-> **Ojo con Horarios:** `GET /api/horarios/registros/` y su CRUD son **solo del administrador**. La ruta `GET /api/horarios/` es distinta: es la consulta de “qué clase tiene este estudiante en esta fecha” y está disponible para cualquier usuario autenticado.
+> **Ojo con Horarios:** `GET /api/horarios/registros/` y `GET /api/horarios/registros/{id}` son de **lectura para cualquier autenticado**, filtrados por nivel; `POST`, `PUT` y `DELETE` siguen siendo **solo del administrador**. La ruta `GET /api/horarios/` es distinta: es la consulta de “qué clase tiene este estudiante en esta fecha” y también está disponible para cualquier usuario autenticado. Como los horarios solo existen para LICEO, una cuenta de ESCUELA recibe la lista vacía.
 
 ### 5.2 Resumen de reglas de nivel
 
@@ -653,7 +653,9 @@ Reglas:
 
 ### 6.11 Horarios (`/api/horarios`)
 
-#### CRUD de registros (solo administrador)
+#### Registros de horarios
+
+Los `GET` de registros son de lectura para cualquier autenticado y filtran por nivel: el administrador ve ambos niveles y coordinador/secretaria solo el suyo. `POST`, `PUT` y `DELETE` son exclusivos del administrador. Como los horarios solo aplican a LICEO, una cuenta de ESCUELA recibe `200` con la lista vacía; si intenta pedir `?nivel=LICEO`, recibe `403`.
 
 | Método | Ruta | Descripción |
 | --- | --- | --- |
@@ -1313,7 +1315,7 @@ La BD tiene un esquema anterior: `create_all()` no agrega columnas a tablas exis
 
 - Su cuenta debe tener `nivel` (`ESCUELA` o `LICEO`).
 - No puede pedir `?nivel=` con el nivel contrario.
-- Algunos recursos (usuarios, auditorías, CRUD de horarios) son exclusivos del administrador.
+- Algunos recursos (usuarios, auditorías, escritura de horarios) son exclusivos del administrador. La lectura de horarios está disponible para cualquier autenticado, filtrada por nivel.
 
 ### Un `DELETE` devuelve `409`
 
