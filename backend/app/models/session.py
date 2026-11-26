@@ -2,6 +2,7 @@ from sqlmodel import Session, SQLModel, create_engine, text
 
 from app.core.config import DB_HOST, DB_NAME, DB_PASSWORD, DB_PORT, DB_USER, DEBUG
 from app.core.semilla import sembrar_datos
+from app.utils.tokens_revocados import limpiar_tokens_revocados
 
 # Construcción de la URL corregida para PostgreSQL
 sql_url = f"postgresql+psycopg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
@@ -30,12 +31,13 @@ def create_db_tables():
 
 
 def inicializar_base_datos() -> tuple[int, int]:
-  """Crea el esquema y carga la semilla institucional si hace falta."""
+  """Crea el esquema, limpia revocaciones viejas y carga la semilla."""
+
   create_db_tables()
 
   with Session(engine) as session:
+    limpiar_tokens_revocados(session)
     return sembrar_datos(session)
-
 
 def get_session():
   with Session(engine) as session:
