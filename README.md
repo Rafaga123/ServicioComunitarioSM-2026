@@ -879,8 +879,8 @@ Devuelve `200` con `{ periodo_cerrado, periodo_activado, documentos_generados, e
 | Método | Ruta | Acceso | Descripción |
 | --- | --- | --- | --- |
 | POST | `/api/listados/{tipo}` | Autenticado (según nivel) | Genera un PDF (`tipo`: `nominas`, `representantes`, `horarios` o `docentes`). Devuelve `201` |
-| GET | `/api/listados/documentos` | Admin | Lista documentos generados. Filtros: `tipo`, `periodo_lectivo`, `nivel`, `id_grado`, `id_seccion` |
-| GET | `/api/listados/documentos/{documento_id}/archivo` | Autenticado | Descarga el PDF |
+| GET | `/api/listados/documentos` | Autenticado (según nivel) | Lista documentos generados. Filtros: `tipo`, `periodo_lectivo`, `nivel`, `id_grado`, `id_seccion`. El operador solo ve su nivel; el admin ve ambos |
+| GET | `/api/listados/documentos/{documento_id}/archivo` | Autenticado | Descarga el PDF como `attachment` |
 | GET | `/api/listados/documentos/paquete` | Admin | Descarga un ZIP con todos los PDFs de un tipo y período |
 
 Generar un listado:
@@ -893,9 +893,19 @@ o, sin sección: `{ "nivel": "ESCUELA", "periodo_lectivo": 2026 }`.
 
 Para nóminas o representantes de un solo grado: `{ "id_grado": 3 }`, sin `id_seccion`.
 
+El frontend solo envía `periodo_lectivo`, `nivel`, `id_grado` e `id_seccion`; `nombre_archivo`, `ruta_relativa`, `hash` y `tamano` los calcula el backend y los devuelve en el `201`. Para descargar, usa el `id` del documento:
+
+```http
+GET /api/listados/documentos/{id}/archivo
+Authorization: Bearer <token>
+```
+
+La respuesta ya trae `Content-Disposition: attachment`; `ruta_relativa` es interna y no debe usarse desde el cliente.
+
 - `periodo_lectivo` es opcional: por defecto se usa el activo (400 si no hay activo y no se indicó uno).
 - `horarios` requiere `id_seccion` de **liceo** (400 si la sección es de ESCUELA); `docentes` es general por nivel (400 con `id_seccion` o `id_grado`); nóminas y representantes pueden ser generales por `nivel` o por `id_grado`.
 - `id_grado` genera nóminas o representantes de ese grado. No se puede combinar con `id_seccion`: ambos juntos devuelven `400`.
+- En `/api/listados/documentos`, el operador solo puede consultar su nivel; si fuerza otro `?nivel=`, recibe `403`. El administrador puede filtrar por cualquiera o ver ambos.
 - Los PDF usan hoja carta, margen izquierdo de 4 cm y 3 cm en los demás lados.
 - La ruta incluye el periodo lectivo: `2026-2027/listados/nominas/ESCUELA/1er_grado/U/nomina_2026-2027_1er_grado_U.pdf`. Los generales usan `generales/`: `2026-2027/listados/nominas/ESCUELA/generales/nomina_2026-2027_ESCUELA_general.pdf` o `.../nomina_2026-2027_1er_grado.pdf`. Si el nombre ya existe, se agrega `_v2`, `_v3`, ….
 - Las nóminas generales se ordenan por grado, sección y apellidos. Los representantes generales se ordenan por apellido del representante.

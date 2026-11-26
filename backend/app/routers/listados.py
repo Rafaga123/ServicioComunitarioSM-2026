@@ -42,6 +42,7 @@ from app.utils.periodos import etiqueta_periodo, periodo_lectivo_efectivo
 from app.utils.security import (
   obtener_usuario_actual,
   requerir_roles,
+  resolver_nivel,
   validar_acceso_nivel,
 )
 from app.utils.storage import (
@@ -245,11 +246,12 @@ def listar_documentos(
   id_seccion: int | None = None,
   paginacion: Paginacion = Depends(),
   session: Session = Depends(get_session),
-  usuario_actual: Usuarios = Depends(requerir_admin),
+  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
   consulta = select(DocumentosGenerados).where(
     DocumentosGenerados.fecha_eliminacion.is_(None)
   )
+  nivel = resolver_nivel(usuario_actual, nivel)
   periodo_lectivo = periodo_lectivo_efectivo(session, periodo_lectivo)
   if tipo is not None:
     consulta = consulta.where(DocumentosGenerados.tipo == tipo)
@@ -276,8 +278,28 @@ def descargar_documento(
   documento = session.get(DocumentosGenerados, documento_id)
   if not documento or documento.fecha_eliminacion is not None:
     raise HTTPException(404, "Documento no encontrado")
-  if documento.nivel is not None:
-    validar_acceso_nivel(usuario_actual, documento.nivel)
+
+  # El nivel puede faltar en registros antiguos; se deriva del grado o de la
+  # sección para no omitir el control de acceso.
+  nivel = documento.nivel
+  if nivel is None and documento.grado is not None:
+    nivel = documento.grado.nivel
+  if (
+    nivel is None
+    and documento.seccion is not None
+    and documento.seccion.grado is not None
+  ):
+    nivel = documento.seccion.grado.nivel
+  if nivel is None:
+    raise HTTPException(404, "Documento no encontrado")
+  validar_acceso_nivel(usuario_actual, nivel)
+
+  try:
+    ruta = ruta_absoluta(documento.ruta_relativa)
+  except ValueError as error:
+    raise HTTPException(404, "Documento no disponible") from error
+  if not ruta.is_file():
+    raise HTTPException(404, "Documento no disponible")
 
   registrar_auditoria(
     session,
@@ -290,7 +312,7 @@ def descargar_documento(
   session.commit()
 
   return FileResponse(
-    path=str(ruta_absoluta(documento.ruta_relativa)),
+    path=str(ruta),
     media_type=documento.mime or "application/pdf",
     filename=documento.nombre_archivo or f"listado-{documento.id}.pdf",
     content_disposition_type="attachment",

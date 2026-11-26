@@ -80,7 +80,7 @@ Todos los registros con `fecha_eliminacion` son listados/obtenidos solo si `fech
 - `POST /api/gestion/cerrar-anio` → **admin**.
 - `GET /api/gestion/resumen` → personal autenticado (filtra por nivel).
 - `GET /api/usuarios/`, POST/PUT/DELETE `/api/usuarios/{id}`, `POST /api/usuarios/{id}/transferir-admin` → **admin**. `PUT /api/usuarios/me/clave` → cualquier autenticado (solo cambia su propia clave).
-- `GET /api/listados/documentos`, `GET /api/listados/documentos/paquete` → **admin**; `POST /api/listados/{tipo}` → personal.
+- `GET /api/listados/documentos` → personal autenticado con filtro por nivel; `GET /api/listados/documentos/paquete` → **admin**; `POST /api/listados/{tipo}` → personal autenticado.
 
 ---
 
@@ -347,10 +347,17 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
     - `periodo_lectivo` opcional: si se omite se usa el activo; 400 si no hay activo y no se indicó uno. Si se envía, **debe existir** (`_validar_periodo_lectivo`: 404 "Periodo lectivo no encontrado").
     - Sin `id_seccion` ni `id_grado`, el nivel es obligatorio (400 "Necesita indicar nivel para listados generales").
     - Validación de acceso por nivel del usuario.
+  - Matriz de body:
+    - General por nivel: `{ "nivel": "LICEO" }`.
+    - General por grado: `{ "id_grado": 5 }`.
+    - Por sección: `{ "id_seccion": 10 }`.
+    - Docentes: `{ "nivel": "LICEO" }`.
+    - Horarios: `{ "id_seccion": 10 }` de LICEO.
   - `PeticionDocumentoGenerado = { id?, tipo, periodo_lectivo?, nivel?, id_grado?, id_seccion?, nombre_archivo, ruta_relativa, hash, tamano, mime, fecha_generacion, generado_por?, grado_numero?, grado_nombre? }`.
-- `GET /api/listados/documentos` (admin) → paginado de `PeticionDocumentoGenerado`; filtros `tipo`, `periodo_lectivo`, `nivel`, `id_grado`, `id_seccion`.
+  - El frontend usa el `id` devuelto para descargar; no envía `nombre_archivo`, `ruta_relativa`, `hash` ni `tamano`, y no usa `ruta_relativa` como URL.
+- `GET /api/listados/documentos` (autenticado, según nivel) → paginado de `PeticionDocumentoGenerado`; filtros `tipo`, `periodo_lectivo`, `nivel`, `id_grado`, `id_seccion`. El operador solo ve su nivel; el admin ve ambos. Un operador que fuerce otro `?nivel=` recibe `403`.
 - `GET /api/listados/documentos/paquete?tipo&periodo_lectivo` (admin) → `application/zip`, `Content-Disposition: attachment; filename="listados.zip"` con todos los PDFs de ese tipo+periodo.
-- `GET /api/listados/documentos/{documento_id}/archivo` → `FileResponse` PDF (attachment). 404 si no existe/fecha_eliminacion set.
+- `GET /api/listados/documentos/{documento_id}/archivo` → `FileResponse` PDF (`attachment`). El frontend debe llamarlo con el `id`; `404` si no existe, está dado de baja, la ruta es inválida o el archivo no está en disco. El nivel se valida también para documentos antiguos con `nivel` nulo.
 
 - Estructura física dentro de `STORAGE_ROOT` (`{etiqueta}/...`, donde la etiqueta de `2026` es `2026-2027`):
 
@@ -527,7 +534,7 @@ Consulte las columnas `id_*`, `periodo_lectivo`, `fecha_*` y los campos `*_apoyo
 El backend ya expone todo; falta conectar botones en frontend:
 
 - `POST /api/listados/{tipo}` con `tipo ∈ nominas|representantes|horarios|docentes`. Body `SolicitudListado`: `nivel`, `periodo_lectivo`, `id_grado`, `id_seccion`. `horarios` exige `id_seccion` de LICEO; `docentes` es general por nivel.
-- `GET /api/listados/documentos?tipo=&periodo_lectivo=&nivel=&id_grado=&id_seccion=&offset=&size=` → historial paginado (admin).
+- `GET /api/listados/documentos?tipo=&periodo_lectivo=&nivel=&id_grado=&id_seccion=&offset=&size=` → historial paginado; el operador queda limitado a su nivel y el admin ve ambos.
 - `GET /api/listados/documentos/{documento_id}/archivo` → usar `apiDescargar` (attachment PDF).
 - `GET /api/listados/documentos/paquete?tipo=&periodo_lectivo=` → ZIP (admin).
 - Sugerencia: en la vista de gestión, un botón «Generar PDF» por sección para nóminas/representantes/horarios y uno por nivel para docentes; luego una tabla con «Descargar» y «Descargar paquete».
