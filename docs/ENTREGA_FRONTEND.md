@@ -82,7 +82,7 @@ Todos los registros con `fecha_eliminacion` son listados/obtenidos solo si `fech
 - `POST /api/gestion/cerrar-anio` → **admin**.
 - `GET /api/gestion/resumen` → personal autenticado (filtra por nivel).
 - `GET /api/usuarios/`, POST/PUT/DELETE `/api/usuarios/{id}`, `POST /api/usuarios/{id}/transferir-admin` → **admin**. `PUT /api/usuarios/me/clave` → cualquier autenticado (solo cambia su propia clave).
-- `GET /api/listados/documentos`, `GET /api/listados/documentos/paquete` → **admin**; `POST /api/listados/{tipo}` → personal.
+- `GET /api/listados/documentos` → personal autenticado con filtro por nivel; `GET /api/listados/documentos/paquete` → **admin**; `POST /api/listados/{tipo}` → personal autenticado.
 
 ---
 
@@ -342,16 +342,25 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
 - `POST /api/listados/{tipo}` — `tipo ∈ {nominas, representantes, horarios, docentes}` (strings minúsculas de `TipoDocumento`). Body `SolicitudListado = { periodo_lectivo?: int, nivel?: NivelEducativo, id_grado?: int, id_seccion?: int }` → `201 PeticionDocumentoGenerado`.
   - Reglas:
     - `id_seccion`: el periodo del listado = `seccion.periodo_lectivo`; si el cliente pide otro, 400.
-    - `id_grado` sin sección: nivel del grado; 400 si nivel conflicts.
+    - `id_grado` sin sección: genera nóminas o representantes de ese grado; 400 si el nivel no coincide.
+    - `id_grado` e `id_seccion` juntos: 400 ("Indica una sección o un grado, no ambos").
     - `horarios` requieren `id_seccion` de **liceo** (400 sin sección o si la sección es de ESCUELA).
     - `docentes` es general por nivel: 400 si se envía `id_seccion` o `id_grado`.
     - `periodo_lectivo` opcional: si se omite se usa el activo; 400 si no hay activo y no se indicó uno. Si se envía, **debe existir** (`_validar_periodo_lectivo`: 404 "Periodo lectivo no encontrado").
-    - Nivel para listados generales: debe indicar (400 "Necesita indicar nivel para listados generales").
+    - Sin `id_seccion` ni `id_grado`, el nivel es obligatorio (400 "Necesita indicar nivel para listados generales").
     - Validación de acceso por nivel del usuario.
+  - Matriz de body:
+    - General por nivel: `{ "nivel": "LICEO" }`.
+    - General por grado: `{ "id_grado": 5 }`.
+    - Por sección: `{ "id_seccion": 10 }`.
+    - Docentes: `{ "nivel": "LICEO" }`.
+    - Horarios: `{ "id_seccion": 10 }` de LICEO.
   - `PeticionDocumentoGenerado = { id?, tipo, periodo_lectivo?, nivel?, id_grado?, id_seccion?, nombre_archivo, ruta_relativa, hash, tamano, mime, fecha_generacion, generado_por?, grado_numero?, grado_nombre? }`.
-- `GET /api/listados/documentos` (admin) → paginado de `PeticionDocumentoGenerado`; filtros `tipo`, `periodo_lectivo`, `nivel`, `id_grado`, `id_seccion`.
+  - El frontend usa el `id` devuelto para descargar; no envía `nombre_archivo`, `ruta_relativa`, `hash` ni `tamano`, y no usa `ruta_relativa` como URL.
+  - Duplicados: si el servidor tiene `REUTILIZAR_DOCUMENTOS_IGUALES=True`, una petición repetida con los mismos datos devuelve el `id` del PDF ya generado (sigue siendo `201`, sin crear archivo). Si los datos cambiaron, devuelve un `id` nuevo con sufijo `_v2`, `_v3`, …. Con el flag en `False` (default), siempre se crea un documento nuevo. El frontend debe usar siempre el `id` de la respuesta, sin asumir que será distinto.
+- `GET /api/listados/documentos` (autenticado, según nivel) → paginado de `PeticionDocumentoGenerado`; filtros `tipo`, `periodo_lectivo`, `nivel`, `id_grado`, `id_seccion`. El operador solo ve su nivel; el admin ve ambos. Un operador que fuerce otro `?nivel=` recibe `403`.
 - `GET /api/listados/documentos/paquete?tipo&periodo_lectivo` (admin) → `application/zip`, `Content-Disposition: attachment; filename="listados.zip"` con todos los PDFs de ese tipo+periodo.
-- `GET /api/listados/documentos/{documento_id}/archivo` → `FileResponse` PDF (attachment). 404 si no existe/fecha_eliminacion set.
+- `GET /api/listados/documentos/{documento_id}/archivo` → `FileResponse` PDF (`attachment`). El frontend debe llamarlo con el `id`; `404` si no existe, está dado de baja, la ruta es inválida o el archivo no está en disco. El nivel se valida también para documentos antiguos con `nivel` nulo.
 
 - Estructura física dentro de `STORAGE_ROOT` (`{etiqueta}/...`, donde la etiqueta de `2026` es `2026-2027`):
 
@@ -359,16 +368,19 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
   2026-2027/
   ├─ pases/{nivel}/{grado}/{letra}/estudiante-{id}/archivo.ext
   ├─ reportes/{nivel}/{grado}/{letra}/estudiante-{id}/archivo.ext
-  └─ listados/{nominas|representantes|horarios|docentes}/{nivel}/{grado|general}/{letra}/archivo.pdf
+  ├─ listados/{tipo}/{nivel}/{grado}/{letra}/archivo.pdf
+  └─ listados/{tipo}/{nivel}/generales/archivo.pdf
   ```
 
-- Ejemplo de PDF: `2026-2027/listados/nominas/LICEO/1er_ano/A/nomina_2026-2027_1er_ano_A.pdf` (general: `2026-2027/listados/nominas/LICEO/general/nomina_2026-2027_LICEO_general.pdf`). Si el nombre ya existe se usa `_v2`, `_v3`, etc.
+- Ejemplo por sección: `2026-2027/listados/nominas/LICEO/1er_ano/A/nomina_2026-2027_1er_ano_A.pdf`. General por nivel: `2026-2027/listados/nominas/LICEO/generales/nomina_2026-2027_LICEO_general.pdf`. General por grado: `.../generales/nomina_2026-2027_1er_ano.pdf`. Si el nombre ya existe se usa `_v2`, `_v3`, etc.
 - Formato del encabezado de los PDFs (hoja carta, margen izquierdo 4 cm y 3 cm en los demás):
   - Título por sección: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/1er Grado "U"`.
-  - Título general: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/ESCUELA general` (equivalente para `representantes` y `horarios`).
+  - Título general por nivel: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/ESCUELA general` (equivalente para `representantes` y `docentes`).
+  - Título general por grado: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/1er Grado general`.
   - Línea de metadatos, sin comillas: `ESCUELA • 1er Grado U • 2026-2027`.
+  - Las nóminas generales se ordenan por grado, sección y apellidos; los representantes generales por apellido del representante.
 - Los representantes de ESCUELA cargados desde el PDF original solo tienen teléfono (no nombre): en la columna `Representante` del PDF se muestra `-`. Los representantes de LICEO conservan sus nombres reales.
-- PDF de `horarios` (solo LICEO): encabezado `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — HORARIO DE CLASES`; tabla de 12 filas (periodo/curso/sección, `Hora | LUNES | MARTES | MIERCOLES | JUEVES | VIERNES`, y los bloques `7:00-7:40`, `7:40-8:20`, `8:20-8:40` (RECESO), `8:40-9:20`, `9:20-10:00`, `10:10-10:10` (RECESO), `10:10-10:50`, `10:10-11:30`, `11:30-12:10`, `12:10-12:40`). Los recesos muestran `RECESO` en las columnas de los días. Después se lista `Docentes:` con una línea `Materia: Docente` por cada asignatura de esa sección.
+- PDF de `horarios` (solo LICEO): encabezado `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — HORARIO DE CLASES`; tabla de 12 filas (periodo/curso/sección, `Hora | LUNES | MARTES | MIERCOLES | JUEVES | VIERNES`, y los bloques `7:00-7:40`, `7:40-8:20`, `8:20-8:40` (RECESO), `8:40-9:20`, `9:20-10:00`, `10:10-10:10` (RECESO), `10:10-10:50`, `10:10-11:30`, `11:30-12:10`, `12:10-12:40`). Los recesos muestran `RECESO` en las columnas de los días; las celdas libres muestran `/`. Después se lista `Docentes:` con una línea `Materia: Docente` por cada asignatura de esa sección.
 - PDF de `docentes`: columnas `Cédula | Docente | Asignaturas` en LICEO y `Cédula | Docente | Grado/Sección` en ESCUELA; una fila por docente activo del nivel. En LICEO cada materia lleva el año (`Matemática 1er Año`) y se deduplica por materia+año; en ESCUELA se listan los grados/secciones donde el docente es titular (o `-` cuando no tiene). El cargador de prueba reclasifica automáticamente a ESCUELA los docentes sin asignaturas ni horarios activos.
 
 ---
@@ -526,7 +538,7 @@ Consulte las columnas `id_*`, `periodo_lectivo`, `fecha_*` y los campos `*_apoyo
 El backend ya expone todo; falta conectar botones en frontend:
 
 - `POST /api/listados/{tipo}` con `tipo ∈ nominas|representantes|horarios|docentes`. Body `SolicitudListado`: `nivel`, `periodo_lectivo`, `id_grado`, `id_seccion`. `horarios` exige `id_seccion` de LICEO; `docentes` es general por nivel.
-- `GET /api/listados/documentos?tipo=&periodo_lectivo=&nivel=&id_grado=&id_seccion=&offset=&size=` → historial paginado (admin).
+- `GET /api/listados/documentos?tipo=&periodo_lectivo=&nivel=&id_grado=&id_seccion=&offset=&size=` → historial paginado; el operador queda limitado a su nivel y el admin ve ambos.
 - `GET /api/listados/documentos/{documento_id}/archivo` → usar `apiDescargar` (attachment PDF).
 - `GET /api/listados/documentos/paquete?tipo=&periodo_lectivo=` → ZIP (admin).
 - Sugerencia: en la vista de gestión, un botón «Generar PDF» por sección para nóminas/representantes/horarios y uno por nivel para docentes; luego una tabla con «Descargar» y «Descargar paquete».

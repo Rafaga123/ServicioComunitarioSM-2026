@@ -96,6 +96,7 @@ Copy-Item .env.example .env
 | `LIMITE_LOGIN_IP` | No | Intentos totales permitidos por IP en la ventana. Por defecto `20` |
 | `LIMITE_LOGIN_VENTANA_SEGUNDOS` | No | Tamaño de la ventana deslizante. Por defecto `60` |
 | `TOKENS_REVOCADOS_RETENCION_HORAS` | No | Horas que se conserva un `jti` revocado después de su `exp`. Por defecto `24` |
+| `REUTILIZAR_DOCUMENTOS_IGUALES` | No | `True` reutiliza un PDF si los datos del listado no cambiaron. Por defecto `False` |
 
 Genera una `SECRET_KEY` segura con:
 
@@ -891,8 +892,8 @@ Devuelve `200` con `{ periodo_cerrado, periodo_activado, documentos_generados, e
 | Método | Ruta | Acceso | Descripción |
 | --- | --- | --- | --- |
 | POST | `/api/listados/{tipo}` | Autenticado (según nivel) | Genera un PDF (`tipo`: `nominas`, `representantes`, `horarios` o `docentes`). Devuelve `201` |
-| GET | `/api/listados/documentos` | Admin | Lista documentos generados. Filtros: `tipo`, `periodo_lectivo`, `nivel`, `id_grado`, `id_seccion` |
-| GET | `/api/listados/documentos/{documento_id}/archivo` | Autenticado | Descarga el PDF |
+| GET | `/api/listados/documentos` | Autenticado (según nivel) | Lista documentos generados. Filtros: `tipo`, `periodo_lectivo`, `nivel`, `id_grado`, `id_seccion`. El operador solo ve su nivel; el admin ve ambos |
+| GET | `/api/listados/documentos/{documento_id}/archivo` | Autenticado | Descarga el PDF como `attachment` |
 | GET | `/api/listados/documentos/paquete` | Admin | Descarga un ZIP con todos los PDFs de un tipo y período |
 
 Generar un listado:
@@ -903,13 +904,28 @@ Generar un listado:
 
 o, sin sección: `{ "nivel": "ESCUELA", "periodo_lectivo": 2026 }`.
 
+Para nóminas o representantes de un solo grado: `{ "id_grado": 3 }`, sin `id_seccion`.
+
+El frontend solo envía `periodo_lectivo`, `nivel`, `id_grado` e `id_seccion`; `nombre_archivo`, `ruta_relativa`, `hash` y `tamano` los calcula el backend y los devuelve en el `201`. Para descargar, usa el `id` del documento:
+
+```http
+GET /api/listados/documentos/{id}/archivo
+Authorization: Bearer <token>
+```
+
+La respuesta ya trae `Content-Disposition: attachment`; `ruta_relativa` es interna y no debe usarse desde el cliente.
+
 - `periodo_lectivo` es opcional: por defecto se usa el activo (400 si no hay activo y no se indicó uno).
-- `horarios` requiere `id_seccion` de **liceo** (400 si la sección es de ESCUELA); `docentes` es general por nivel (400 con `id_seccion` o `id_grado`); los demás listados generales requieren `nivel`.
+- `horarios` requiere `id_seccion` de **liceo** (400 si la sección es de ESCUELA); `docentes` es general por nivel (400 con `id_seccion` o `id_grado`); nóminas y representantes pueden ser generales por `nivel` o por `id_grado`.
+- `id_grado` genera nóminas o representantes de ese grado. No se puede combinar con `id_seccion`: ambos juntos devuelven `400`.
+- En `/api/listados/documentos`, el operador solo puede consultar su nivel; si fuerza otro `?nivel=`, recibe `403`. El administrador puede filtrar por cualquiera o ver ambos.
 - Los PDF usan hoja carta, margen izquierdo de 4 cm y 3 cm en los demás lados.
-- La ruta incluye el periodo lectivo: `2026-2027/listados/nominas/ESCUELA/1er_grado/U/nomina_2026-2027_1er_grado_U.pdf` (si ya existe, se agrega `_v2`, `_v3`, …).
-- Título: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/1er Grado "U"`. Metadatos: `ESCUELA • 1er Grado U • 2026-2027`.
+- La ruta incluye el periodo lectivo: `2026-2027/listados/nominas/ESCUELA/1er_grado/U/nomina_2026-2027_1er_grado_U.pdf`. Los generales usan `generales/`: `2026-2027/listados/nominas/ESCUELA/generales/nomina_2026-2027_ESCUELA_general.pdf` o `.../nomina_2026-2027_1er_grado.pdf`. Si el nombre ya existe, se agrega `_v2`, `_v3`, ….
+- Duplicados: con `REUTILIZAR_DOCUMENTOS_IGUALES=True` se calcula una firma SHA-256 de tipo, periodo, nivel, grado/sección, filas, encabezados, anchos y título. Si la firma coincide y el archivo sigue en disco, la misma petición devuelve el documento existente con `201` y no crea otro PDF; si los datos cambiaron, se genera una versión nueva. La comprobación usa `pg_advisory_xact_lock(hashtext(firma))` para evitar duplicados concurrentes. Las firmas viven en la tabla `documentos_firmas`, creada con `create_all()`. Con el flag en `False` (default) siempre se genera un PDF nuevo.
+- Las nóminas generales se ordenan por grado, sección y apellidos. Los representantes generales se ordenan por apellido del representante.
+- Título: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/1er Grado "U"`. En general por grado: `.../1er Grado general`. Metadatos: `ESCUELA • 1er Grado U • 2026-2027`.
 - Los representantes de ESCUELA del export original solo tienen teléfono; en la columna `Representante` se muestra `-`. Los de LICEO conservan su nombre real.
-- PDF de `horarios`: tabla de 12 filas (periodo/curso/sección, `Hora | LUNES | ... | VIERNES` y los bloques `7:00-7:40`, `7:40-8:20`, `8:20-8:40` (RECESO), `8:40-9:20`, `9:20-10:00`, `10:10-10:10` (RECESO), `10:10-10:50`, `10:10-11:30`, `11:30-12:10`, `12:10-12:40`), seguida de `Docentes:` con `Materia: Docente` de esa sección.
+- PDF de `horarios`: tabla de 12 filas (periodo/curso/sección, `Hora | LUNES | ... | VIERNES` y los bloques `7:00-7:40`, `7:40-8:20`, `8:20-8:40` (RECESO), `8:40-9:20`, `9:20-10:00`, `10:10-10:10` (RECESO), `10:10-10:50`, `10:10-11:30`, `11:30-12:10`, `12:10-12:40`), seguida de `Docentes:` con `Materia: Docente` de esa sección. Las celdas libres muestran `/`.
 - PDF de `docentes`: columnas `Cédula | Docente | Asignaturas` en LICEO y `Cédula | Docente | Grado/Sección` en ESCUELA; una fila por docente activo del nivel. En LICEO se incluye el año de cada materia (`Matemática 1er Año`) y se deduplica por materia+año; en ESCUELA se listan los grados/secciones donde es titular (o `-` si no tiene).
 
 ### 6.16 Auditorías (`/api/auditorias`)
@@ -1021,16 +1037,18 @@ python -m scripts.normalizar_textos_auditoria
 
 ### 7.11 Estructura física
 
-Todo se guarda bajo `STORAGE_ROOT` (`C:\sistema` por defecto):
+Todo se guarda bajo `STORAGE_ROOT` (`C:\sistema` por defecto). Las tres carpetas son hermanas dentro del período lectivo:
 
 ```text
 2026-2027/
 ├─ pases/{nivel}/{grado}/{letra}/estudiante-{id}/archivo.ext
 ├─ reportes/{nivel}/{grado}/{letra}/estudiante-{id}/archivo.ext
-└─ listados/{nominas|representantes|horarios|docentes}/{nivel}/{grado|general}/{letra}/archivo.pdf
+└─ listados/{tipo}/{nivel}/
+   ├─ {grado}/{letra}/archivo.pdf
+   └─ generales/archivo.pdf
 ```
 
-La BD sigue guardando el año como entero (`2026`); la etiqueta `2026-2027` se deriva para rutas, nombres de archivo, títulos y metadatos.
+Las carpetas se crean bajo demanda: `pases/` y `reportes/` aparecen al subir el primer adjunto de ese tipo, y `listados/` al generar el primer PDF. No se crean las tres al arrancar. La BD sigue guardando el año como entero (`2026`); la etiqueta `2026-2027` se deriva para rutas, nombres de archivo, títulos y metadatos.
 
 ---
 

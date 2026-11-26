@@ -32,6 +32,12 @@ STORAGE_ROOT = os.getenv("STORAGE_ROOT", r"C:\sistema")
 # Tamaño máximo de un archivo adjunto subido (imágenes: jpg/jpeg/png/webp).
 ARCHIVOS_MAX_BYTES = 5 * 1024 * 1024
 
+# Reutilizar un PDF existente cuando la firma de sus datos no cambió.
+# Desactivado por defecto: requiere aprobación explícita en el entorno.
+REUTILIZAR_DOCUMENTOS_IGUALES = (
+  os.getenv("REUTILIZAR_DOCUMENTOS_IGUALES", "False").lower() == "true"
+)
+
 # Configuración de los tokens JWT
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")

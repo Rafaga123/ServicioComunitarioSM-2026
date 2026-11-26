@@ -1,26 +1,35 @@
 # Pendientes
 
-Estado al **2026-11-26**, rama `backend-dev`, commit `2aaa8bc`
-(«feat(pdf): membrete institucional con logo en todas las paginas»).
+Estado al **2026-11-26**, rama `backend-dev`, Tareas 1, 2 y 3
+(commits `f9060`, `b934b` y `612a4`, más el cierre de Tarea 3).
 
 ## 1. Listados (`/api/listados`)
 
-- [ ] **`id_grado` + `id_seccion` juntos deben devolver `400`.**
-      Hoy `_resolver_filtros()` usa `elif`, así que la sección gana silenciosamente
-      y el grado se ignora.
-      Archivo: `backend/app/routers/listados.py:99-116`.
+- [x] **`id_grado` + `id_seccion` juntos devuelven `400`.**
+      `_resolver_filtros()` rechaza la combinación antes de resolver la sección.
 
-- [ ] **Filtro por grado para nóminas y representantes en modo general.**
-      `_filas_nominas_general()` y `_filas_representantes_general()` solo filtran
-      por periodo + nivel, y `construir_documento()` descarta el grado cuando no
-      hay sección (`descripcion = "general"`).
-      Archivos: `backend/app/services/listados.py:250`, `:278`, `:465-472`.
+- [x] **Filtro por grado para nóminas y representantes en modo general.**
+      Las filas generales reciben el grado y filtran por `Secciones.id_grado`;
+      las nóminas se ordenan por grado, sección y apellidos.
 
-- [ ] **Carpeta `generales/` en plural.**
-      `ruta_relativa_listado()` todavía escribe `.../{nivel}/general/...`.
-      Contrato deseado: `2026-2027/.../{nivel}/generales/`, con el grado en el
-      nombre del archivo y sin subcarpeta `por_grado/`.
-      Archivo: `backend/app/services/listados.py:498-520`.
+- [x] **Carpeta `generales/` en plural.**
+      `ruta_relativa_listado()` escribe `.../{nivel}/generales/`, con el grado
+      en el nombre del archivo y sin subcarpeta `por_grado/`.
+
+- [x] **Descarga segura y consulta por nivel.**
+      `descargar_documento()` deriva el nivel cuando el registro lo tiene nulo,
+      valida ruta/archivo y devuelve `404` si no está disponible. El historial
+      `/documentos` es autenticado con filtro por nivel; el paquete ZIP sigue
+      siendo solo para administrador.
+
+- [x] **Política de duplicados (Tarea 3).** Firma canónica en `documentos_firmas`
+      con bloqueo `pg_advisory_xact_lock(hashtext(firma))`. Aplica al endpoint,
+      al script batch y al cierre de año. El reemplazo del nombre de archivo ya
+      no es global (`ruta_con_nombre()`). Gobernada por
+      `REUTILIZAR_DOCUMENTOS_IGUALES` (default `False`).
+
+- [ ] **Activar `REUTILIZAR_DOCUMENTOS_IGUALES=True`** en el entorno cuando se
+      apruebe el cambio de comportamiento (hoy queda desactivado).
 
 - [ ] **Pruebas `TestClient`** de la matriz de validación y de las rutas relativas.
 
@@ -31,10 +40,10 @@ Estado al **2026-11-26**, rama `backend-dev`, commit `2aaa8bc`
 
 ## 2. Documentación
 
-- [ ] `README.md`, sección **6.15** (`línea 875`): actualizar contrato de rutas
-      y describir el membrete institucional.
-- [ ] `docs/ENTREGA_FRONTEND.md`, sección **3.15** (`líneas 337` y `362`):
-      todavía documenta la carpeta `general/` en singular.
+- [x] `README.md`, sección **6.15**: contrato de rutas, body mínimo, descarga
+      por `id` y acceso autenticado al historial.
+- [x] `docs/ENTREGA_FRONTEND.md`, sección **3.15**: matriz de body, carpeta
+      `generales/`, descarga y permisos por nivel.
 
 ## 3. Operativo / frontend (secundario)
 

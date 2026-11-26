@@ -1,5 +1,8 @@
 """
-Genera todos los PDFs de listados (generales por nivel, por sección y por grado)
+Genera todos los PDFs de listados (generales por nivel, por sección y por grado).
+
+Con `REUTILIZAR_DOCUMENTOS_IGUALES=True`, omite los PDFs cuya firma de datos
+ya esté registrada y los cuenta como reutilizados.
 
 Uso (desde backend/):
 
@@ -20,6 +23,7 @@ from app.models.enums import (
   TipoDocumento,
 )
 from app.models.session import engine
+from app.services import firmas as servicio_firmas
 from app.services import listados as servicio_listados
 from app.utils.auditoria import registrar_auditoria
 from app.utils.fechas import ahora_caracas
@@ -29,6 +33,7 @@ from app.utils.storage import (
   guardar_archivo,
   hash_contenido,
   nombre_unico,
+  ruta_con_nombre,
 )
 
 
@@ -59,10 +64,17 @@ def _emitir_pdf(
   nivel: NivelEducativo,
   grado: Grados | None,
   seccion: Secciones | None,
-) -> str:
+) -> tuple[str, bool]:
+  """Emite un PDF y devuelve `(ruta_relativa, reutilizado)`."""
   documento = servicio_listados.construir_documento(
     tipo, periodo, nivel, grado, seccion, session
   )
+  firma = servicio_firmas.firma_si_activa(tipo, periodo, nivel, documento)
+  if firma is not None:
+    existente = servicio_firmas.documento_reutilizable(session, firma)
+    if existente is not None:
+      return existente.ruta_relativa, True
+
   if tipo == TipoDocumento.horarios:
     assert documento.horario_cabecera is not None
     assert documento.horario_filas is not None
@@ -88,7 +100,7 @@ def _emitir_pdf(
     tipo, periodo, nivel, documento.grado, seccion, documento.nombre_archivo
   )
   nombre_archivo = nombre_unico(ruta_relativa, documento.nombre_archivo)
-  ruta_relativa = ruta_relativa.replace(documento.nombre_archivo, nombre_archivo)
+  ruta_relativa = ruta_con_nombre(ruta_relativa, nombre_archivo)
   guardar_archivo(ruta_relativa, pdf)
 
   registro = DocumentosGenerados(
@@ -107,6 +119,8 @@ def _emitir_pdf(
   )
   session.add(registro)
   session.flush()
+  if firma is not None:
+    servicio_firmas.registrar_firma(session, firma, registro.id)
 
   registrar_auditoria(
     session,
@@ -115,11 +129,22 @@ def _emitir_pdf(
     "GENERAR",
     f"Generó el documento {registro.nombre_archivo} ({tipo.value}).",
   )
-  return ruta_relativa
+  return ruta_relativa, False
 
 
-def generar_todos(periodo: int | None = None, usuario_id: int | None = None) -> list[str]:
+def generar_todos(
+  periodo: int | None = None, usuario_id: int | None = None
+) -> tuple[list[str], int]:
+  """Devuelve `(rutas, cantidad_reutilizada)`."""
   rutas: list[str] = []
+  reutilizados = 0
+
+  def registrar_resultado(resultado: tuple[str, bool]) -> None:
+    nonlocal reutilizados
+    ruta, reutilizado = resultado
+    rutas.append(ruta)
+    reutilizados += int(reutilizado)
+
   with Session(engine) as session:
     periodo = periodo or periodo_lectivo_efectivo(session, None)
     if periodo is None:
@@ -134,7 +159,9 @@ def generar_todos(periodo: int | None = None, usuario_id: int | None = None) -> 
         TipoDocumento.representantes,
         TipoDocumento.docentes,
       ):
-        rutas.append(_emitir_pdf(session, usuario, tipo, periodo, nivel, None, None))
+        registrar_resultado(
+          _emitir_pdf(session, usuario, tipo, periodo, nivel, None, None)
+        )
 
     # 2. Generales por grado (sin sección): nominas y representantes
     grados = session.exec(
@@ -144,7 +171,7 @@ def generar_todos(periodo: int | None = None, usuario_id: int | None = None) -> 
     ).all()
     for grado in grados:
       for tipo in (TipoDocumento.nominas, TipoDocumento.representantes):
-        rutas.append(
+        registrar_resultado(
           _emitir_pdf(session, usuario, tipo, periodo, grado.nivel, grado, None)
         )
 
@@ -164,12 +191,12 @@ def generar_todos(periodo: int | None = None, usuario_id: int | None = None) -> 
         tipos_seccion.append(TipoDocumento.horarios)
 
       for tipo in tipos_seccion:
-        rutas.append(
+        registrar_resultado(
           _emitir_pdf(session, usuario, tipo, periodo, grado.nivel, grado, seccion)
         )
 
     session.commit()
-  return rutas
+  return rutas, reutilizados
 
 
 def main() -> None:
@@ -180,10 +207,10 @@ def main() -> None:
   )
   argumentos = analizador.parse_args()
 
-  rutas = generar_todos(argumentos.periodo, argumentos.usuario_id)
+  rutas, reutilizados = generar_todos(argumentos.periodo, argumentos.usuario_id)
   for ruta in rutas:
     print(f"[OK] {ruta}")
-  print(f"\nTotal PDFs generados: {len(rutas)}")
+  print(f"\nTotal PDFs: {len(rutas)} (reutilizados por firma idéntica: {reutilizados})")
 
 
 if __name__ == "__main__":
