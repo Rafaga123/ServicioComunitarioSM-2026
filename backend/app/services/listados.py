@@ -83,6 +83,9 @@ def _nombre_archivo(
   if grado is not None and seccion is not None:
     slug = GRADO_SLUGS.get(grado.numero, grado.nombre.lower().replace(" ", "_"))
     return f"{stem}_{etiqueta}_{slug}_{seccion.letra}.pdf"
+  if grado is not None:
+    slug = GRADO_SLUGS.get(grado.numero, grado.nombre.lower().replace(" ", "_"))
+    return f"{stem}_{etiqueta}_{slug}.pdf"
   return f"{stem}_{etiqueta}_{nivel.value}_general.pdf"
 
 
@@ -463,7 +466,7 @@ def construir_documento(
     encabezados = HEADERS_SECCION[tipo]
     col_anchos = COL_ANCHOS_SECCION[tipo]
   else:
-    nombre_archivo = _nombre_archivo(tipo, periodo, nivel, None, None)
+    nombre_archivo = _nombre_archivo(tipo, periodo, nivel, grado, None)
     descripcion = "general"
     filas = FILAS_GENERAL[tipo](session, periodo, nivel)
     encabezados = HEADERS_GENERAL[tipo]
@@ -508,7 +511,7 @@ def ruta_relativa_listado(
   El periodo lectivo es la primera carpeta y usa su etiqueta legible.
 
   Sección: `2026-2027/listados/nominas/LICEO/1er_ano/A/nomina_2026-2027_1er_ano_A.pdf`.
-  General: `2026-2027/listados/nominas/LICEO/general/nomina_2026-2027_LICEO_general.pdf`.
+  General: `2026-2027/listados/nominas/LICEO/generales/nomina_2026-2027_LICEO_general.pdf`.
   """
   etiqueta = etiqueta_periodo(periodo)
   if seccion is not None:
@@ -517,4 +520,4 @@ def ruta_relativa_listado(
       f"{etiqueta}/listados/{tipo.value}/{nivel.value}/{slug}/"
       f"{seccion.letra}/{nombre_archivo}"
     )
-  return f"{etiqueta}/listados/{tipo.value}/{nivel.value}/general/{nombre_archivo}"
+  return f"{etiqueta}/listados/{tipo.value}/{nivel.value}/generales/{nombre_archivo}"
