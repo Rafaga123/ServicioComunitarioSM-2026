@@ -41,6 +41,7 @@ from app.utils.periodos import periodo_lectivo_efectivo
 from app.utils.security import (
   obtener_usuario_actual,
   requerir_roles,
+  resolver_nivel,
   validar_acceso_nivel,
 )
 from app.utils.soft_delete import marcar_eliminado
@@ -272,13 +273,14 @@ def listar_horarios(
   nivel: NivelEducativo | None = None,
   paginacion: Paginacion = Depends(),
   session: Session = Depends(get_session),
-  usuario_actual: Usuarios = Depends(requerir_admin),
+  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
   consulta = filtro_activos(select(Horarios), Horarios)
   consulta = consulta.join(Secciones, Horarios.id_seccion == Secciones.id)
   consulta = consulta.join(Grados, Secciones.id_grado == Grados.id)
   consulta = consulta.join(BloquesHorarios, Horarios.id_bloque == BloquesHorarios.id)
 
+  nivel = resolver_nivel(usuario_actual, nivel)
   periodo_lectivo = periodo_lectivo_efectivo(session, periodo_lectivo)
   if nivel is not None:
     consulta = consulta.where(Grados.nivel == nivel)
@@ -310,9 +312,10 @@ def listar_horarios(
 def obtener_horario(
   horario_id: int,
   session: Session = Depends(get_session),
-  usuario_actual: Usuarios = Depends(requerir_admin),
+  usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
   horario = _obtener_activo(session, Horarios, horario_id, "Horario no encontrado")
+  validar_acceso_nivel(usuario_actual, horario.seccion.grado.nivel)
 
   return _horario_dto(horario)
 

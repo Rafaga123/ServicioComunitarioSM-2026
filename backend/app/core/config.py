@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -16,6 +17,13 @@ DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 # Nombre de la institución que encabeza los PDFs de listados.
 INSTITUCION_NOMBRE = os.getenv(
   "INSTITUCION_NOMBRE", "UNIDAD EDUCATIVA PRIVADA SANTA MARTA"
+)
+
+# Logo institucional dibujado arriba a la izquierda en todos los PDFs.
+# Se puede sobreescribir con LOGO_SANTA_MARTA_PATH si el archivo vive fuera del proyecto.
+LOGO_PATH = Path(
+  os.getenv("LOGO_SANTA_MARTA_PATH")
+  or Path(__file__).resolve().parents[1] / "assets" / "logo_santa_marta_grande.png"
 )
 
 # Directorio raíz del almacenamiento físico de archivos adjuntos de pases y reportes.
