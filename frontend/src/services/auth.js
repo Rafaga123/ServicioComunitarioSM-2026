@@ -33,8 +33,8 @@ const RUTAS_POR_ROL = {
     'usuarios',
     'auditorias',
   ],
-  [ROLES.SECRETARIA]: ['dashboard', 'pases'],
-  [ROLES.COORDINADOR]: ['dashboard', 'reportes'],
+  [ROLES.SECRETARIA]: ['dashboard', 'pases', 'gestion-academica'],
+  [ROLES.COORDINADOR]: ['dashboard', 'reportes', 'gestion-academica'],
 }
 
 const ETIQUETAS_ROL = {
@@ -150,6 +150,10 @@ export const cargarPerfil = async () => {
 export const rolActual = computed(() => sesion.usuario?.rol ?? null)
 export const nivelActual = computed(() => sesion.usuario?.nivel ?? null)
 export const esAdministrador = computed(() => rolActual.value === ROLES.ADMINISTRADOR)
+
+// Gestión académica: Secretaría y Coordinador pueden abrir la ruta, pero solo
+// ADMIN puede crear, editar o eliminar (el backend exige ese mismo rol).
+export const puedeEditarGestion = computed(() => esAdministrador.value)
 
 // Ruta de inicio: todos los roles tienen dashboard.
 export const rutaInicio = () => 'dashboard'

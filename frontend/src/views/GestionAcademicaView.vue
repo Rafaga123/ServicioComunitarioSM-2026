@@ -65,7 +65,13 @@ import {
   nomDocente,
   diaNombre,
 } from '@/components/gestion-academica/helpers'
-import { esAdministrador, nivelActual, etiquetaNivel } from '@/services/auth'
+import {
+  esAdministrador,
+  nivelActual,
+  etiquetaNivel,
+  puedeEditarGestion,
+  NIVELES,
+} from '@/services/auth'
 import {
   card,
   inp,
@@ -85,6 +91,11 @@ const props = defineProps({
   tabInicial: { type: String, default: 'secciones' },
 })
 
+// Secretaría y Coordinador entran en modo consulta: ven los listados, pero no
+// pueden crear, editar ni eliminar. Es el mismo criterio que aplica el backend.
+const puedeGestionar = puedeEditarGestion
+const soloLectura = computed(() => !puedeGestionar.value)
+
 // ───────────── Catálogos ─────────────
 // dias, norm, nomPersona, nomEst, nomDocente y diaNombre viven en helpers.js
 
@@ -101,6 +112,17 @@ const tabs = [
   { id: 'docentes', label: 'Docentes', nuevo: 'Nuevo docente', singular: 'docente' },
   { id: 'horarios', label: 'Horarios', nuevo: 'Nuevo horario', singular: 'horario' },
 ]
+// Asignaturas y horarios son datos de Liceo. Un operador de Escuela (Secretaría
+// o Coordinador) no debe ver esas pestañas; el administrador, sin nivel propio,
+// sigue viéndolas todas.
+const esOperadorEscuela = computed(
+  () => soloLectura.value && nivelActual.value === NIVELES.ESCUELA,
+)
+const tabsVisibles = computed(() =>
+  esOperadorEscuela.value
+    ? tabs.filter((t) => t.id !== 'asignaturas' && t.id !== 'horarios')
+    : tabs,
+)
 const placeholders = {
   secciones: 'Buscar por grado, letra, nivel o docente titular',
   representantes: 'Buscar por nombre o apellido',
@@ -117,8 +139,10 @@ const vacios = {
   docentes: { titulo: 'Aún no hay docentes registrados', texto: 'Registra a los docentes con su cédula para poder asignarles asignaturas y horarios.', boton: 'Registrar docente' },
   horarios: { titulo: 'Aún no hay horarios registrados', texto: 'Necesitas secciones de Liceo, asignaturas y bloques académicos para armar el horario por bloques.', boton: 'Registrar horario' },
 }
-const tab = ref(tabs.some((t) => t.id === props.tabInicial) ? props.tabInicial : 'secciones')
-const tabActual = computed(() => tabs.find((t) => t.id === tab.value))
+const tab = ref(
+  tabsVisibles.value.some((t) => t.id === props.tabInicial) ? props.tabInicial : 'secciones',
+)
+const tabActual = computed(() => tabsVisibles.value.find((t) => t.id === tab.value))
 
 // ───────────── Datos (vacío: los listados conectados se llenan desde la API) ─────────────
 // secciones:      { id, idGrado, letra, periodoLectivo, idDocenteTitular, gradoNombre,
@@ -173,6 +197,9 @@ const vacioTitulo = computed(() => {
   return vacios[tab.value].titulo
 })
 const vacioTexto = computed(() => {
+  if (soloLectura.value) {
+    return `No hay ${tabActual.value.label.toLowerCase()} disponibles para tu nivel.`
+  }
   if (tab.value === 'secciones' && periodoSeleccionado.value) {
     return `Registra una sección para el período ${periodoSeleccionado.value} en ese nivel o cambia los filtros.`
   }
@@ -364,15 +391,21 @@ const cargarCatalogos = async () => {
   catalogos.error = ''
   try {
     const nivel = nivelConsulta.value || undefined
+    // /gestion/periodos es solo ADMIN. En modo consulta se usa el período
+    // activo, disponible para cualquier usuario autenticado.
     const [grados, secciones, periodos, periodo] = await Promise.all([
       listarTodosGrados({ nivel }),
       listarTodasSecciones({ nivel }),
-      listarPeriodos(),
+      puedeGestionar.value ? listarPeriodos() : Promise.resolve(null),
       obtenerPeriodoActivo(),
     ])
     catalogos.grados = grados.items
     catalogos.secciones = secciones.items
-    catalogos.periodos = periodos
+    catalogos.periodos = puedeGestionar.value
+      ? periodos
+      : periodo
+        ? [periodo]
+        : []
     catalogos.periodoActivo = periodo
     if (periodo && !periodoSeleccionado.value) periodoSeleccionado.value = periodo.anio
   } catch (error) {
@@ -478,6 +511,8 @@ const catalogoHorarios = reactive({
 let promesaCatalogoHorarios = null
 let versionCatalogoHorarios = 0
 const cargarCatalogoHorarios = () => {
+  // El backend solo permite listar horarios al administrador.
+  if (!puedeGestionar.value) return Promise.resolve()
   if (catalogoHorarios.listo) return Promise.resolve()
   if (promesaCatalogoHorarios) return promesaCatalogoHorarios
 
@@ -527,7 +562,9 @@ const apiTab = computed(() =>
     representantes: representantesApi,
     estudiantes: estudiantesApi,
     asignaturas: asignaturasApi,
-    horarios: horariosApi,
+    // El backend restringe el listado de horarios a ADMIN; en modo consulta se
+    // muestra un aviso en vez de pedir ese endpoint.
+    horarios: puedeGestionar.value ? horariosApi : null,
   }[tab.value] ?? null),
 )
 
@@ -537,7 +574,9 @@ const cargarTab = (paginaSolicitada) => {
   if (tab.value === 'representantes') return cargarRepresentantes(paginaSolicitada)
   if (tab.value === 'estudiantes') return cargarEstudiantes(paginaSolicitada)
   if (tab.value === 'asignaturas') return cargarAsignaturas(paginaSolicitada)
-  if (tab.value === 'horarios') return cargarHorarios(paginaSolicitada)
+  if (tab.value === 'horarios') {
+    return puedeGestionar.value ? cargarHorarios(paginaSolicitada) : Promise.resolve()
+  }
 }
 const cargarTodosTab = () => {
   if (tab.value === 'secciones') return cargarTodosSecciones()
@@ -545,7 +584,9 @@ const cargarTodosTab = () => {
   if (tab.value === 'representantes') return cargarTodosRepresentantes()
   if (tab.value === 'estudiantes') return cargarTodosEstudiantes()
   if (tab.value === 'asignaturas') return cargarTodosAsignaturas()
-  if (tab.value === 'horarios') return cargarTodosHorariosApi()
+  if (tab.value === 'horarios') {
+    return puedeGestionar.value ? cargarTodosHorariosApi() : Promise.resolve()
+  }
 }
 const recargarTab = () =>
   filtrando.value ? cargarTodosTab() : cargarTab(apiTab.value?.page ?? 1)
@@ -588,10 +629,12 @@ onMounted(async () => {
   // pide la primera página de secciones.
   await cargarCatalogos()
   if (apiTab.value) cargarTab(1)
-  if (tab.value === 'estudiantes') cargarRepsFormulario()
-  if (tab.value === 'secciones') cargarTitulares()
-  if (tab.value === 'asignaturas') cargarCatalogoAsignaturas()
-  if (tab.value === 'horarios') cargarCatalogoHorarios()
+  if (puedeGestionar.value) {
+    if (tab.value === 'estudiantes') cargarRepsFormulario()
+    if (tab.value === 'secciones') cargarTitulares()
+    if (tab.value === 'asignaturas') cargarCatalogoAsignaturas()
+    if (tab.value === 'horarios') cargarCatalogoHorarios()
+  }
 })
 
 // ───────────── Helpers ─────────────
@@ -853,6 +896,7 @@ const enfocarPrimerCampo = async () => {
   panelRef.value?.querySelector('input, select, textarea')?.focus()
 }
 const abrirNuevo = () => {
+  if (!puedeGestionar.value) return
   form.value = formVacio[tab.value]()
   panel.modo = 'crear'
   errorForm.value = ''
@@ -866,6 +910,7 @@ const abrirNuevo = () => {
   enfocarPrimerCampo()
 }
 const abrirEditar = async (item) => {
+  if (!puedeGestionar.value) return
   if (tab.value === 'horarios') await cargarCatalogoHorarios()
   const copia = JSON.parse(JSON.stringify(item))
   if (tab.value === 'secciones') {
@@ -955,6 +1000,7 @@ const irA = (id) => { cerrarPanel(); tab.value = id }
 // "Celda vacía" de la matriz de secciones: abre el panel con grado, formato y
 // período ya puestos para no obligar a repetir lo que el usuario eligió.
 const crearSeccionEn = ({ idGrado, formato, periodoLectivo }) => {
+  if (!puedeGestionar.value) return
   form.value = {
     ...formVacio.secciones(),
     idGrado,
@@ -971,6 +1017,7 @@ const crearSeccionEn = ({ idGrado, formato, periodoLectivo }) => {
 // Desde una sección de Liceo se salta a Horarios con el contexto de esa
 // sección. Escuela no se enlaza: su horario es corrido, no por bloques.
 const verHorario = (seccion) => {
+  if (!tabsVisibles.value.some((t) => t.id === 'horarios')) return
   const yaEnHorarios = tab.value === 'horarios'
   horarioSeccion.value = seccion
   busq.horarios = ''
@@ -978,19 +1025,20 @@ const verHorario = (seccion) => {
   horarios.reiniciar()
   tab.value = 'horarios'
   // Si ya estábamos en Horarios, el watch de tab no se dispara.
-  if (yaEnHorarios && !horariosApi.loading) cargarHorarios(1)
+  if (yaEnHorarios && puedeGestionar.value && !horariosApi.loading) cargarHorarios(1)
 }
 const limpiarHorarioSeccion = () => {
   horarioSeccion.value = null
   pagina.horarios = 1
   horarios.reiniciar()
-  if (tab.value === 'horarios' && !horariosApi.loading) cargarHorarios(1)
+  if (tab.value === 'horarios' && puedeGestionar.value && !horariosApi.loading) cargarHorarios(1)
 }
 
 watch(tab, (valor) => {
   cerrarPanel()
   // La primera vez que se abre una pestaña conectada se pide la página 1.
   if (apiTab.value && !apiTab.value.cargado && !apiTab.value.loading) cargarTab(1)
+  if (!puedeGestionar.value) return
   if (valor === 'estudiantes') cargarRepsFormulario()
   if (valor === 'secciones') cargarTitulares()
   if (valor === 'asignaturas') cargarCatalogoAsignaturas()
@@ -1027,6 +1075,7 @@ const quitarRep = () => {
 
 // Alta de representante sin abandonar el formulario del estudiante.
 const abrirRepInline = () => {
+  if (!puedeGestionar.value) return
   repInline.error = ''
   repInline.abierto = true
 }
@@ -1036,6 +1085,7 @@ const cerrarRepInline = () => {
   repInline.form = formVacio.representantes()
 }
 const guardarRepInline = async () => {
+  if (!puedeGestionar.value) return
   for (const k in repInline.form) {
     if (typeof repInline.form[k] === 'string') repInline.form[k] = repInline.form[k].trim()
   }
@@ -1301,6 +1351,7 @@ const sincronizarDocentesAsignatura = async (
 const guardando = ref(false)
 
 const guardar = async () => {
+  if (!puedeGestionar.value) return
   const t = tab.value, f = form.value
   for (const k in f) if (typeof f[k] === 'string') f[k] = f[k].trim()
   const err = validar(t, f)
@@ -1415,6 +1466,7 @@ const bajasSecciones = async (secciones, mensaje) => {
 
 // Reparación de estados inconsistentes (por ejemplo, A sin B).
 const reiniciarSecciones = (secciones) => {
+  if (!puedeGestionar.value) return
   const letras = secciones.map((s) => s.letra).sort().join(' y ')
   pedirConfirmacion(
     'Dar de baja secciones',
@@ -1425,6 +1477,7 @@ const reiniciarSecciones = (secciones) => {
 }
 
 const eliminar = (item) => {
+  if (!puedeGestionar.value) return
   const t = tab.value
 
   if (t === 'secciones') {
@@ -1474,10 +1527,14 @@ const eliminar = (item) => {
 <template>
   <div class="mx-auto flex w-full max-w-[1320px] flex-col font-sans text-[#1b2a2f]">
 
+    <p v-if="soloLectura" role="note" class="mb-4 rounded-xl border border-[#b4d0f8] bg-[#eef3fb] px-4 py-3 text-sm text-[#233E47]">
+      Estás consultando Gestión Académica en modo solo lectura. Puedes ver los listados, pero no crear, editar ni eliminar registros.
+    </p>
+
     <div :class="[card, 'overflow-hidden']">
       <!-- Pestañas (arriba, pegadas al inicio del componente) -->
       <div role="tablist" aria-label="Secciones de gestión académica" class="flex gap-1 overflow-x-auto border-b border-[#d5dbe6] bg-[#f6f9fe] px-3 pt-2.5">
-        <button v-for="t in tabs" :key="t.id" role="tab" type="button" :aria-selected="tab === t.id" @click="tab = t.id"
+        <button v-for="t in tabsVisibles" :key="t.id" role="tab" type="button" :aria-selected="tab === t.id" @click="tab = t.id"
                 :class="['flex min-h-11 items-center gap-2 whitespace-nowrap rounded-t-xl border-b-[3px] px-4 text-[15px] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#233E47]',
                          tab === t.id ? 'border-[#233E47] bg-white font-bold text-[#233E47]' : 'border-transparent font-semibold text-[#4a5a63] hover:text-[#233E47]']">
           {{ t.label }}
@@ -1493,7 +1550,7 @@ const eliminar = (item) => {
       <div role="tabpanel" class="flex flex-col gap-5 p-5 md:p-6">
 
         <!-- Barra: buscador + nivel + tamaño de página + botón nuevo -->
-        <div class="flex flex-wrap items-center gap-3">
+        <div v-if="tab !== 'horarios' || puedeGestionar" class="flex flex-wrap items-center gap-3">
           <div class="relative min-w-[220px] flex-1">
             <label for="busq" class="sr-only">Buscar</label>
             <svg aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5b6a72]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
@@ -1560,7 +1617,7 @@ const eliminar = (item) => {
               <option :value="100">100</option>
             </select>
           </div>
-          <button v-if="!apiTab || esAdministrador" type="button" :class="btnP" @click="abrirNuevo">
+          <button v-if="puedeGestionar" type="button" :class="btnP" @click="abrirNuevo">
             <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
             {{ tabActual.nuevo }}
           </button>
@@ -1588,22 +1645,29 @@ const eliminar = (item) => {
         <!-- Cargando la primera página -->
         <p v-if="apiTab && apiTab.loading && !datos[tab].length" :class="sinRes">Cargando {{ tabActual.label.toLowerCase() }}…</p>
 
+        <!-- El backend reserva el listado de horarios al administrador -->
+        <div v-if="tab === 'horarios' && !puedeGestionar" class="flex flex-col items-center gap-2 rounded-xl border border-dashed border-[#91a5c9] bg-[#f6f9fe] px-4 py-14 text-center">
+          <svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#91a5c9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <p class="text-lg font-bold text-[#233E47]">Listado de horarios no disponible para tu rol</p>
+          <p class="max-w-md text-sm text-[#4a5a63]">El servidor restringe este listado al rol administrador. Puedes consultar las demás pestañas de gestión académica.</p>
+        </div>
+
         <!-- En Secciones se muestra la matriz aunque esté vacía: las celdas
              "+ Crear" son el punto de entrada para registrar la primera. -->
         <p v-if="tab === 'secciones' && !datos.secciones.length && !apiTab.loading && !apiTab.error" :class="aviso2">
-          Aún no hay secciones. Usa las celdas «+ Crear» del grado que corresponda.
+          {{ puedeGestionar ? 'Aún no hay secciones. Usa las celdas «+ Crear» del grado que corresponda.' : 'Aún no hay secciones registradas para tu nivel.' }}
         </p>
 
         <!-- Estado vacío general (aún no hay ningún dato) -->
-        <div v-if="tab !== 'secciones' && !datos[tab].length && !(apiTab && (apiTab.loading || apiTab.error))" class="flex flex-col items-center gap-2 rounded-xl border border-dashed border-[#91a5c9] bg-[#f6f9fe] px-4 py-14 text-center">
+        <div v-if="tab !== 'secciones' && !(tab === 'horarios' && !puedeGestionar) && !datos[tab].length && !(apiTab && (apiTab.loading || apiTab.error))" class="flex flex-col items-center gap-2 rounded-xl border border-dashed border-[#91a5c9] bg-[#f6f9fe] px-4 py-14 text-center">
           <svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#91a5c9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M7 9.5V15c0 1.5 2.2 3 5 3s5-1.5 5-3V9.5"/></svg>
           <p class="text-lg font-bold text-[#233E47]">{{ vacioTitulo }}</p>
           <p class="max-w-md text-sm text-[#4a5a63]">{{ vacioTexto }}</p>
-          <button type="button" :class="[btnS, 'mt-2']" @click="abrirNuevo">{{ vacios[tab].boton }}</button>
+          <button v-if="puedeGestionar" type="button" :class="[btnS, 'mt-2']" @click="abrirNuevo">{{ vacios[tab].boton }}</button>
         </div>
 
         <!-- Contexto traído desde Secciones: horario de una sección de Liceo -->
-        <div v-if="tab === 'horarios' && horarioSeccion" class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#b4d0f8] bg-[#eef3fb] px-4 py-3">
+        <div v-if="tab === 'horarios' && horarioSeccion && puedeGestionar" class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#b4d0f8] bg-[#eef3fb] px-4 py-3">
           <p class="text-sm text-[#233E47]">
             Mostrando el horario de <b>{{ etiquetaHorarioSeccion }}</b> (Liceo).
           </p>
@@ -1622,7 +1686,7 @@ const eliminar = (item) => {
             :buscando="buscandoTab"
             :cargando="apiTab.cargandoTodos"
             :filtrando="filtrando"
-            :puede-gestionar="esAdministrador"
+            :puede-gestionar="puedeGestionar"
             @editar="abrirEditar"
             @eliminar="eliminar"
             @crear="crearSeccionEn"
@@ -1637,7 +1701,7 @@ const eliminar = (item) => {
             :buscando="buscandoTab"
             :cargando="apiTab.cargandoTodos"
             :filtrando="filtrando"
-            :puede-gestionar="esAdministrador"
+            :puede-gestionar="puedeGestionar"
             @editar="abrirEditar"
             @eliminar="eliminar"
           />
@@ -1648,7 +1712,7 @@ const eliminar = (item) => {
             :buscando="buscandoTab"
             :cargando="apiTab.cargandoTodos"
             :filtrando="filtrando"
-            :puede-gestionar="esAdministrador"
+            :puede-gestionar="puedeGestionar"
             @editar="abrirEditar"
             @eliminar="eliminar"
           />
@@ -1659,7 +1723,7 @@ const eliminar = (item) => {
             :buscando="buscandoTab"
             :cargando="apiTab.cargandoTodos"
             :filtrando="filtrando"
-            :puede-gestionar="esAdministrador"
+            :puede-gestionar="puedeGestionar"
             @editar="abrirEditar"
             @eliminar="eliminar"
           />
@@ -1670,7 +1734,7 @@ const eliminar = (item) => {
             :buscando="buscandoTab"
             :cargando="apiTab.cargandoTodos"
             :filtrando="filtrando"
-            :puede-gestionar="esAdministrador"
+            :puede-gestionar="puedeGestionar"
             @editar="abrirEditar"
             @eliminar="eliminar"
           />
@@ -1681,7 +1745,7 @@ const eliminar = (item) => {
             :buscando="buscandoTab"
             :cargando="apiTab.cargandoTodos"
             :filtrando="filtrando"
-            :puede-gestionar="esAdministrador"
+            :puede-gestionar="puedeGestionar"
             @editar="abrirEditar"
             @eliminar="eliminar"
           />
