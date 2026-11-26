@@ -1,12 +1,18 @@
 // Servicio de reportes de incidencias (conductuales y académicas).
 //
-//   GET /reportes/?offset=&size=&anio=&mes=&periodo_lectivo=
-//        &categoria=&nivel_gravedad=&nivel=  -> { items, total, offset, size }
-//   GET /reportes/{id}                      -> PeticionReporte
+//   GET    /reportes/?offset=&size=&id_estudiante=&id_seccion=&id_docente=
+//          &anio=&mes=&periodo_lectivo=&categoria=&nivel_gravedad=&nivel=
+//                                          -> { items, total, offset, size }
+//   GET    /reportes/{id}                  -> PeticionReporte
+//   POST   /reportes/                      -> 201 PeticionReporte
+//   PUT    /reportes/{id}                  -> PeticionReporte
+//   DELETE /reportes/{id}                  -> 204
+//   POST   /reportes/{id}/archivo          -> PeticionReporte (imagen/PDF)
+//   GET    /reportes/{id}/archivo          -> archivo adjunto
 //
 // El backend usa snake_case y el frontend camelCase; la conversión se hace
 // aquí para que las vistas no dependan del nombre exacto de los campos.
-import { apiFetch } from './api'
+import { apiDescargar, apiFetch } from './api'
 
 const RECURSO = '/reportes/'
 
@@ -21,6 +27,14 @@ export const GRAVEDADES_REPORTE = Object.freeze({
   LEVE: 'LEVE',
   GRAVE: 'GRAVE',
 })
+
+export const REGLAMENTOS_REPORTE = Object.freeze(['LOPNNA', 'LOE', 'CBV', 'NC'])
+
+export const etiquetaCategoria = (categoria) =>
+  ({ CONDUCTUAL: 'Conductual', ACADEMICO: 'Académica' })[categoria] ?? categoria ?? '—'
+
+export const etiquetaGravedad = (gravedad) =>
+  ({ LEVE: 'Leve', GRAVE: 'Grave' })[gravedad] ?? gravedad ?? '—'
 
 // PeticionReporte -> objeto de la vista
 const aReporte = (reporte) => {
@@ -46,6 +60,9 @@ const aReporte = (reporte) => {
     nivel: reporte.nivel ?? '',
     usuario: reporte.usuario ?? '',
     docente: reporte.docente ?? '',
+    archivoNombre: reporte.archivo_nombre ?? '',
+    archivoMime: reporte.archivo_mime ?? '',
+    archivoTamano: reporte.archivo_tamano ?? null,
   }
 }
 
@@ -55,6 +72,9 @@ const aReporte = (reporte) => {
  * @param {object} [opciones]
  * @param {number} [opciones.page] Página 1-based.
  * @param {number} [opciones.size] Registros por página (máx. 100).
+ * @param {number} [opciones.idEstudiante] Filtro por estudiante.
+ * @param {number} [opciones.idSeccion] Filtro por sección.
+ * @param {number} [opciones.idDocente] Filtro por docente.
  * @param {number} [opciones.anio] Año de la fecha.
  * @param {number} [opciones.mes] Mes 1..12.
  * @param {string} [opciones.categoria] CONDUCTUAL | ACADEMICO.
@@ -64,6 +84,9 @@ const aReporte = (reporte) => {
 export async function listarReportes({
   page = 1,
   size = 10,
+  idEstudiante,
+  idSeccion,
+  idDocente,
   anio,
   mes,
   periodoLectivo,
@@ -79,6 +102,9 @@ export async function listarReportes({
     params: {
       offset,
       size: tamano,
+      id_estudiante: idEstudiante || undefined,
+      id_seccion: idSeccion || undefined,
+      id_docente: idDocente || undefined,
       anio: anio || undefined,
       mes: mes || undefined,
       periodo_lectivo: periodoLectivo || undefined,
@@ -108,6 +134,9 @@ export async function listarTodosReportes(filtros = {}) {
       params: {
         offset,
         size: MAXIMO_POR_PAGINA,
+        id_estudiante: filtros.idEstudiante || undefined,
+        id_seccion: filtros.idSeccion || undefined,
+        id_docente: filtros.idDocente || undefined,
         anio: filtros.anio || undefined,
         mes: filtros.mes || undefined,
         periodo_lectivo: filtros.periodoLectivo || undefined,
@@ -126,4 +155,72 @@ export async function listarTodosReportes(filtros = {}) {
   } while (items.length < total)
 
   return { items, total }
+}
+
+// objeto de la vista -> CrearReporte / ActualizarReporte
+const aPayload = (datos) => {
+  const payload = {}
+  if (datos.idEstudiante != null) payload.id_estudiante = Number(datos.idEstudiante)
+  // null explícito permite quitar el docente en una actualización.
+  if (Object.prototype.hasOwnProperty.call(datos, 'idDocente')) {
+    payload.id_docente = datos.idDocente ? Number(datos.idDocente) : null
+  }
+  if (datos.articulo != null) payload.articulo = Number(datos.articulo)
+  if (datos.reglamento) payload.reglamento = datos.reglamento
+  if (datos.incidencia !== undefined) payload.incidencia = String(datos.incidencia).trim()
+  if (datos.defensa !== undefined) payload.defensa = String(datos.defensa).trim()
+  if (datos.gravedad) payload.nivel_gravedad = datos.gravedad
+  if (datos.categoria) payload.categoria = datos.categoria
+  if (datos.fecha) payload.fecha = datos.fecha
+  return payload
+}
+
+export async function obtenerReporte(id) {
+  return aReporte(await apiFetch(`${RECURSO}${id}`))
+}
+
+export async function crearReporte(datos) {
+  return aReporte(
+    await apiFetch(RECURSO, { method: 'POST', body: aPayload(datos) }),
+  )
+}
+
+export async function actualizarReporte(id, datos) {
+  const cambios = {}
+  Object.entries(aPayload(datos)).forEach(([clave, valor]) => {
+    // ActualizarReporte usa exclude_unset: no enviar campos vacíos.
+    if (valor !== undefined && valor !== '') cambios[clave] = valor
+  })
+
+  return aReporte(
+    await apiFetch(`${RECURSO}${id}`, { method: 'PUT', body: cambios }),
+  )
+}
+
+export async function eliminarReporte(id) {
+  return apiFetch(`${RECURSO}${id}`, { method: 'DELETE' })
+}
+
+/** Adjunta una imagen o PDF al reporte (el backend conserva un solo adjunto). */
+export async function subirArchivoReporte(id, archivo) {
+  const formulario = new FormData()
+  formulario.append('archivo', archivo)
+
+  return aReporte(
+    await apiFetch(`${RECURSO}${id}/archivo`, {
+      method: 'POST',
+      body: formulario,
+      timeout: 60000,
+    }),
+  )
+}
+
+/** Descarga el adjunto del reporte como Blob, junto con su nombre original. */
+export async function descargarArchivoReporte(id, { inline = false } = {}) {
+  return apiDescargar(`${RECURSO}${id}/archivo`, { params: { inline } })
+}
+
+/** Desvincula el adjunto del reporte (no borra el archivo físico). */
+export async function quitarArchivoReporte(id) {
+  return apiFetch(`${RECURSO}${id}/archivo`, { method: 'DELETE' })
 }

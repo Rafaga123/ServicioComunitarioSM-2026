@@ -1,54 +1,33 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ReporteIncidente from '@/components/reportes/ReporteIncidente.vue'
+import { norm } from '@/components/gestion-academica/helpers'
+import { etiquetaNivel } from '@/services/auth'
+import {
+  crearReporte,
+  descargarArchivoReporte,
+  etiquetaCategoria,
+  etiquetaGravedad,
+  listarTodosReportes,
+  subirArchivoReporte,
+} from '@/services/reportes'
 
-const estudiantes = ['Brandon', 'Kevin Valera', 'Hermes Morado']
-const reportes = ref([
-  {
-    id: 1,
-    fecha: '2026-10-24',
-    estudiante: 'Brandon',
-    curso: '3ro B',
-    tipo: 'Conductual',
-    gravedad: 'Grave',
-    docente: 'Prof. Vásquez',
-    estado: 'Enviado',
-    descripcion: 'Reporte de conducta del estudiante.',
-  },
-  {
-    id: 2,
-    fecha: '2026-10-24',
-    estudiante: 'Kevin Valera',
-    curso: '1ro B',
-    tipo: 'Conductual',
-    gravedad: 'Leve',
-    docente: 'Prof. Vásquez',
-    estado: 'Atendido',
-    descripcion: 'Reporte de conducta del estudiante.',
-  },
-  {
-    id: 3,
-    fecha: '2026-10-24',
-    estudiante: 'Hermes Morado',
-    curso: '4to U',
-    tipo: 'Académico',
-    gravedad: 'Leve',
-    docente: 'Vásquez',
-    estado: 'Borrador',
-    descripcion: 'Reporte académico del estudiante.',
-  },
-])
-
+const reportes = ref([])
+const cargando = ref(true)
+const guardando = ref(false)
+const error = ref('')
+const exito = ref('')
 const mostrarFormulario = ref(false)
 const detalleAbierto = ref(null)
 const paginaActual = ref(1)
 const reportesPorPagina = 10
+
 const filtros = ref({
   estudiante: '',
-  estado: '',
-  curso: '',
+  docente: '',
+  nivel: '',
   gravedad: '',
-  tipo: '',
+  categoria: '',
   fecha: '',
 })
 
@@ -56,20 +35,50 @@ const filtros = ref({
 const claseCelda = 'whitespace-nowrap border-b border-[#e1e3e7] px-[10px] py-[11px]'
 const claseEncabezado = `${claseCelda} font-bold`
 
-const reportesFiltrados = computed(() => {
-  const busqueda = filtros.value.estudiante.trim().toLocaleLowerCase()
+let solicitudCarga = 0
+let temporizadorFiltros = null
 
-  return reportes.value.filter((reporte) => {
-    return (
-      (!busqueda || reporte.estudiante.toLocaleLowerCase().includes(busqueda)) &&
-      (!filtros.value.estado || reporte.estado === filtros.value.estado) &&
-      (!filtros.value.curso ||
-        reporte.curso.toLocaleLowerCase().includes(filtros.value.curso.toLocaleLowerCase())) &&
-      (!filtros.value.gravedad || reporte.gravedad === filtros.value.gravedad) &&
-      (!filtros.value.tipo || reporte.tipo === filtros.value.tipo) &&
-      (!filtros.value.fecha || reporte.fecha === filtros.value.fecha)
-    )
-  })
+async function cargarReportes() {
+  const solicitud = ++solicitudCarga
+  cargando.value = true
+  error.value = ''
+
+  try {
+    // El backend filtra por año/mes, nivel, categoría y gravedad. El texto de
+    // estudiante/docente y el día exacto se refinan en cliente porque la API
+    // no expone esos filtros.
+    const [anio, mes] = filtros.value.fecha
+      ? [Number(filtros.value.fecha.slice(0, 4)), Number(filtros.value.fecha.slice(5, 7))]
+      : []
+
+    const { items } = await listarTodosReportes({
+      anio,
+      mes,
+      nivel: filtros.value.nivel || undefined,
+      gravedad: filtros.value.gravedad || undefined,
+      categoria: filtros.value.categoria || undefined,
+    })
+    if (solicitud !== solicitudCarga) return
+    reportes.value = items
+  } catch (e) {
+    if (solicitud !== solicitudCarga) return
+    reportes.value = []
+    error.value = e?.message || 'No se pudieron cargar los reportes.'
+  } finally {
+    if (solicitud === solicitudCarga) cargando.value = false
+  }
+}
+
+const reportesFiltrados = computed(() => {
+  const estudiante = norm(filtros.value.estudiante.trim())
+  const docente = norm(filtros.value.docente.trim())
+
+  return reportes.value.filter(
+    (reporte) =>
+      (!estudiante || norm(reporte.estudiante).includes(estudiante)) &&
+      (!docente || norm(reporte.docente).includes(docente)) &&
+      (!filtros.value.fecha || reporte.fechaISO === filtros.value.fecha),
+  )
 })
 
 const totalPaginas = computed(() =>
@@ -85,19 +94,32 @@ watch(
   filtros,
   () => {
     paginaActual.value = 1
+    clearTimeout(temporizadorFiltros)
+    temporizadorFiltros = setTimeout(() => {
+      temporizadorFiltros = null
+      cargarReportes()
+    }, 300)
   },
   { deep: true },
 )
 
+onMounted(cargarReportes)
+onBeforeUnmount(() => {
+  clearTimeout(temporizadorFiltros)
+  solicitudCarga += 1
+})
+
 function formatearFecha(fecha) {
+  const dia = String(fecha ?? '').slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) return '—'
   return new Intl.DateTimeFormat('es', {
     day: 'numeric',
     month: 'short',
-  }).format(new Date(`${fecha}T12:00:00`))
+  }).format(new Date(`${dia}T12:00:00`))
 }
 
 function claseGravedad(gravedad) {
-  return gravedad === 'Grave'
+  return gravedad === 'GRAVE'
     ? 'bg-[#faedc8] text-[#72520b]'
     : 'bg-[#d9f1e2] text-[#285d3b]'
 }
@@ -108,25 +130,31 @@ function exportarReportes() {
     'Fecha',
     'Hora',
     'Estudiante',
-    'Curso',
+    'Cédula',
+    'Nivel',
     'Tipo',
     'Gravedad',
+    'Artículo',
+    'Reglamento',
     'Docente',
-    'Estado',
+    'Registrado por',
   ]
   const filas = reportesFiltrados.value.map((reporte) => [
     reporte.id,
-    reporte.fecha,
+    reporte.fechaISO,
     reporte.hora || '',
     reporte.estudiante,
-    reporte.curso,
-    reporte.tipo,
-    reporte.gravedad,
+    reporte.cedula,
+    etiquetaNivel(reporte.nivel),
+    etiquetaCategoria(reporte.categoria),
+    etiquetaGravedad(reporte.gravedad),
+    reporte.articulo,
+    reporte.reglamento,
     reporte.docente,
-    reporte.estado,
+    reporte.usuario,
   ])
   const csv = [encabezados, ...filas]
-    .map((fila) => fila.map((valor) => `"${String(valor).replaceAll('"', '""')}"`).join(','))
+    .map((fila) => fila.map((valor) => `"${String(valor ?? '').replaceAll('"', '""')}"`).join(','))
     .join('\r\n')
   const archivo = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
   const enlace = document.createElement('a')
@@ -138,25 +166,70 @@ function exportarReportes() {
   URL.revokeObjectURL(url)
 }
 
-function guardarReporte(datos, estado) {
-  reportes.value.unshift({
-    id: Math.max(...reportes.value.map((reporte) => reporte.id), 199) + 1,
-    fecha: datos.fechaHora,
-    hora: datos.hora,
-    estudiante: datos.estudiante || 'Sin estudiante',
-    curso: datos.curso || 'Sin curso',
-    tipo: datos.tipoIncidente === 'academico' ? 'Académico' : 'Conductual',
-    gravedad: datos.gravedad === 'grave' ? 'Grave' : 'Leve',
-    docente: datos.docente || 'Sin docente',
-    estado,
-    descripcion: datos.descripcion,
-  })
-  mostrarFormulario.value = false
+async function descargarAdjunto(reporte) {
+  try {
+    const { blob, nombre } = await descargarArchivoReporte(reporte.id)
+    const url = URL.createObjectURL(blob)
+    const enlace = document.createElement('a')
+
+    enlace.href = url
+    enlace.download = nombre || `reporte-${reporte.id}`
+    enlace.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    error.value = e?.message || 'No se pudo descargar el adjunto.'
+  }
+}
+
+async function guardarReporte(datos) {
+  guardando.value = true
+  error.value = ''
+  exito.value = ''
+
+  try {
+    const creado = await crearReporte(datos)
+    let avisoAdjunto = ''
+
+    if (datos.archivo) {
+      try {
+        await subirArchivoReporte(creado.id, datos.archivo)
+      } catch (e) {
+        avisoAdjunto = ` El reporte se creó, pero no se pudo adjuntar el archivo: ${
+          e?.message || 'inténtalo de nuevo desde el detalle.'
+        }`
+      }
+    }
+
+    mostrarFormulario.value = false
+    await cargarReportes()
+    exito.value = `Reporte #${creado.id} registrado.${avisoAdjunto}`
+  } catch (e) {
+    error.value = e?.message || 'No se pudo registrar el reporte.'
+  } finally {
+    guardando.value = false
+  }
+}
+
+function nuevoReporte() {
+  error.value = ''
+  exito.value = ''
+  detalleAbierto.value = null
+  mostrarFormulario.value = true
 }
 </script>
 
 <template>
   <main class="w-full text-[#242a35]">
+    <div v-if="error" role="alert" class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#fbd5d2] px-4 py-3 text-sm font-semibold text-[#8a1c14]">
+      <span>{{ error }}</span>
+      <button type="button" class="rounded-lg border border-[#8a1c14] px-3 py-1 hover:bg-white/60" @click="cargarReportes">
+        Reintentar
+      </button>
+    </div>
+    <p v-if="exito && !mostrarFormulario" role="status" class="mb-4 rounded-xl bg-[#d9f1e2] px-4 py-3 text-sm font-semibold text-[#285d3b]">
+      {{ exito }}
+    </p>
+
     <div v-if="!mostrarFormulario" class="flex flex-col gap-4">
       <header
         class="grid grid-cols-2 items-end gap-3 md:grid-cols-3 xl:grid-cols-7"
@@ -167,36 +240,31 @@ function guardarReporte(datos, estado) {
           <input
             v-model="filtros.estudiante"
             type="search"
-            list="estudiantes-disponibles"
             placeholder="Nombre del estudiante"
             class="min-h-[42px] w-full rounded-md border border-[#aeb2b8] bg-white px-2.5 py-2 text-sm text-[#242a35] focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[#3454c5]"
           />
-          <datalist id="estudiantes-disponibles">
-            <option v-for="estudiante in estudiantes" :key="estudiante" :value="estudiante" />
-          </datalist>
         </label>
 
         <label class="grid min-w-0 gap-1.5 text-xs font-semibold text-[#414752]">
-          <span>Estado</span>
+          <span>Buscar docente</span>
+          <input
+            v-model="filtros.docente"
+            type="search"
+            placeholder="Nombre del docente"
+            class="min-h-[42px] w-full rounded-md border border-[#aeb2b8] bg-white px-2.5 py-2 text-sm text-[#242a35] focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[#3454c5]"
+          />
+        </label>
+
+        <label class="grid min-w-0 gap-1.5 text-xs font-semibold text-[#414752]">
+          <span>Nivel</span>
           <select
-            v-model="filtros.estado"
+            v-model="filtros.nivel"
             class="min-h-[42px] w-full rounded-md border border-[#aeb2b8] bg-white px-2.5 py-2 text-sm text-[#242a35] focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[#3454c5]"
           >
             <option value="">Todos</option>
-            <option value="Enviado">Enviado</option>
-            <option value="Atendido">Atendido</option>
-            <option value="Borrador">Borrador</option>
+            <option value="LICEO">Liceo</option>
+            <option value="ESCUELA">Escuela</option>
           </select>
-        </label>
-
-        <label class="grid min-w-0 gap-1.5 text-xs font-semibold text-[#414752]">
-          <span>Curso</span>
-          <input
-            v-model="filtros.curso"
-            type="search"
-            placeholder="Ej. 3ro B"
-            class="min-h-[42px] w-full rounded-md border border-[#aeb2b8] bg-white px-2.5 py-2 text-sm text-[#242a35] focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[#3454c5]"
-          />
         </label>
 
         <label class="grid min-w-0 gap-1.5 text-xs font-semibold text-[#414752]">
@@ -206,20 +274,20 @@ function guardarReporte(datos, estado) {
             class="min-h-[42px] w-full rounded-md border border-[#aeb2b8] bg-white px-2.5 py-2 text-sm text-[#242a35] focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[#3454c5]"
           >
             <option value="">Todas</option>
-            <option value="Leve">Leve</option>
-            <option value="Grave">Grave</option>
+            <option value="LEVE">Leve</option>
+            <option value="GRAVE">Grave</option>
           </select>
         </label>
 
         <label class="grid min-w-0 gap-1.5 text-xs font-semibold text-[#414752]">
           <span>Tipo</span>
           <select
-            v-model="filtros.tipo"
+            v-model="filtros.categoria"
             class="min-h-[42px] w-full rounded-md border border-[#aeb2b8] bg-white px-2.5 py-2 text-sm text-[#242a35] focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[#3454c5]"
           >
             <option value="">Todos</option>
-            <option value="Conductual">Conductual</option>
-            <option value="Académico">Académico</option>
+            <option value="CONDUCTUAL">Conductual</option>
+            <option value="ACADEMICO">Académico</option>
           </select>
         </label>
 
@@ -235,7 +303,7 @@ function guardarReporte(datos, estado) {
         <button
           class="col-span-2 min-h-[42px] cursor-pointer whitespace-nowrap rounded-md border border-[#304bbc] bg-[#304bbc] px-4 text-sm font-bold text-white hover:bg-[#253d9f] md:col-span-3 xl:col-span-1"
           type="button"
-          @click="mostrarFormulario = true"
+          @click="nuevoReporte"
         >
           + Nuevo reporte
         </button>
@@ -251,88 +319,111 @@ function guardarReporte(datos, estado) {
                 <th scope="col" :class="claseEncabezado">N.º</th>
                 <th scope="col" :class="claseEncabezado">Fecha / hora</th>
                 <th scope="col" :class="claseEncabezado">Estudiante</th>
-                <th scope="col" :class="claseEncabezado">Curso</th>
+                <th scope="col" :class="claseEncabezado">Nivel</th>
                 <th scope="col" :class="claseEncabezado">Tipo</th>
                 <th scope="col" :class="claseEncabezado">Gravedad</th>
                 <th scope="col" :class="claseEncabezado">Docente</th>
-                <th scope="col" :class="claseEncabezado">Estado</th>
+                <th scope="col" :class="claseEncabezado">Registrado por</th>
                 <th scope="col" :class="claseEncabezado"><span class="sr-only">Detalle</span></th>
               </tr>
             </thead>
             <tbody>
-              <template v-for="reporte in reportesPaginados" :key="reporte.id">
-                <tr>
-                  <td
-                    :class="[
-                      claseCelda,
-                      reporte.estado === 'Enviado' ? 'border-l-4 border-l-[#d59a13]' : '',
-                    ]"
-                  >
-                    #{{ reporte.id }}
-                  </td>
-                  <td :class="claseCelda">
-                    {{ formatearFecha(reporte.fecha) }}
-                    <span v-if="reporte.hora"> · {{ reporte.hora }}</span>
-                  </td>
-                  <td :class="claseCelda">{{ reporte.estudiante }}</td>
-                  <td :class="claseCelda">{{ reporte.curso }}</td>
-                  <td :class="claseCelda">{{ reporte.tipo }}</td>
-                  <td :class="claseCelda">
-                    <span
+              <tr v-if="cargando">
+                <td colspan="9" class="border-b border-[#e1e3e7] px-6 py-6 text-center whitespace-normal text-[#777d87]">
+                  Cargando reportes…
+                </td>
+              </tr>
+              <template v-else>
+                <template v-for="reporte in reportesPaginados" :key="reporte.id">
+                  <tr>
+                    <td
                       :class="[
-                        'inline-block rounded-full px-[9px] py-1 text-xs font-bold',
-                        claseGravedad(reporte.gravedad),
+                        claseCelda,
+                        reporte.gravedad === 'GRAVE' ? 'border-l-4 border-l-[#d59a13]' : '',
                       ]"
                     >
-                      {{ reporte.gravedad }}
-                    </span>
-                  </td>
-                  <td :class="claseCelda">{{ reporte.docente }}</td>
-                  <td :class="claseCelda">
-                    <span
-                      class="inline-block rounded-full bg-[#e8eaf0] px-[9px] py-1 text-xs font-bold text-[#3e4552]"
+                      #{{ reporte.id }}
+                    </td>
+                    <td :class="claseCelda">
+                      {{ formatearFecha(reporte.fecha) }}
+                      <span v-if="reporte.hora"> · {{ reporte.hora }}</span>
+                    </td>
+                    <td :class="claseCelda">{{ reporte.estudiante || '—' }}</td>
+                    <td :class="claseCelda">{{ etiquetaNivel(reporte.nivel) }}</td>
+                    <td :class="claseCelda">{{ etiquetaCategoria(reporte.categoria) }}</td>
+                    <td :class="claseCelda">
+                      <span
+                        :class="[
+                          'inline-block rounded-full px-[9px] py-1 text-xs font-bold',
+                          claseGravedad(reporte.gravedad),
+                        ]"
+                      >
+                        {{ etiquetaGravedad(reporte.gravedad) }}
+                      </span>
+                    </td>
+                    <td :class="claseCelda">{{ reporte.docente || '—' }}</td>
+                    <td :class="claseCelda">{{ reporte.usuario || '—' }}</td>
+                    <td :class="claseCelda">
+                      <button
+                        class="cursor-pointer border-0 bg-transparent text-[#304bbc] underline"
+                        type="button"
+                        :aria-expanded="detalleAbierto === reporte.id"
+                        @click="detalleAbierto = detalleAbierto === reporte.id ? null : reporte.id"
+                      >
+                        {{ detalleAbierto === reporte.id ? 'Ocultar' : 'Ver' }}
+                      </button>
+                    </td>
+                  </tr>
+                  <tr v-if="detalleAbierto === reporte.id">
+                    <td
+                      colspan="9"
+                      class="whitespace-normal border-b border-[#e1e3e7] bg-[#f8f9fb] px-[10px] py-[11px] text-[#59606c]"
                     >
-                      {{ reporte.estado }}
-                    </span>
-                  </td>
-                  <td :class="claseCelda">
-                    <button
-                      class="cursor-pointer border-0 bg-transparent text-[#304bbc] underline"
-                      type="button"
-                      :aria-expanded="detalleAbierto === reporte.id"
-                      @click="detalleAbierto = detalleAbierto === reporte.id ? null : reporte.id"
-                    >
-                      {{ detalleAbierto === reporte.id ? 'Ocultar' : 'Ver' }}
-                    </button>
-                  </td>
-                </tr>
-                <tr v-if="detalleAbierto === reporte.id">
+                      <div class="grid gap-2 text-[13px] sm:grid-cols-2">
+                        <p class="m-0"><strong>Incidencia:</strong> {{ reporte.incidencia || '—' }}</p>
+                        <p class="m-0"><strong>Defensa:</strong> {{ reporte.defensa || '—' }}</p>
+                        <p class="m-0">
+                          <strong>Artículo:</strong> {{ reporte.articulo || '—' }}
+                          <span class="mx-1 text-[#aeb2b8]">·</span>
+                          <strong>Reglamento:</strong> {{ reporte.reglamento || '—' }}
+                        </p>
+                        <p v-if="reporte.archivoNombre" class="m-0">
+                          <strong>Adjunto:</strong>
+                          <button
+                            type="button"
+                            class="cursor-pointer border-0 bg-transparent text-[#304bbc] underline"
+                            @click="descargarAdjunto(reporte)"
+                          >
+                            {{ reporte.archivoNombre }}
+                          </button>
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+                <tr v-if="!reportesFiltrados.length">
                   <td
+                    class="border-b border-[#e1e3e7] px-6 py-6 text-center whitespace-normal text-[#777d87]"
                     colspan="9"
-                    class="whitespace-normal border-b border-[#e1e3e7] bg-[#f8f9fb] px-[10px] py-[11px] text-[#59606c]"
                   >
-                    <strong>Descripción:</strong> {{ reporte.descripcion }}
+                    No hay reportes que coincidan con los filtros.
                   </td>
                 </tr>
               </template>
-              <tr v-if="reportesPaginados.length === 0">
-                <td
-                  class="border-b border-[#e1e3e7] px-6 py-6 text-center whitespace-normal text-[#777d87]"
-                  colspan="9"
-                >
-                  No hay reportes que coincidan con los filtros.
-                </td>
-              </tr>
             </tbody>
           </table>
         </div>
 
         <footer class="mt-3 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-          <p class="m-0 text-xs text-[#777d87]">Mostrando {{ reportesFiltrados.length }} reportes</p>
+          <p class="m-0 text-xs text-[#777d87]">
+            Mostrando {{ reportesFiltrados.length }}
+            {{ reportesFiltrados.length === 1 ? 'reporte' : 'reportes' }}
+          </p>
           <div class="flex flex-wrap items-center gap-3">
             <button
               type="button"
               class="min-h-8 cursor-pointer rounded-[5px] border border-[#aeb2b8] bg-white px-2.5 text-xs text-[#414752] disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="cargando || !reportesFiltrados.length"
               @click="exportarReportes"
             >
               Exportar CSV
@@ -366,9 +457,9 @@ function guardarReporte(datos, estado) {
         <h1 class="m-0 text-[22px] font-bold">Nuevo reporte</h1>
       </header>
       <ReporteIncidente
+        :guardando="guardando"
         @cancel="mostrarFormulario = false"
-        @save-draft="guardarReporte($event, 'Borrador')"
-        @submit="guardarReporte($event, 'Enviado')"
+        @submit="guardarReporte"
       />
     </section>
   </main>
