@@ -123,7 +123,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 Al arrancar, la API:
 
 1. Crea las extensiones `unaccent` y `pg_trgm`.
-2. Crea las 16 tablas si no existen.
+2. Crea las 17 tablas si no existen.
 3. Carga la semilla de grados y bloques horarios si falta.
 4. Imprime la IP local y las URLs de Swagger.
 
@@ -165,7 +165,7 @@ ServicioComunitarioSM-2026/
 │   │   │   ├── paginacion.py      # Envelope {items, total, offset, size}
 │   │   │   └── semilla.py         # 11 grados y 10 bloques institucionales
 │   │   ├── models/
-│   │   │   ├── db.py              # 16 tablas SQLModel
+│   │   │   ├── db.py              # 17 tablas SQLModel
 │   │   │   ├── enums.py           # Enums de la API
 │   │   │   ├── schemas.py         # Contratos de entrada/salida
 │   │   │   └── session.py         # Engine, sesión y creación del esquema
@@ -244,7 +244,8 @@ El token incluye `sub` (id del usuario), `rol`, `nivel`, `jti` (UUID único por 
   En todos ellos el frontend debe limpiar la sesión local.
 - `403`: token válido, pero sin permisos o sin acceso al nivel solicitado.
 - `429`: demasiados intentos de login. Incluye `Retry-After` en segundos.
-- `POST /api/auth/logout` inserta el `jti` en `tokens_revocados` y registra `CIERRE DE SESIÓN` en la misma transacción. El token usado deja de servir de inmediato; otros tokens del mismo usuario siguen válidos. Es idempotente: un segundo logout con el mismo token devuelve `204`.
+- `POST /api/auth/logout` inserta el `jti` en `tokens_revocados` y registra `CIERRE DE SESIÓN` en la misma transacción. El token usado deja de servir de inmediato; otros tokens del mismo usuario siguen válidos. Un segundo logout con el mismo token devuelve `204` **solo si el token sigue vigente**; si expiró o cambió la clave/rol, devuelve `401` y el cliente debe limpiar la sesión.
+- Los JWT emitidos antes de la revocación no tienen `jti` ni `ver`: dejan de valer al desplegar y todos los usuarios deben iniciar sesión de nuevo.
 - Cambiar clave (propia o por admin), dar de baja un usuario o transferir el rol de administrador incrementa `usuarios.version_tokens` y revoca **todas** las sesiones anteriores de los usuarios afectados.
 - La tabla `tokens_revocados` se limpia al arrancar y, de forma perezosa, máximo una vez por hora desde login/logout. Se borran las filas con `expira_en < ahora_caracas() - TOKENS_REVOCADOS_RETENCION_HORAS`.
 - No hay refresh token. El límite de login es en memoria por proceso: con múltiples workers debe moverse a Redis o al proxy.
@@ -427,7 +428,7 @@ Ejemplo de respuesta de `/api/auth/me`:
 | GET | `/api/usuarios/` | Admin | Lista usuarios activos. Filtros: `nivel`, `rol` |
 | POST | `/api/usuarios/` | Admin | Crea coordinador o secretaria. `nivel` es obligatorio. Devuelve `201` |
 | GET | `/api/usuarios/{usuario_id}` | Admin | Detalle de un usuario |
-| PUT | `/api/usuarios/{usuario_id}` | Admin | Actualiza `nombre`, `rol` y/o `nivel` |
+| PUT | `/api/usuarios/{usuario_id}` | Admin | Actualiza `nombre`, `rol`, `nivel` y/o `clave`. No aplica al administrador (se gestiona por transferencia) |
 | DELETE | `/api/usuarios/{usuario_id}` | Admin | Baja lógica. No permite dar de baja al administrador. Devuelve `204` |
 | PUT | `/api/usuarios/me/clave` | Autenticado | Cambia la clave propia. Body: `clave_actual`, `clave_nueva`. Devuelve `204` |
 | POST | `/api/usuarios/{usuario_id}/transferir-admin` | Admin | Transfiere el rol de administrador y da de baja al administrador actual |
@@ -449,6 +450,7 @@ Reglas:
 - `nivel` es obligatorio para coordinador y secretaria.
 - El nombre de usuario es único entre los activos.
 - La clave debe tener entre 8 y 72 caracteres.
+- El reset de clave por admin (`PUT /api/usuarios/{id}` con `clave`) revoca todas las sesiones de ese usuario; no se puede aplicar a otra cuenta de administrador.
 - No se puede dar de baja al administrador: primero hay que transferir el rol.
 
 ### 6.4 Estudiantes (`/api/estudiantes`)
@@ -1121,7 +1123,7 @@ Si la base viene de una versión anterior del esquema, `create_all()` no agrega 
 .\.venv\Scripts\python.exe -m scripts.cargar_datos_prueba --recrear-tablas
 ```
 
-Ese flag hace `drop_all()` antes de crear las tablas y cargar; borra todos los datos de las 16 tablas.
+Ese flag hace `drop_all()` antes de crear las tablas y cargar; borra todos los datos de las 17 tablas.
 
 Usuarios creados por el cargador (todos con la clave de prueba `Prueba123*`, sobreescribible con `--clave` o la variable `CLAVE_PRUEBA`):
 
@@ -1220,7 +1222,7 @@ headers: {
 }
 ```
 
-Para cerrar sesión (botón manual **o** temporizador de inactividad), llama `POST /api/auth/logout` con el Bearer token y después borra el token local. Si solo borras el token local, el backend no se entera y un token robado sigue válido hasta `exp`. Cualquier `401` (expirado, revocado, clave cambiada, baja) debe limpiar la sesión en el cliente. Las notas detalladas para `frontend-dev` están en [`docs/ENTREGA_FRONTEND.md`](docs/ENTREGA_FRONTEND.md), sección 11.
+Para cerrar sesión (botón manual **o** temporizador de inactividad), llama `POST /api/auth/logout` con el Bearer token y después borra el token local. Si solo borras el token local, el backend no se entera y un token robado sigue válido hasta `exp`. Cualquier `401` (expirado, revocado, clave cambiada, baja o admin transferido) debe limpiar la sesión en el cliente. Las notas detalladas para `frontend-dev` están en [`docs/ENTREGA_FRONTEND.md`](docs/ENTREGA_FRONTEND.md), sección 11.
 
 ### 10.3 Ejemplo de listado paginado
 

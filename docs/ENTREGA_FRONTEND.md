@@ -15,11 +15,12 @@
 |---|---|---|
 | `POST /api/auth/login` | body `application/x-www-form-urlencoded`: `username` (nombre del Usuario), `password` | Devuelve `200 {access_token, token_type: "bearer"}`. `401` si credenciales incorrectas; `429` si se superó el límite de intentos, con header `Retry-After`. |
 | `GET /api/auth/me` | — | Devuelve el `PeticionUsuario` del usuario del token. |
-| `POST /api/auth/logout` | Bearer token | `204`. Revoca el `jti` del token usado y registra `CIERRE DE SESIÓN`. El token deja de servir de inmediato; el frontend **igual debe borrarlo de localStorage**. Llamarlo dos veces con el mismo token también devuelve `204`. |
+| `POST /api/auth/logout` | Bearer token | `204`. Revoca el `jti` del token usado y registra `CIERRE DE SESIÓN`. El token deja de servir de inmediato; el frontend **igual debe borrarlo de localStorage**. Llamarlo dos veces con el mismo token devuelve `204` solo si sigue vigente; si expiró o cambió la clave/rol, devuelve `401`. |
 
 - El JWT es HS256, firmado con `SECRET_KEY`, expira en `ACCESS_TOKEN_EXPIRE_MINUTES` (defecto 360 min).
 - Claims del token: `sub` (string con el id del usuario), `rol`, `nivel` (nulo si no hay), `jti` (UUID de la emisión), `ver` (versión de tokens del usuario), `exp` (epoch seconds).
 - `401` posibles: `"La sesión ha expirado. Inicia sesión nuevamente."`, `"No se pudieron validar las credenciales (token inválido)"`, `"La sesión fue cerrada. Inicia sesión nuevamente."` y `"La clave o los permisos del usuario cambiaron. Inicia sesión nuevamente."`. En los cuatro casos: limpiar sesión y redirigir al login.
+- Los JWT emitidos antes de la revocación no incluyen `jti` ni `ver`: dejan de valer al desplegar. Hay que forzar el login de todos los usuarios.
 - Login con demasiados intentos → `429` con `detail` en español y header `Retry-After` (segundos). Mostrar ese tiempo al usuario.
 - `Content-Type` de todos los POST: `application/json` (excepto login `x-www-form-urlencoded` y uploads multipart).
 - Login correcto: auditoría `modulo: "USUARIOS"`, `accion: "INICIO DE SESIÓN"`.
@@ -101,7 +102,7 @@ Filtros: `nivel`, `rol`, `offset`, `size`.
 
 **`GET /api/usuarios/{id}`** → `PeticionUsuario`.
 
-**`PUT /api/usuarios/{id}`** — body `ActualizarUsuario = { nombre?, rol?, nivel?, clave? }` (opcionales; `nombre` 1-100, `clave` 8-72). Si el admin envía `clave`, se hashea y **todas las sesiones de ese usuario quedan revocadas**: deberá iniciar sesión con la clave nueva. → `200 PeticionUsuario`. 400: nombre duplicado, cambio de rol sin nivel, intento de demote a admin. La clave nunca aparece en la auditoría ni en la respuesta.
+**`PUT /api/usuarios/{id}`** — body `ActualizarUsuario = { nombre?, rol?, nivel?, clave? }` (opcionales; `nombre` 1-100, `clave` 8-72). Si el admin envía `clave`, se hashea y **todas las sesiones de ese usuario quedan revocadas**: deberá iniciar sesión con la clave nueva. → `200 PeticionUsuario`. 400: nombre duplicado, cambio de rol sin nivel, intento de demote a admin. El reset no aplica a cuentas de administrador (se gestionan por transferencia de rol). La clave nunca aparece en la auditoría ni en la respuesta.
 
 **`DELETE /api/usuarios/{id}`** → `204`. 400: no se puede dar de baja a admin (transfiere rol antes).
 
@@ -527,6 +528,7 @@ Consulte las columnas `id_*`, `periodo_lectivo`, `fecha_*` y los campos `*_apoyo
 ### 11.1 Sesión, logout y expiración del JWT
 
 - Botón **Cerrar sesión**: llamar `POST /api/auth/logout` con el Bearer token **antes** de borrar `localStorage.token`. El backend revoca el `jti` y audita el cierre; si solo se borra el token local no queda auditoría **ni revocación**.
+- Un segundo logout con el mismo token devuelve `204` solo mientras siga vigente; si expiró o cambió la clave/rol, devuelve `401`. En ese caso limpia la sesión local sin reintentar.
 - **Inactividad:** el temporizador (o `visibilitychange/focus`) debe ejecutar el **mismo** `POST /api/auth/logout` antes de limpiar `localStorage` y el estado de `auth.js`. El frontend decide **cuándo** cerrar; el backend decide que el token **ya no sirve**. Sin esa llamada, un token robado sigue válido hasta `exp`.
 - El `exp` del token viaja en el claim `exp` (epoch seconds). Comparar `exp * 1000 <= Date.now()` para detectar expiración local. `sincronizarSesion()` de `auth.js` solo lo revisa al cargar el módulo, así que hace falta un temporizador.
 - Cualquier `401` (expirado, inválido, cerrado, clave cambiada, usuario dado de baja o admin transferido) debe limpiar token y estado reactivo y redirigir al login. No hace falta distinguirlos en la UI: todos terminan en la misma pantalla.
