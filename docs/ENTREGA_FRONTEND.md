@@ -174,7 +174,7 @@ Recomendación de campos:
 - `cedula_estudiantil`: única entre activos (validar en cliente antes de POST).
 - `fecha_nacimiento`: display "Edad: N años".
 - `periodo_lectivo`: **solo-lectura** (apoyo).
-- `fecha_egreso`: aparece en la lectura (`PeticionEstudiante`); no se acepta en POST/PUT y solo lo escribe el backend durante el cierre de año.
+- `fecha_egreso`: aparece en la lectura (`PeticionEstudiante`); no se acepta en POST/PUT y solo lo escribe el backend durante el cierre de año. Un egresado sale de listados/búsquedas y de pases, reportes y horarios, pero su ficha sigue consultable por `id`.
 
 ---
 
@@ -232,6 +232,7 @@ Orden: `dia_semana`, luego `bloque.orden`.
 **`DELETE /api/horarios/registros/{id}`** → `204`.
 **`GET /api/horarios/?id_estudiante=..&fecha=YYYY-MM-DD&id_bloque=?|hora=?`** → `PeticionConsultaHorario = { encontrado, id_horario?, id_bloque?, id_asignatura?, id_docente?, asignatura?, docente?, bloque?, hora_inicio?, hora_fin? }`.
 - 400 si no se pasa `id_bloque` ni `hora`.
+- Se aceptan los dos años del periodo: con `periodo_lectivo=2026`, una fecha de 2026 o 2027 es válida. Un estudiante egresado devuelve `encontrado=false`.
 
 Validaciones de negocio (código):
 - Solo secciones de LICEO.
@@ -398,7 +399,7 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
 
 - **Subida** (`POST /api/pases/{id}/archivo`, `POST /api/reportes/{id}/archivo`):
   - Campo multipart: `archivo` (campo pela).
-  - Validación (400): extensión ∉ {jpg, jpeg, png, webp}; MIME ∉ {image/jpeg, image/jpg, image/png, image/webp}; tamaño > `ARCHIVOS_MAX_BYTES` (5 MB).
+  - Validación (400): extensión ∉ {jpg, jpeg, png, webp, pdf}; firma binaria no reconocida o distinta de la extensión; tamaño > `ARCHIVOS_MAX_BYTES` (5 MB). El MIME se calcula desde los bytes, no desde el `Content-Type` enviado.
   - Nombre base sanitizado (sin nulos/dirs/`..`), ≤100 chars y legible: `_` → espacio y `ano`/`anio` → `año`. Ejemplo: `evidencia_anio_2026.png` → `evidencia año 2026.png`. Es el `archivo_nombre` que se devuelve y se usa al descargar.
   - Ruta relativa generada: `{etiqueta}/{pases|reportes}/{nivel_lower}/{slug_grado}/{letra_upper}/estudiante-{id}/{id_registro}_{uuid8}.{ext}` (slugs: 1→`1er_grado`, 7→`1er_ano`, ...). La etiqueta del periodo activo `2026` es `2026-2027`.
   - `archivo_url` en la respuesta = esa ruta relativa; también `archivo_mime`, `archivo_tamano` (bytes), `archivo_hash` (SHA-256 hex), `archivo_subido_por` (id del usuario), `archivo_fecha` (Caracas).
