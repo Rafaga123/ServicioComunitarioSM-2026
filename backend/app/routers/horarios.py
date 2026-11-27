@@ -477,10 +477,15 @@ def consultar_horario_estudiante(
   estudiante = _obtener_activo(
     session, Estudiantes, id_estudiante, "Estudiante no encontrado"
   )
+  if estudiante.fecha_egreso is not None:
+    return PeticionConsultaHorario(encontrado=False)
+
   seccion = estudiante.seccion
   validar_acceso_nivel(usuario_actual, seccion.grado.nivel)
 
-  if fecha.year != seccion.periodo_lectivo:
+  # El periodo `2026` se etiqueta `2026-2027`: enero de 2027 sigue dentro del
+  # mismo año lectivo. Solo se rechazan años fuera de esa ventana.
+  if fecha.year not in (seccion.periodo_lectivo, seccion.periodo_lectivo + 1):
     return PeticionConsultaHorario(encontrado=False)
 
   dia_semana = fecha.isoweekday()
