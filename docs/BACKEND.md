@@ -745,6 +745,7 @@ Acceso: `ADMINISTRADOR`, `COORDINADOR` y `SECRETARIA`. Los operadores quedan lim
 | --- | --- | --- |
 | GET | `/api/pases/` | Lista pases activos. Filtros: `id_estudiante`, `id_seccion`, `tipo`, `anio`, `mes`, `nivel` |
 | GET | `/api/pases/{pase_id}` | Detalle. `403` si es de otro nivel |
+| GET | `/api/pases/{pase_id}/pdf` | Genera un PDF básico del pase (`application/pdf`). `404` si no existe, `403` si es de otro nivel |
 | POST | `/api/pases/` | Crea pase. Devuelve `201` |
 | PUT | `/api/pases/{pase_id}` | Actualiza. Revalida la cuota y el autorizador |
 | DELETE | `/api/pases/{pase_id}` | Baja lógica. Devuelve `204` |
@@ -753,6 +754,8 @@ Acceso: `ADMINISTRADOR`, `COORDINADOR` y `SECRETARIA`. Los operadores quedan lim
 | DELETE | `/api/pases/{pase_id}/archivo` | Desvincula el adjunto; el archivo físico se conserva |
 
 `archivo_url` **no se acepta** en POST/PUT: los adjuntos solo se gestionan con estos tres endpoints.
+
+El PDF de `GET /api/pases/{pase_id}/pdf` usa el membrete y los estilos de los listados, con una tabla campo/detalle **provisional**; la ruta y el tipo MIME no cambiarán cuando se ajuste el formato definitivo. Cada generación registra auditoría `PASES` / `GENERAR`.
 
 Crear pase:
 
@@ -788,6 +791,7 @@ Acceso: `ADMINISTRADOR`, `COORDINADOR` y `SECRETARIA`. Los operadores quedan lim
 | --- | --- | --- |
 | GET | `/api/reportes/` | Lista reportes activos. Filtros: `id_estudiante`, `id_seccion`, `id_docente`, `anio`, `mes`, `categoria`, `nivel_gravedad`, `nivel` |
 | GET | `/api/reportes/{reporte_id}` | Detalle. `403` si es de otro nivel |
+| GET | `/api/reportes/{reporte_id}/pdf` | Genera un PDF básico del reporte (`application/pdf`). `404` si no existe, `403` si es de otro nivel |
 | POST | `/api/reportes/` | Crea reporte. Devuelve `201` |
 | PUT | `/api/reportes/{reporte_id}` | Actualiza |
 | DELETE | `/api/reportes/{reporte_id}` | Baja lógica. Devuelve `204` |
@@ -796,6 +800,8 @@ Acceso: `ADMINISTRADOR`, `COORDINADOR` y `SECRETARIA`. Los operadores quedan lim
 | DELETE | `/api/reportes/{reporte_id}/archivo` | Desvincula el adjunto; el archivo físico se conserva |
 
 Igual que en pases, `archivo_url` **no se acepta** en POST/PUT.
+
+El PDF de `GET /api/reportes/{reporte_id}/pdf` usa el mismo formato campo/detalle provisional que el de pases (membrete y estilos de los listados). Cada generación registra auditoría `REPORTES` / `GENERAR`.
 
 Crear reporte:
 

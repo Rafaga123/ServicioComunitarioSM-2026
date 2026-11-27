@@ -1,6 +1,6 @@
 # Handoff: API completa del backend para el Frontend
 
-> Actualizado el 27-11-2026 (`backend-dev`, Fases 1–6 completadas: 47 paths / 84 operaciones; ajustes locales sin push)
+> Actualizado el 27-11-2026 (`backend-dev`, Fases 1–6 completadas: 49 paths / 86 operaciones; ajustes locales sin push)
 > Base: `backend/` (FastAPI). URL base: `import.meta.env.VITE_API_URL ?? "http://localhost:8000/api"`
 > Auth: `Authorization: Bearer <JWT>` (Bearer en header, CORS: `allow_origins=["*"]`, `allow_credentials=False`, `expose_headers=["Retry-After"]`). Toda respuesta lleva `Cache-Control: private, no-store`: no guardar respuestas de la API en cachés compartidas ni reutilizar PDFs descargados sin volver a pedirlos al backend.
 > Fechas de entrada: ISO **sin zona horaria**; el backend las normaliza a Caracas (America/Caracas) por su cuenta.
@@ -314,6 +314,7 @@ Recomendación: mostrar un summary post-cierre con los 7 campos.
 
 - `GET /api/pases/` → paginado; filtros `id_estudiante`, `id_seccion`, `tipo`, `anio`, `mes` (1-12), `periodo_lectivo`, `nivel`; orden `fecha desc`.
 - `GET /api/pases/{id}` → `PeticionPase`.
+- `GET /api/pases/{id}/pdf` → `application/pdf` con `Content-Disposition: attachment; filename="pase-{id}.pdf"`. Formato **básico provisional**: tabla campo/detalle con el membrete de los listados; se ajustará el diseño después, sin cambiar ruta ni MIME. `404` si el pase no existe; `403` si es de otro nivel. Registra auditoría `GENERAR` en `PASES`. Llámalo directamente (sin caché: ver nota global de `Cache-Control`).
 - `POST /api/pases/` — body `CrearPase = { id_estudiante, id_docente?, id_asignatura?, tipo?: SALIDA|ENTRADA (defecto ENTRADA), motivo: str, fecha: datetime, autorizador?: str }` → `201 PeticionPase`. No acepta `archivo_url`.
   - Validaciones: nivel del estudiante; docente pertenece al nivel del estudiante; asignatura pertenece al grado del estudiante; docente vinculado a la asignatura; el **cuarto pase activo del mes del mismo tipo requiere autorizador** (400).
 - `PUT /api/pases/{id}` — body `ActualizacionPase = { id_docente?, id_asignatura?, tipo?, motivo?, fecha?, autorizador? }` → `200 PeticionPase`. Tampoco acepta `archivo_url`.
@@ -333,6 +334,7 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
 
 - `GET /api/reportes/` → paginado; filtros `id_estudiante`, `id_seccion`, `id_docente`, `anio`, `mes` (1-12), `periodo_lectivo`, `categoria: CONDUCTUAL|ACADEMICO`, `nivel_gravedad: LEVE|GRAVE`, `nivel`; orden `fecha desc`.
 - `GET /api/reportes/{id}` → `PeticionReporte`.
+- `GET /api/reportes/{id}/pdf` → `application/pdf` con `Content-Disposition: attachment; filename="reporte-{id}.pdf"`. Mismo formato básico provisional que el PDF de pases (campo/detalle + membrete); el diseño se ajustará después sin cambiar ruta ni MIME. `404` si el reporte no existe; `403` si es de otro nivel. Registra auditoría `GENERAR` en `REPORTES`. Es el endpoint que habilita el botón "Exportar PDF" de `ReporteFicha.vue`.
 - `POST /api/reportes/` — body `CrearReporte = { id_estudiante, id_docente?, id_asignatura?, articulo: int (≥1), reglamento: LOPNNA|LOE|CBV|NC, incidencia: str, defensa: str, nivel_gravedad?: LEVE|GRAVE (defecto LEVE), categoria: CONDUCTUAL|ACADEMICO, fecha: datetime }` → `201 PeticionReporte`. No acepta `archivo_url`.
   - `id_asignatura` es opcional y registra la materia durante la incidencia: debe estar activa y ser del grado del estudiante. Si además se envía `id_docente`, debe estar vinculado a esa asignatura. El frontend actual puede seguir enviando solo `id_docente`; el campo nuevo es retrocompatible.
 - `PUT /api/reportes/{id}` — body `ActualizarReporte = { id_docente?, id_asignatura?, articulo?, reglamento?, incidencia?, defensa?, nivel_gravedad?, categoria?, fecha? }` → `200 PeticionReporte`. Tampoco acepta `archivo_url`. Enviar `id_asignatura: null` lo desvincula.
