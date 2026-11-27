@@ -64,6 +64,9 @@ class ActualizarUsuario(SQLModel):
   nombre: str | None = Field(default=None, min_length=1, max_length=100)
   rol: en.RolesAsignables | None = None
   nivel: en.NivelEducativo | None = None
+  # Reset de clave por parte del administrador. Opcional: si no viene,
+  # el PUT sigue actualizando solo nombre/rol/nivel como siempre.
+  clave: str | None = Field(default=None, min_length=8, max_length=72)
 
 
 class CambiarClave(SQLModel):

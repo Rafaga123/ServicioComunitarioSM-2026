@@ -55,7 +55,8 @@ Estado al **2026-11-26**, rama `backend-dev`, Tareas 1, 2 y 3
       export completo); solo catálogos, horarios y 3 usuarios.
 - [ ] Frontend: reportes/dashboard con datos mock.
 - [ ] Frontend: el logout del cliente aún no llama a `POST /api/auth/logout`
-      (el backend ya registra la auditoría; el cliente debe borrar el token local).
+      (el backend revoca el `jti` y registra la auditoría; el cliente debe
+      borrar el token local).
 
 ## 4. Ya completado y subido
 
