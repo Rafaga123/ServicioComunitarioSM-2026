@@ -1,3 +1,5 @@
+"""Gestiona reportes, sus adjuntos y el filtro por nivel educativo."""
+
 from pathlib import Path
 
 from fastapi import (
@@ -82,7 +84,11 @@ def _obtener_reporte_activo(session: Session, reporte_id: int) -> Reportes:
 def _obtener_estudiante_activo(session: Session, estudiante_id: int) -> Estudiantes:
   estudiante = session.get(Estudiantes, estudiante_id)
 
-  if not estudiante or estudiante.fecha_eliminacion is not None:
+  if (
+    not estudiante
+    or estudiante.fecha_eliminacion is not None
+    or estudiante.fecha_egreso is not None
+  ):
     raise HTTPException(
       status_code=status.HTTP_404_NOT_FOUND, detail="Estudiante no encontrado"
     )
@@ -164,6 +170,7 @@ def listar_reportes(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_personal),
 ):
+  """Devuelve una página de reportes activos."""
   consulta = filtro_activos(select(Reportes), Reportes)
   consulta = consulta.join(Estudiantes, Reportes.id_estudiante == Estudiantes.id)
   consulta = consulta.join(Secciones, Estudiantes.id_seccion == Secciones.id)
@@ -205,6 +212,7 @@ def obtener_reporte(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_personal),
 ):
+  """Devuelve un reporte activo por su identificador."""
   reporte = _obtener_reporte_activo(session, reporte_id)
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(reporte.estudiante))
 
@@ -217,6 +225,7 @@ def registrar_reporte(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_personal),
 ):
+  """Registra un reporte disciplinario."""
   estudiante = _obtener_estudiante_activo(session, reporte_in.id_estudiante)
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(estudiante))
   _validar_docente(session, estudiante, reporte_in.id_docente)
@@ -259,6 +268,7 @@ def actualizar_reporte(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_personal),
 ):
+  """Actualiza un reporte activo."""
   reporte_db = _obtener_reporte_activo(session, reporte_id)
   estudiante = reporte_db.estudiante
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(estudiante))
@@ -302,6 +312,7 @@ def eliminar_reporte(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_personal),
 ) -> None:
+  """Marca un reporte como eliminado."""
   reporte_db = _obtener_reporte_activo(session, reporte_id)
   estudiante = reporte_db.estudiante
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(estudiante))
@@ -336,6 +347,7 @@ def subir_reporte_archivo(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_personal),
 ):
+  """Guarda el archivo adjunto de un reporte."""
   reporte = _obtener_reporte_activo(session, reporte_id)
   estudiante = reporte.estudiante
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(estudiante))
@@ -356,6 +368,7 @@ def subir_reporte_archivo(
     reporte.id,
     extension,
   )
+  # Igual que en pases: un commit fallido deja el archivo sin metadatos.
   guardar_archivo(ruta_relativa, contenido)
   registrar_meta_archivo(
     reporte, ruta_relativa, nombre_base, mime, contenido, usuario_actual.id
@@ -387,6 +400,7 @@ def descargar_reporte_archivo(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_personal),
 ):
+  """Devuelve el archivo adjunto de un reporte."""
   reporte = _obtener_reporte_activo(session, reporte_id)
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(reporte.estudiante))
 
@@ -419,6 +433,7 @@ def quitar_reporte_archivo(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_personal),
 ) -> None:
+  """Elimina el archivo adjunto de un reporte."""
   reporte = _obtener_reporte_activo(session, reporte_id)
   estudiante = reporte.estudiante
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(estudiante))

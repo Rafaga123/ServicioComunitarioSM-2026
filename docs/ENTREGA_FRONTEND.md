@@ -2,7 +2,7 @@
 
 > Actualizado el 24-11-2026 (`backend-dev`, Fases 1–6 completadas: 47 paths / 84 operaciones; aún sin push)
 > Base: `backend/` (FastAPI). URL base: `import.meta.env.VITE_API_URL ?? "http://localhost:8000/api"`
-> Auth: `Authorization: Bearer <JWT>` (Bearer en header, CORS: `allow_origins=["*"]`, `allow_credentials=False`).
+> Auth: `Authorization: Bearer <JWT>` (Bearer en header, CORS: `allow_origins=["*"]`, `allow_credentials=False`). Toda respuesta lleva `Cache-Control: private, no-store`: no guardar respuestas de la API en cachés compartidas ni reutilizar PDFs descargados sin volver a pedirlos al backend.
 > Fechas de entrada: ISO **sin zona horaria**; el backend las normaliza a Caracas (America/Caracas) por su cuenta.
 
 ---
@@ -174,7 +174,7 @@ Recomendación de campos:
 - `cedula_estudiantil`: única entre activos (validar en cliente antes de POST).
 - `fecha_nacimiento`: display "Edad: N años".
 - `periodo_lectivo`: **solo-lectura** (apoyo).
-- `fecha_egreso`: aparece en la lectura (`PeticionEstudiante`); no se acepta en POST/PUT y solo lo escribe el backend durante el cierre de año.
+- `fecha_egreso`: aparece en la lectura (`PeticionEstudiante`); no se acepta en POST/PUT y solo lo escribe el backend durante el cierre de año. Un egresado sale de listados/búsquedas y de pases, reportes y horarios, pero su ficha sigue consultable por `id`.
 
 ---
 
@@ -232,6 +232,7 @@ Orden: `dia_semana`, luego `bloque.orden`.
 **`DELETE /api/horarios/registros/{id}`** → `204`.
 **`GET /api/horarios/?id_estudiante=..&fecha=YYYY-MM-DD&id_bloque=?|hora=?`** → `PeticionConsultaHorario = { encontrado, id_horario?, id_bloque?, id_asignatura?, id_docente?, asignatura?, docente?, bloque?, hora_inicio?, hora_fin? }`.
 - 400 si no se pasa `id_bloque` ni `hora`.
+- Se aceptan los dos años del periodo: con `periodo_lectivo=2026`, una fecha de 2026 o 2027 es válida. Un estudiante egresado devuelve `encontrado=false`.
 
 Validaciones de negocio (código):
 - Solo secciones de LICEO.
@@ -358,7 +359,7 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
     - Horarios: `{ "id_seccion": 10 }` de LICEO.
   - `PeticionDocumentoGenerado = { id?, tipo, periodo_lectivo?, nivel?, id_grado?, id_seccion?, nombre_archivo, ruta_relativa, hash, tamano, mime, fecha_generacion, generado_por?, grado_numero?, grado_nombre? }`.
   - El frontend usa el `id` devuelto para descargar; no envía `nombre_archivo`, `ruta_relativa`, `hash` ni `tamano`, y no usa `ruta_relativa` como URL.
-  - Duplicados: si el servidor tiene `REUTILIZAR_DOCUMENTOS_IGUALES=True`, una petición repetida con los mismos datos devuelve el `id` del PDF ya generado (sigue siendo `201`, sin crear archivo). Si los datos cambiaron, devuelve un `id` nuevo con sufijo `_v2`, `_v3`, …. Con el flag en `False` (default), siempre se crea un documento nuevo. El frontend debe usar siempre el `id` de la respuesta, sin asumir que será distinto.
+  - Duplicados: si el servidor tiene `REUTILIZAR_DOCUMENTOS_IGUALES=True`, una petición repetida con los mismos datos devuelve el `id` del PDF ya generado (sigue siendo `201`, sin crear archivo) y registra auditoría `REUTILIZAR`. Si los datos cambiaron, devuelve un `id` nuevo con sufijo `_v2`, `_v3`, …. Con el flag en `False` (default), siempre se crea un documento nuevo. El frontend debe usar siempre el `id` de la respuesta, sin asumir que será distinto.
 - `GET /api/listados/documentos` (autenticado, según nivel) → paginado de `PeticionDocumentoGenerado`; filtros `tipo`, `periodo_lectivo`, `nivel`, `id_grado`, `id_seccion`. El operador solo ve su nivel; el admin ve ambos. Un operador que fuerce otro `?nivel=` recibe `403`.
 - `GET /api/listados/documentos/paquete?tipo&periodo_lectivo` (admin) → `application/zip`, `Content-Disposition: attachment; filename="listados.zip"` con todos los PDFs de ese tipo+periodo.
 - `GET /api/listados/documentos/{documento_id}/archivo` → `FileResponse` PDF (`attachment`). El frontend debe llamarlo con el `id`; `404` si no existe, está dado de baja, la ruta es inválida o el archivo no está en disco. El nivel se valida también para documentos antiguos con `nivel` nulo.
@@ -398,7 +399,7 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
 
 - **Subida** (`POST /api/pases/{id}/archivo`, `POST /api/reportes/{id}/archivo`):
   - Campo multipart: `archivo` (campo pela).
-  - Validación (400): extensión ∉ {jpg, jpeg, png, webp}; MIME ∉ {image/jpeg, image/jpg, image/png, image/webp}; tamaño > `ARCHIVOS_MAX_BYTES` (5 MB).
+  - Validación (400): extensión ∉ {jpg, jpeg, png, webp, pdf}; firma binaria no reconocida o distinta de la extensión; tamaño > `ARCHIVOS_MAX_BYTES` (5 MB). El MIME se calcula desde los bytes, no desde el `Content-Type` enviado.
   - Nombre base sanitizado (sin nulos/dirs/`..`), ≤100 chars y legible: `_` → espacio y `ano`/`anio` → `año`. Ejemplo: `evidencia_anio_2026.png` → `evidencia año 2026.png`. Es el `archivo_nombre` que se devuelve y se usa al descargar.
   - Ruta relativa generada: `{etiqueta}/{pases|reportes}/{nivel_lower}/{slug_grado}/{letra_upper}/estudiante-{id}/{id_registro}_{uuid8}.{ext}` (slugs: 1→`1er_grado`, 7→`1er_ano`, ...). La etiqueta del periodo activo `2026` es `2026-2027`.
   - `archivo_url` en la respuesta = esa ruta relativa; también `archivo_mime`, `archivo_tamano` (bytes), `archivo_hash` (SHA-256 hex), `archivo_subido_por` (id del usuario), `archivo_fecha` (Caracas).

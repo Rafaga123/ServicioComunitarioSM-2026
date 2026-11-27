@@ -1,3 +1,5 @@
+"""Registra los routers, el middleware CORS y los endpoints de salud de la API."""
+
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, HTTPException, status
@@ -5,7 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-# ruff: noqa: F401 # Evita el error por importación sin uso para el Litner Ruff
+# ruff: noqa: F401  # db registra los modelos en SQLModel.
+from app.core.cache import SinCacheMiddleware
 from app.models import db
 from app.models.session import engine, inicializar_base_datos
 from app.routers import (
@@ -30,6 +33,7 @@ from app.utils.ip import obtener_ip_local
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+  """Inicializa la base de datos y muestra las URLs de acceso."""
   ip_local = obtener_ip_local()
   print("=" * 50)
   print("🚀 API Encendida y lista para la acción")
@@ -68,21 +72,25 @@ app.include_router(api_router)
 app.add_middleware(
   CORSMiddleware,
   allow_origins=["*"],
-  # El auth viaja como Bearer en el header, no en cookies. Con el
-  # frontend servido desde el mismo backend tampoco hay cross-origin.
+  # La autenticación viaja como Bearer en el header, no en cookies; por eso
+  # no se requieren credenciales aunque se admitan todos los orígenes.
   allow_credentials=False,
   allow_methods=["*"],
   allow_headers=["*"],
 )
+# Se agrega después de CORS para envolver también las respuestas de preflight.
+app.add_middleware(SinCacheMiddleware)
 
 
 @app.get("/")
 def get_root():
+  """Devuelve el estado básico del servicio."""
   return {"status": "Ok"}
 
 
 @app.get("/health", tags=["Salud"])
 def health_check():
+  """Comprueba la conexión con la base de datos."""
   try:
     with engine.connect() as conexion:
       conexion.execute(text("SELECT 1"))

@@ -1,3 +1,5 @@
+"""Gestiona el catálogo de docentes y su filtro por nivel educativo."""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
@@ -82,6 +84,7 @@ def listar_docentes(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve una página de docentes activos."""
   consulta = filtro_activos(select(Docentes), Docentes)
 
   nivel = resolver_nivel(usuario_actual, nivel)
@@ -99,6 +102,7 @@ def obtener_docente(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve un docente activo por su identificador."""
   docente = _obtener_docente_activo(session, docente_id)
   validar_acceso_nivel(usuario_actual, docente.nivel)
   return docente
@@ -110,6 +114,7 @@ def registrar_docente(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Registra un docente."""
   # La cédula se valida contra todos los registros, incluidos los dados de baja,
   # para no duplicar la identidad de un docente.
   statement = select(Docentes).where(Docentes.cedula == docente_in.cedula)
@@ -154,6 +159,7 @@ def actualizar_docente(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Actualiza un docente activo."""
   docente_db = _obtener_docente_activo(session, docente_id)
   datos_actualizar = docente_in.model_dump(exclude_unset=True, exclude_none=True)
 
@@ -211,6 +217,7 @@ def eliminar_docente(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ) -> None:
+  """Marca un docente como eliminado si no tiene secciones a cargo."""
   docente_db = _obtener_docente_activo(session, docente_id)
   _validar_docente_sin_dependencias(session, docente_id)
 

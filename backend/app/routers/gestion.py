@@ -1,3 +1,5 @@
+"""Expone el resumen académico, los periodos lectivos y el cierre de año."""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlmodel import Session, select
@@ -49,6 +51,7 @@ def _contar_estudiantes(
     .join(Grados, Secciones.id_grado == Grados.id)
     .where(
       Estudiantes.fecha_eliminacion.is_(None),
+      Estudiantes.fecha_egreso.is_(None),
       Secciones.fecha_eliminacion.is_(None),
       Grados.fecha_eliminacion.is_(None),
     )
@@ -152,6 +155,7 @@ def _contar_pases(
     .where(
       Pases.fecha_eliminacion.is_(None),
       Estudiantes.fecha_eliminacion.is_(None),
+      Estudiantes.fecha_egreso.is_(None),
       Secciones.fecha_eliminacion.is_(None),
       Grados.fecha_eliminacion.is_(None),
     )
@@ -178,6 +182,7 @@ def _contar_reportes(
     .where(
       Reportes.fecha_eliminacion.is_(None),
       Estudiantes.fecha_eliminacion.is_(None),
+      Estudiantes.fecha_egreso.is_(None),
       Secciones.fecha_eliminacion.is_(None),
       Grados.fecha_eliminacion.is_(None),
     )
@@ -206,6 +211,7 @@ def _contar_representantes(
     .where(
       Representantes.fecha_eliminacion.is_(None),
       Estudiantes.fecha_eliminacion.is_(None),
+      Estudiantes.fecha_egreso.is_(None),
       Secciones.fecha_eliminacion.is_(None),
       Grados.fecha_eliminacion.is_(None),
     )
@@ -232,6 +238,7 @@ def listar_periodos(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
+  """Devuelve los periodos lectivos registrados."""
   periodos = session.exec(
     select(PeriodosLectivos)
     .where(PeriodosLectivos.fecha_eliminacion.is_(None))
@@ -262,6 +269,7 @@ def crear_periodo(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
+  """Registra un periodo lectivo."""
   existente = session.exec(
     select(PeriodosLectivos).where(
       PeriodosLectivos.anio == periodo_in.anio,
@@ -288,6 +296,7 @@ def crear_periodo(
         PeriodosLectivos.fecha_eliminacion.is_(None),
       )
     ).all()
+    # Activar este periodo implica desactivar todos los demás.
     for otro in otros:
       otro.activo = False
 
@@ -311,6 +320,7 @@ def actualizar_periodo(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
+  """Actualiza un periodo lectivo."""
   periodo = session.get(PeriodosLectivos, periodo_id)
   if not periodo or periodo.fecha_eliminacion is not None:
     raise HTTPException(
@@ -342,6 +352,7 @@ def actualizar_periodo(
         PeriodosLectivos.fecha_eliminacion.is_(None),
       )
     ).all()
+    # Activar este periodo implica desactivar todos los demás.
     for otro in otros:
       otro.activo = False
 
@@ -371,6 +382,7 @@ def obtener_resumen_gestion(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve el resumen agregado de gestión por nivel."""
   nivel = resolver_nivel(usuario_actual, nivel)
   periodo_lectivo = periodo_lectivo_efectivo(session, periodo_lectivo)
 

@@ -1,3 +1,5 @@
+"""Administra la denylist de JWT revocados por logout o cierre forzado."""
+
 from datetime import UTC, datetime, timedelta
 from threading import Lock
 from time import monotonic
@@ -51,7 +53,7 @@ def revocar_token(
         session.flush()
     except IntegrityError:
         # Otro logout concurrente insertó el mismo jti. La fila ya existe;
-        # hacemos rollback para dejar la sesión limpia antes de auditar.
+        # se hace rollback para dejar la sesión limpia antes de auditar.
         session.rollback()
 
 
@@ -67,7 +69,7 @@ def esta_revocado(session: Session, jti: str) -> bool:
 
 
 def limpiar_tokens_revocados(session: Session) -> int:
-    """Borra filas ya vencidas + retención. NO hace commit: lo hace el caller."""
+    """Borra las filas vencidas según la retención, sin hacer commit."""
 
     corte = ahora_caracas() - timedelta(hours=TOKENS_REVOCADOS_RETENCION_HORAS)
 
@@ -77,6 +79,7 @@ def limpiar_tokens_revocados(session: Session) -> int:
 
     return max(resultado.rowcount or 0, 0)
 
+# `monotonic` evita que un cambio de reloj o NTP retrase la limpieza horaria.
 _ultima_limpieza: float = monotonic()
 _bloqueo_limpieza = Lock()
 
