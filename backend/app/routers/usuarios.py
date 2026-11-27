@@ -211,10 +211,14 @@ def actualizar_usuario(
     if getattr(usuario_db, campo) != valor
   }
 
-  # Reset de clave por el admin: sube la versión y revoca TODAS las sesiones
-  # anteriores de ese usuario, sin importar cuántas estuvieran abiertas.
+  # Reset de clave por el admin: se hashea y se trata aparte del bucle genérico.
   if clave_nueva is not None:
     cambios["clave"] = obtener_hash_clave(clave_nueva)
+
+  # Clave, rol y nivel afectan a la autenticación: sube la versión y revoca
+  # TODAS las sesiones abiertas del usuario. El nombre solo cambia la etiqueta
+  # visible y no cierra sesiones.
+  if any(campo in cambios for campo in ("clave", "rol", "nivel")):
     cambios["version_tokens"] = usuario_db.version_tokens + 1
 
   if not cambios:
@@ -232,6 +236,8 @@ def actualizar_usuario(
   )
   if clave_nueva is not None:
     descripcion += " Se restableció su clave y se cerraron sus sesiones."
+  elif "version_tokens" in cambios:
+    descripcion += " Se cerraron sus sesiones por el cambio de rol o nivel."
 
   registrar_auditoria(
     session,
