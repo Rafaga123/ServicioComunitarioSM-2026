@@ -278,6 +278,8 @@ Parámetros: `nivel` (opcional; admin puede pedir ambos niveles, personal restri
 
 ### 3.12 Cierre de año (admin)
 
+> **Estado para esta entrega: fuera de alcance.** El endpoint existe, está implementado y documentado, pero el frontend no expone ruta ni menú y **no debe ejecutarse sobre la BD institucional** en esta entrega. Si se habilita más adelante, ante `409` recargar `GET /api/gestion/periodos` sin reintentar el cierre.
+
 **`POST /api/gestion/cerrar-anio`** — body `SolicitudCierreAnio = { periodo_actual: int (≥2000), periodo_siguiente: int (≥2000) }` → `200 PeticionCierreAnio`.
 
 ```json
@@ -314,7 +316,7 @@ Recomendación: mostrar un summary post-cierre con los 7 campos.
 
 - `GET /api/pases/` → paginado; filtros `id_estudiante`, `id_seccion`, `tipo`, `anio`, `mes` (1-12), `periodo_lectivo`, `nivel`; orden `fecha desc`.
 - `GET /api/pases/{id}` → `PeticionPase`.
-- `GET /api/pases/{id}/pdf` → `application/pdf` con `Content-Disposition: attachment; filename="pase-{id}.pdf"`. Formato **básico provisional**: tabla campo/detalle con el membrete de los listados; se ajustará el diseño después, sin cambiar ruta ni MIME. `404` si el pase no existe; `403` si es de otro nivel. Registra auditoría `GENERAR` en `PASES`. Llámalo directamente (sin caché: ver nota global de `Cache-Control`).
+- `GET /api/pases/{id}/pdf` → `application/pdf` con `Content-Disposition: attachment; filename="pase-{id}.pdf"`. Formato **básico provisional**: tabla campo/detalle con el membrete de los listados; se ajustará el diseño después, sin cambiar ruta ni MIME. `404` si el pase no existe; `403` si es de otro nivel. Registra auditoría `GENERAR` en `PASES`. Llámalo directamente (sin caché: ver nota global de `Cache-Control`). La exportación se mantiene; el **adjunto PDF opcional** ya está soportado en `POST /api/pases/{id}/archivo` (ver §4). Si la UI no expone el botón, el endpoint queda disponible sin uso.
 - `POST /api/pases/` — body `CrearPase = { id_estudiante, id_docente?, id_asignatura?, tipo?: SALIDA|ENTRADA (defecto ENTRADA), motivo: str, fecha: datetime, autorizador?: str }` → `201 PeticionPase`. No acepta `archivo_url`.
   - Validaciones: nivel del estudiante; docente pertenece al nivel del estudiante; asignatura pertenece al grado del estudiante; docente vinculado a la asignatura; el **cuarto pase activo del mes del mismo tipo requiere autorizador** (400).
 - `PUT /api/pases/{id}` — body `ActualizacionPase = { id_docente?, id_asignatura?, tipo?, motivo?, fecha?, autorizador? }` → `200 PeticionPase`. Tampoco acepta `archivo_url`.
@@ -334,7 +336,7 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
 
 - `GET /api/reportes/` → paginado; filtros `id_estudiante`, `id_seccion`, `id_docente`, `anio`, `mes` (1-12), `periodo_lectivo`, `categoria: CONDUCTUAL|ACADEMICO`, `nivel_gravedad: LEVE|GRAVE`, `nivel`; orden `fecha desc`.
 - `GET /api/reportes/{id}` → `PeticionReporte`.
-- `GET /api/reportes/{id}/pdf` → `application/pdf` con `Content-Disposition: attachment; filename="reporte-{id}.pdf"`. Mismo formato básico provisional que el PDF de pases (campo/detalle + membrete); el diseño se ajustará después sin cambiar ruta ni MIME. `404` si el reporte no existe; `403` si es de otro nivel. Registra auditoría `GENERAR` en `REPORTES`. Es el endpoint que habilita el botón "Exportar PDF" de `ReporteFicha.vue`.
+- `GET /api/reportes/{id}/pdf` → `application/pdf` con `Content-Disposition: attachment; filename="reporte-{id}.pdf"`. Mismo formato básico provisional que el PDF de pases (campo/detalle + membrete); el diseño se ajustará después sin cambiar ruta ni MIME. `404` si el reporte no existe; `403` si es de otro nivel. Registra auditoría `GENERAR` en `REPORTES`. Es el endpoint que habilita el botón "Exportar PDF" de `ReporteFicha.vue`. La exportación se mantiene; el **adjunto PDF opcional** ya está soportado en `POST /api/reportes/{id}/archivo` (ver §4).
 - `POST /api/reportes/` — body `CrearReporte = { id_estudiante, id_docente?, id_asignatura?, articulo: int (≥1), reglamento: LOPNNA|LOE|CBV|NC, incidencia: str, defensa: str, nivel_gravedad?: LEVE|GRAVE (defecto LEVE), categoria: CONDUCTUAL|ACADEMICO, fecha: datetime }` → `201 PeticionReporte`. No acepta `archivo_url`.
   - `id_asignatura` es opcional y registra la materia durante la incidencia: debe estar activa y ser del grado del estudiante. Si además se envía `id_docente`, debe estar vinculado a esa asignatura. El frontend actual puede seguir enviando solo `id_docente`; el campo nuevo es retrocompatible.
 - `PUT /api/reportes/{id}` — body `ActualizarReporte = { id_docente?, id_asignatura?, articulo?, reglamento?, incidencia?, defensa?, nivel_gravedad?, categoria?, fecha? }` → `200 PeticionReporte`. Tampoco acepta `archivo_url`. Enviar `id_asignatura: null` lo desvincula.
@@ -395,7 +397,10 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
 
 - `GET /api/auditorias/` (admin) → paginado `PeticionAuditoria = { id, usuario_id, usuario?, modulo, accion, descripcion, fecha_creacion }`. Filtros: `usuario` (ilike en nombre), `modulo` (ilike), `accion` (ilike), `fecha` (date). Orden: `fecha_creacion desc`.
 - `GET /api/auditorias/{id}` → `PeticionAuditoria`.
-- Los inicios de sesión correctos aparecen como `modulo: "USUARIOS"`, `accion: "LOGIN"`; el `usuario_id` es el mismo valor del claim `sub` del token.
+- Los inicios de sesión correctos aparecen como `modulo: "USUARIOS"`, `accion: "INICIO DE SESIÓN"`; el `usuario_id` es el mismo valor del claim `sub` del token.
+- El cierre de sesión registra `USUARIOS` / `CIERRE DE SESIÓN`. Los PDFs de pases y reportes registran `PASES` / `REPORTES` / `GENERAR`.
+- `REUTILIZAR` solo se registra si el servidor corre con `REUTILIZAR_DOCUMENTOS_IGUALES=True` (en desarrollo local está `True`; el default de código/producción es `False`). Con el flag en `False` no habrá eventos `REUTILIZAR` para verificar.
+- `CIERRE AÑO` existe en el backend pero no se verá en esta entrega porque el cierre está fuera de alcance.
 
 ---
 

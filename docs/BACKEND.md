@@ -888,6 +888,8 @@ Reglas de conteo:
 
 #### Cierre de año
 
+> **Fuera de alcance en esta entrega**: el endpoint está implementado y probado, pero el frontend no expone ruta ni menú y no debe ejecutarse sobre la BD institucional.
+
 | Método | Ruta | Acceso | Descripción |
 | --- | --- | --- | --- |
 | POST | `/api/gestion/cerrar-anio` | Admin | Cierra el período actual, traspasa estudiantes y crea la estructura del siguiente |
