@@ -328,12 +328,13 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
 
 ### 3.14 Reportes
 
-`PeticionReporte = { id, id_estudiante, id_usuario, id_docente?, articulo, reglamento, incidencia, defensa, nivel_gravedad, categoria, fecha, periodo_lectivo?, archivo_url?, archivo_nombre?, archivo_mime?, archivo_tamano?, archivo_hash?, archivo_subido_por?, archivo_fecha?, estudiante?, cedula_estudiantil?, nivel?, usuario?, docente? }`
+`PeticionReporte = { id, id_estudiante, id_usuario, id_docente?, id_asignatura?, articulo, reglamento, incidencia, defensa, nivel_gravedad, categoria, fecha, periodo_lectivo?, archivo_url?, archivo_nombre?, archivo_mime?, archivo_tamano?, archivo_hash?, archivo_subido_por?, archivo_fecha?, estudiante?, cedula_estudiantil?, nivel?, usuario?, docente?, asignatura? }`
 
 - `GET /api/reportes/` → paginado; filtros `id_estudiante`, `id_seccion`, `id_docente`, `anio`, `mes` (1-12), `periodo_lectivo`, `categoria: CONDUCTUAL|ACADEMICO`, `nivel_gravedad: LEVE|GRAVE`, `nivel`; orden `fecha desc`.
 - `GET /api/reportes/{id}` → `PeticionReporte`.
-- `POST /api/reportes/` — body `CrearReporte = { id_estudiante, id_docente?, articulo: int (≥1), reglamento: LOPNNA|LOE|CBV|NC, incidencia: str, defensa: str, nivel_gravedad?: LEVE|GRAVE (defecto LEVE), categoria: CONDUCTUAL|ACADEMICO, fecha: datetime }` → `201 PeticionReporte`. No acepta `archivo_url`.
-- `PUT /api/reportes/{id}` — body `ActualizarReporte = { id_docente?, articulo?, reglamento?, incidencia?, defensa?, nivel_gravedad?, categoria?, fecha? }` → `200 PeticionReporte`. Tampoco acepta `archivo_url`.
+- `POST /api/reportes/` — body `CrearReporte = { id_estudiante, id_docente?, id_asignatura?, articulo: int (≥1), reglamento: LOPNNA|LOE|CBV|NC, incidencia: str, defensa: str, nivel_gravedad?: LEVE|GRAVE (defecto LEVE), categoria: CONDUCTUAL|ACADEMICO, fecha: datetime }` → `201 PeticionReporte`. No acepta `archivo_url`.
+  - `id_asignatura` es opcional y registra la materia durante la incidencia: debe estar activa y ser del grado del estudiante. Si además se envía `id_docente`, debe estar vinculado a esa asignatura. El frontend actual puede seguir enviando solo `id_docente`; el campo nuevo es retrocompatible.
+- `PUT /api/reportes/{id}` — body `ActualizarReporte = { id_docente?, id_asignatura?, articulo?, reglamento?, incidencia?, defensa?, nivel_gravedad?, categoria?, fecha? }` → `200 PeticionReporte`. Tampoco acepta `archivo_url`. Enviar `id_asignatura: null` lo desvincula.
 - `DELETE /api/reportes/{id}` → `204`.
 - **Adjuntos (reportes)**: idénticos a pases (`POST/GET/DELETE /api/reportes/{id}/archivo`).
 

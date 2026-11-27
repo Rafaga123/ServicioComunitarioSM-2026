@@ -23,6 +23,8 @@ from app.core.paginacion import (
   paginar,
 )
 from app.models.db import (
+  Asignaturas,
+  AsignaturasDocentes,
   Docentes,
   Estudiantes,
   Grados,
@@ -100,25 +102,52 @@ def _nivel_estudiante(estudiante: Estudiantes) -> NivelEducativo:
   return estudiante.seccion.grado.nivel
 
 
-def _validar_docente(
+def _validar_docente_asignatura(
   session: Session,
   estudiante: Estudiantes,
   id_docente: int | None,
+  id_asignatura: int | None,
 ) -> None:
-  if id_docente is None:
-    return
+  nivel = _nivel_estudiante(estudiante)
 
-  docente = session.get(Docentes, id_docente)
-  if not docente or docente.fecha_eliminacion is not None:
-    raise HTTPException(
-      status_code=status.HTTP_404_NOT_FOUND, detail="Docente no encontrado"
-    )
+  if id_docente is not None:
+    docente = session.get(Docentes, id_docente)
+    if not docente or docente.fecha_eliminacion is not None:
+      raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail="Docente no encontrado"
+      )
+    if docente.nivel != nivel:
+      raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="El docente no pertenece al nivel del estudiante",
+      )
 
-  if docente.nivel != _nivel_estudiante(estudiante):
-    raise HTTPException(
-      status_code=status.HTTP_400_BAD_REQUEST,
-      detail="El docente no pertenece al nivel del estudiante",
-    )
+  if id_asignatura is not None:
+    asignatura = session.get(Asignaturas, id_asignatura)
+    if not asignatura or asignatura.fecha_eliminacion is not None:
+      raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Asignatura no encontrada",
+      )
+    if asignatura.id_grado != estudiante.seccion.id_grado:
+      raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="La asignatura no pertenece al grado del estudiante",
+      )
+
+  if id_docente is not None and id_asignatura is not None:
+    vinculado = session.exec(
+      select(AsignaturasDocentes).where(
+        AsignaturasDocentes.id_asignatura == id_asignatura,
+        AsignaturasDocentes.id_docente == id_docente,
+        AsignaturasDocentes.fecha_eliminacion.is_(None),
+      )
+    ).first()
+    if not vinculado:
+      raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="El docente no está vinculado a la asignatura",
+      )
 
 
 def _reporte_dto(reporte: Reportes) -> PeticionReporte:
@@ -126,12 +155,14 @@ def _reporte_dto(reporte: Reportes) -> PeticionReporte:
   seccion = estudiante.seccion
   grado = seccion.grado
   docente = reporte.docente
+  asignatura = reporte.asignatura
 
   return PeticionReporte(
     id=reporte.id,
     id_estudiante=reporte.id_estudiante,
     id_usuario=reporte.id_usuario,
     id_docente=reporte.id_docente,
+    id_asignatura=reporte.id_asignatura,
     articulo=reporte.articulo,
     reglamento=reporte.reglamento,
     incidencia=reporte.incidencia,
@@ -152,6 +183,7 @@ def _reporte_dto(reporte: Reportes) -> PeticionReporte:
     nivel=grado.nivel,
     usuario=reporte.usuario.nombre,
     docente=nombre_completo(docente) if docente else None,
+    asignatura=asignatura.nombre if asignatura else None,
   )
 
 
@@ -228,12 +260,15 @@ def registrar_reporte(
   """Registra un reporte disciplinario."""
   estudiante = _obtener_estudiante_activo(session, reporte_in.id_estudiante)
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(estudiante))
-  _validar_docente(session, estudiante, reporte_in.id_docente)
+  _validar_docente_asignatura(
+    session, estudiante, reporte_in.id_docente, reporte_in.id_asignatura
+  )
 
   nuevo_reporte = Reportes(
     id_estudiante=estudiante.id,
     id_usuario=usuario_actual.id,
     id_docente=reporte_in.id_docente,
+    id_asignatura=reporte_in.id_asignatura,
     articulo=reporte_in.articulo,
     reglamento=reporte_in.reglamento,
     incidencia=reporte_in.incidencia,
@@ -277,14 +312,15 @@ def actualizar_reporte(
   datos_actualizar = {
     campo: valor
     for campo, valor in datos_actualizar.items()
-    if valor is not None or campo in {"id_docente"}
+    if valor is not None or campo in {"id_docente", "id_asignatura"}
   }
 
   if not datos_actualizar:
     return _reporte_dto(reporte_db)
 
   id_docente = datos_actualizar.get("id_docente", reporte_db.id_docente)
-  _validar_docente(session, estudiante, id_docente)
+  id_asignatura = datos_actualizar.get("id_asignatura", reporte_db.id_asignatura)
+  _validar_docente_asignatura(session, estudiante, id_docente, id_asignatura)
 
   for campo, valor in datos_actualizar.items():
     setattr(reporte_db, campo, valor)

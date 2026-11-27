@@ -246,6 +246,8 @@ class Reportes(EsquemaBase, table=True):
   id_estudiante: int = Field(foreign_key="estudiantes.id")
   id_usuario: int = Field(foreign_key="usuarios.id")
   id_docente: int | None = Field(default=None, foreign_key="docentes.id")
+  # Asignatura durante la cual ocurrió la incidencia (opcional).
+  id_asignatura: int | None = Field(default=None, foreign_key="asignaturas.id")
 
   incidencia: str
   articulo: int
@@ -273,6 +275,7 @@ class Reportes(EsquemaBase, table=True):
   estudiante: Estudiantes = Relationship(back_populates="reportes")
   usuario: Usuarios = Relationship(back_populates="reportes")
   docente: Docentes | None = Relationship()
+  asignatura: Asignaturas | None = Relationship()
 
 
 class Pases(EsquemaBase, table=True):

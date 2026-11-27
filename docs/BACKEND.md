@@ -803,6 +803,7 @@ Crear reporte:
 {
   "id_estudiante": 1,
   "id_docente": null,
+  "id_asignatura": null,
   "articulo": 1,
   "reglamento": "LOPNNA",
   "incidencia": "Interrupción reiterada de la clase",
@@ -820,8 +821,9 @@ Reglas:
 - `reglamento`: `LOPNNA`, `LOE`, `CBV` o `NC`.
 - `nivel_gravedad`: `LEVE` o `GRAVE`.
 - `categoria`: `CONDUCTUAL` o `ACADEMICO`.
-- `id_docente` es opcional; si se envía, debe estar activo.
-- La respuesta incluye `estudiante`, `cedula_estudiantil`, `nivel`, `usuario` y `docente`.
+- `id_docente` es opcional; si se envía, debe estar activo y pertenecer al nivel del estudiante.
+- `id_asignatura` es opcional: registra la asignatura durante la cual ocurrió la incidencia. Si se envía, debe estar activa y pertenecer al grado del estudiante. Si también se envía `id_docente`, el docente debe estar vinculado a esa asignatura. Se puede quitar con `null` en `PUT`.
+- La respuesta incluye `estudiante`, `cedula_estudiantil`, `nivel`, `usuario`, `docente` y `asignatura` (nombre de la asignatura, o `null`).
 - No existe un campo de estado (“borrador/enviado/atendido”): el contrato actual no lo contempla.
 
 ### 6.14 Gestión (`/api/gestion`)
