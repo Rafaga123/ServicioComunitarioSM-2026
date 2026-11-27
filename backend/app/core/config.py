@@ -67,7 +67,7 @@ if ACCESS_TOKEN_EXPIRE_MINUTES <= 0:
 
 # Límite de intentos de inicio de sesión (anti fuerza bruta / flood).
 LIMITE_LOGIN_INTENTOS = os.getenv("LIMITE_LOGIN_INTENTOS", "5")
-LIMITE_LOGIN_IP = os.getenv("LIMITE_LOGIN_IP", "20")
+LIMITE_LOGIN_IP = os.getenv("LIMITE_LOGIN_IP", "100")
 LIMITE_LOGIN_VENTANA_SEGUNDOS = os.getenv("LIMITE_LOGIN_VENTANA_SEGUNDOS", "60")
 
 # Horas que se conserva un jti revocado después de vencido el token.

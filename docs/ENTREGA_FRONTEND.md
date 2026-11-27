@@ -21,7 +21,7 @@
 - Claims del token: `sub` (string con el id del usuario), `rol`, `nivel` (nulo si no hay), `jti` (UUID de la emisión), `ver` (versión de tokens del usuario), `exp` (epoch seconds).
 - `401` posibles: `"La sesión ha expirado. Inicia sesión nuevamente."`, `"No se pudieron validar las credenciales (token inválido)"`, `"La sesión fue cerrada. Inicia sesión nuevamente."` y `"La clave o los permisos del usuario cambiaron. Inicia sesión nuevamente."`. En los cuatro casos: limpiar sesión y redirigir al login.
 - Los JWT emitidos antes de la revocación no incluyen `jti` ni `ver`: dejan de valer al desplegar. Hay que forzar el login de todos los usuarios.
-- Login con demasiados intentos → `429` con `detail` en español y header `Retry-After` (segundos). Mostrar ese tiempo al usuario.
+- Login con demasiados intentos → `429` con `detail` en español y header `Retry-After` (segundos). Mostrar ese tiempo al usuario. El límite por IP incluye los logins correctos (default `100` por minuto): si varias personas prueban desde la misma IP, subir `LIMITE_LOGIN_IP` en el backend.
 - `Content-Type` de todos los POST: `application/json` (excepto login `x-www-form-urlencoded` y uploads multipart).
 - Login correcto: auditoría `modulo: "USUARIOS"`, `accion: "INICIO DE SESIÓN"`.
 - Cierre de sesión: auditoría `modulo: "USUARIOS"`, `accion: "CIERRE DE SESIÓN"`.

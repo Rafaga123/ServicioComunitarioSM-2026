@@ -93,7 +93,7 @@ Copy-Item .env.example .env
 | `ALGORITHM` | No | Algoritmo del JWT. Por defecto `HS256` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | No | Duración del token en minutos. Por defecto `360` |
 | `LIMITE_LOGIN_INTENTOS` | No | Fallos permitidos por `(IP, usuario)` en la ventana. Por defecto `5` |
-| `LIMITE_LOGIN_IP` | No | Intentos totales permitidos por IP en la ventana. Por defecto `20` |
+| `LIMITE_LOGIN_IP` | No | Intentos totales permitidos por IP en la ventana (incluye logins correctos). Por defecto `100`; subirlo si hay NAT o IP compartida |
 | `LIMITE_LOGIN_VENTANA_SEGUNDOS` | No | Tamaño de la ventana deslizante. Por defecto `60` |
 | `TOKENS_REVOCADOS_RETENCION_HORAS` | No | Horas que se conserva un `jti` revocado después de su `exp`. Por defecto `24` |
 | `REUTILIZAR_DOCUMENTOS_IGUALES` | No | `True` reutiliza un PDF si los datos del listado no cambiaron. Por defecto `False` |
@@ -248,7 +248,7 @@ El token incluye `sub` (id del usuario), `rol`, `nivel`, `jti` (UUID único por 
 - Los JWT emitidos antes de la revocación no tienen `jti` ni `ver`: dejan de valer al desplegar y todos los usuarios deben iniciar sesión de nuevo.
 - Cambiar clave (propia o por admin), dar de baja un usuario o transferir el rol de administrador incrementa `usuarios.version_tokens` y revoca **todas** las sesiones anteriores de los usuarios afectados.
 - La tabla `tokens_revocados` se limpia al arrancar y, de forma perezosa, máximo una vez por hora desde login/logout. Se borran las filas con `expira_en < ahora_caracas() - TOKENS_REVOCADOS_RETENCION_HORAS`.
-- No hay refresh token. El límite de login es en memoria por proceso: con múltiples workers debe moverse a Redis o al proxy.
+- No hay refresh token. El límite de login es en memoria por proceso: con múltiples workers debe moverse a Redis o al proxy. Las ventanas de IP/usuario se podan automáticamente como máximo una vez por hora.
 
 ### 4.3 Paginación
 
@@ -1299,7 +1299,7 @@ Con el frontend servido desde el mismo backend y el mismo puerto, las peticiones
 - **No hay Alembic.** `create_all()` no altera tablas existentes. Las migraciones automáticas del arranque son `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS version_tokens ...` y `ALTER TYPE tipodocumento ADD VALUE IF NOT EXISTS 'docentes'`. Para otros cambios de columna se usa `--recrear-tablas` (destructivo).
 - **Logout con revocación por `jti`** y revocación masiva por `version_tokens` (cambio de clave, baja, transferencia de admin).
 - **No hay refresh token.** El token dura 360 minutos por defecto.
-- **El límite de login es en memoria por proceso.** No sobrevive a reinicios ni es compartido entre workers; en despliegues con balanceador, moverlo a Redis o al gateway.
+- **El límite de login es en memoria por proceso.** No sobrevive a reinicios ni es compartido entre workers; en despliegues con balanceador, moverlo a Redis o al gateway. El contador por IP incluye los logins correctos (default `100` por minuto).
 - **No hay endpoint de restauración** de registros dados de baja.
 - **No hay Docker/compose** ni instalador `.exe` todavía.
 - La subida de archivos admite solo imágenes; no hay vista previa ni borrado físico de adjuntos.

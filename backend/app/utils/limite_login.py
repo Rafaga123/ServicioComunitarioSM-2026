@@ -13,6 +13,11 @@ from app.core.config import (
 _ventanas: dict[tuple[str, str], deque[float]] = {}
 _bloqueo = Lock()
 
+# Las claves de usuarios/IPs que dejan de usarse nunca se limpiarían solas:
+# se podan como máximo una vez por hora para evitar crecimiento infinito.
+_ultima_poda: float = monotonic()
+_INTERVALO_PODA_SEGUNDOS = 3600
+
 
 def ip_cliente(request: Request) -> str:
     """IP del cliente. No confiamos en X-Forwarded-For por defecto."""
@@ -38,6 +43,26 @@ def _limpiar(clave: tuple[str, str], ahora: float) -> deque[float]:
     return cola
 
 
+def _podar_ventanas(ahora: float) -> None:
+    """Elimina claves sin intentos recientes. Requiere `_bloqueo` tomado."""
+
+    global _ultima_poda
+
+    if ahora - _ultima_poda < _INTERVALO_PODA_SEGUNDOS:
+        return
+
+    corte = ahora - LIMITE_LOGIN_VENTANA_SEGUNDOS
+
+    for clave in list(_ventanas):
+        cola = _ventanas[clave]
+        while cola and cola[0] <= corte:
+            cola.popleft()
+        if not cola:
+            del _ventanas[clave]
+
+    _ultima_poda = ahora
+
+
 def _segundos_restantes(clave: tuple[str, str], ahora: float) -> int:
     cola = _ventanas.get(clave)
     if not cola:
@@ -52,6 +77,8 @@ def verificar_limite(ip: str, usuario: str) -> None:
     ahora = monotonic()
 
     with _bloqueo:
+        _podar_ventanas(ahora)
+
         clave_usuario = _clave_usuario(ip, usuario)
         clave_ip = _clave_ip(ip)
 
