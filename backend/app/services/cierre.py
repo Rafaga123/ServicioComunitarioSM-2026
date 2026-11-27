@@ -327,6 +327,8 @@ def cerrar_anio(
       detail="El periodo siguiente debe ser mayor al actual",
     )
 
+  # Está dentro de STORAGE_ROOT para que `shutil.move` sea un rename; el UUID
+  # evita colisiones entre cierres concurrentes.
   staging_root = Path(STORAGE_ROOT) / ".staging" / str(uuid.uuid4())
   documentos: list[tuple[DocumentosGenerados, str | None]] = []
 
@@ -342,6 +344,7 @@ def cerrar_anio(
   egresados = 0
   secciones_nuevas: dict[tuple[int, str], Secciones] = {}
   asignaturas_creadas = 0
+  # El `finally` solo deshace los archivos movidos si el commit no terminó bien.
   completado = False
 
   try:
@@ -404,7 +407,8 @@ def cerrar_anio(
       destino = ruta_absoluta(doc.ruta_relativa)
       destino.parent.mkdir(parents=True, exist_ok=True)
       if destino.exists():
-        # Ya existe el PDF en destino: no se registra ni se cuenta.
+        # Ya existe el PDF en destino: no se registra ni se cuenta. Sin ID, el
+        # registro es pendiente y se expulsa; con ID se borra para no duplicarlo.
         (staging_root / doc.ruta_relativa).unlink(missing_ok=True)
         if doc.id is None:
           session.expunge(doc)

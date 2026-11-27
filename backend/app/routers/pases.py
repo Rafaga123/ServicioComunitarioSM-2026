@@ -71,6 +71,7 @@ requerir_personal = requerir_roles(
   RolesUsuario.secretaria,
 )
 
+# 3 pases previos + el actual = el cuarto del mes, que exige autorizador.
 LIMITE_SIN_AUTORIZADOR = 3
 
 
@@ -354,6 +355,7 @@ def actualizar_pase(
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(estudiante))
 
   datos_actualizar = pase_in.model_dump(exclude_unset=True)
+  # Solo estos FKs admiten `None` para desvincular; en los demás se ignora.
   campos_opcionales = {"id_docente", "id_asignatura", "autorizador"}
   datos_actualizar = {
     campo: valor
@@ -466,6 +468,7 @@ def subir_pase_archivo(
     pase.id,
     extension,
   )
+  # Se escribe antes del commit; un fallo deja un huérfano con UUID en el nombre.
   guardar_archivo(ruta_relativa, contenido)
   registrar_meta_archivo(
     pase, ruta_relativa, nombre_base, mime, contenido, usuario_actual.id

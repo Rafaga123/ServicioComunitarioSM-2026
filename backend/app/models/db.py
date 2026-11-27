@@ -197,6 +197,7 @@ class PeriodosLectivos(EsquemaBase, table=True):
   __tablename__ = "periodos_lectivos"
   id: int | None = Field(default=None, primary_key=True)
   anio: int = Field(index=True)
+  # Solo un periodo puede estar activo; `cerrado` es terminal y lo escribe el cierre.
   activo: bool = Field(default=False, index=True)
   cerrado: bool = Field(default=False, index=True)
   fecha_cierre: NaiveDatetime | None = Field(default=None)

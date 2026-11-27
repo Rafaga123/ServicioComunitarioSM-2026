@@ -292,6 +292,7 @@ def crear_periodo(
         PeriodosLectivos.fecha_eliminacion.is_(None),
       )
     ).all()
+    # Activar este periodo implica desactivar todos los demás.
     for otro in otros:
       otro.activo = False
 
@@ -347,6 +348,7 @@ def actualizar_periodo(
         PeriodosLectivos.fecha_eliminacion.is_(None),
       )
     ).all()
+    # Activar este periodo implica desactivar todos los demás.
     for otro in otros:
       otro.activo = False
 

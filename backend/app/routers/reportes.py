@@ -364,6 +364,7 @@ def subir_reporte_archivo(
     reporte.id,
     extension,
   )
+  # Igual que en pases: un commit fallido deja el archivo sin metadatos.
   guardar_archivo(ruta_relativa, contenido)
   registrar_meta_archivo(
     reporte, ruta_relativa, nombre_base, mime, contenido, usuario_actual.id

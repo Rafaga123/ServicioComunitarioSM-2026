@@ -32,7 +32,7 @@ def listar_auditorias(
   usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
   """Devuelve una página de auditorías con los filtros indicados."""
-  # El join evita una consulta adicional por fila desde el frontend.
+  # El join evita una consulta adicional por fila al armar los DTO.
   consulta = select(Auditorias, Usuarios.nombre).join(
     Usuarios, col(Auditorias.usuario_id) == col(Usuarios.id),)
 

@@ -10,32 +10,23 @@ from sqlmodel import Session, func, select
 T = TypeVar("T")
 
 
-# Parámetros de paginación que el cliente envía por query string.
-# Ejemplo: GET /estudiantes/?offset=0&size=15
 class Paginacion(BaseModel):
-  # Registro desde el que se empieza a contar (0 = primera página)
   """Parámetros de paginación enviados por el cliente en la query string."""
   offset: int = Query(0, ge=0)
-  # Cantidad máxima de registros a devolver (máximo 100)
   size: int = Query(15, ge=1, le=100)
 
 
-# Variante usada por los buscadores: conserva el tope de 10 resultados.
 class PaginacionBusqueda(Paginacion):
-  """Variante de paginación con tope de diez resultados para buscadores."""
+  """Variante de paginación con diez resultados por defecto en buscadores."""
   size: int = Query(10, ge=1, le=100)
 
 
-# Forma estándar de toda respuesta paginada.
 class RespuestaPaginada(BaseModel, Generic[T]):
-  # Registros que pertenecen a la página solicitada
   """Envelope estándar con items, total, offset y size."""
   items: list[T]
-  # Total de registros que cumplen los filtros, sin aplicar offset/size
+  # Total sin aplicar la ventana de la página solicitada.
   total: int
-  # Offset que se aplicó
   offset: int
-  # Tamaño de página que se aplicó
   size: int
 
 

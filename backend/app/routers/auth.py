@@ -31,6 +31,7 @@ router = APIRouter(prefix="/auth", tags=["Validaciones"])
 # "usuario inexistente" y "clave incorrecta" tarden lo mismo y no filtren
 # qué cuentas están registradas.
 _CLAVE_FANTASMA = "usuario-inexistente-no-usar-1234"
+# Sin lock: dos hilos que computean el mismo bcrypt fantasma dan el mismo valor.
 _HASH_FANTASMA: str | None = None
 
 

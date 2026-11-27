@@ -25,10 +25,12 @@ from app.utils.nombres import nombre_completo
 from app.utils.periodos import etiqueta_periodo
 from app.utils.storage import GRADO_SLUGS
 
+# Claves 1..5 de `isoweekday()`, el mismo dominio que `dia_semana` en horarios.
 DIAS_SEMANA = {1: "Lunes", 2: "Martes", 3: "Miércoles", 4: "Jueves", 5: "Viernes"}
 
-# Etiquetas solicitadas para la malla impresa del liceo (se respetan tal cual,
-# aunque difieran de la hora almacenada en `bloques_horarios`).
+# Etiquetas solicitadas para la malla impresa del liceo. Los tramos 6 y 8
+# difieren de `bloques_horarios` (Receso 2 = 10:00-10:10, Bloque 6 = 10:50-11:30)
+# porque la malla entregada usa esas etiquetas.
 HORAS_MALLA_LICEO = {
   1: "7:00-7:40",
   2: "7:40-8:20",

@@ -22,8 +22,7 @@ from app.core.config import INSTITUCION_NOMBRE, LOGO_PATH
 MARGEN_IZQUIERDO = 4 * cm
 MARGEN = 3 * cm
 
-# El membrete se dibuja dentro del área útil: 4 cm a la izquierda y 3 cm
-# en el resto de márgenes. El PNG original mide 455x548 (≈0.83).
+# El PNG original mide 455x548 (≈0.83).
 LOGO_ALTO = 2.0 * cm
 LOGO_ANCHO = LOGO_ALTO * 455 / 548
 LOGO_X = MARGEN_IZQUIERDO
@@ -190,7 +189,7 @@ def construir_pdf(
   tabla = Table(
     [fila_encabezado] + filas_parrafo,
     colWidths=_anchos_en_puntos(col_anchos, ancho_util),
-    repeatRows=1,
+    repeatRows=1,  # La cabecera se repite en cada página del listado.
   )
   tabla.setStyle(
     [

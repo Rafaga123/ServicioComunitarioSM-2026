@@ -79,6 +79,7 @@ def limpiar_tokens_revocados(session: Session) -> int:
 
     return max(resultado.rowcount or 0, 0)
 
+# `monotonic` evita que un cambio de reloj o NTP retrase la limpieza horaria.
 _ultima_limpieza: float = monotonic()
 _bloqueo_limpieza = Lock()
 

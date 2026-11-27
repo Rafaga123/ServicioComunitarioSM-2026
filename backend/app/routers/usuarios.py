@@ -188,8 +188,7 @@ def actualizar_usuario(
 
   datos_actualizar = usuario_in.model_dump(exclude_unset=True, exclude_none=True)
 
-  # La clave se hashea y se trata aparte: nunca se asigna tal cual como
-  # los demás campos con el bucle genérico de setattr.
+  # Se procesa aparte: un reset explícito también sube `version_tokens`.
   clave_nueva = datos_actualizar.pop("clave", None)
 
   _validar_combinacion_rol_nivel(
@@ -218,7 +217,7 @@ def actualizar_usuario(
     if getattr(usuario_db, campo) != valor
   }
 
-  # Reset de clave por el admin: se hashea y se trata aparte del bucle genérico.
+  # Se hashea aunque repita la actual: el reset explícito también revoca.
   if clave_nueva is not None:
     cambios["clave"] = obtener_hash_clave(clave_nueva)
 

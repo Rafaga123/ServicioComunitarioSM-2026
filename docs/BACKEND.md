@@ -398,7 +398,7 @@ Los `422` usan el formato estándar de FastAPI:
 
 ## 6. Endpoints
 
-> Esta sección lista las **84 operaciones** de la API. Los schemas completos, ejemplos y códigos de respuesta están en `/docs` y `/openapi.json`; el contrato de integración está en `docs/ENTREGA_FRONTEND.md`.
+> Esta sección lista las **84 operaciones** de la API. Los schemas completos, ejemplos y códigos de respuesta están en `/docs` y `/openapi.json`; el contrato de integración está en `ENTREGA_FRONTEND.md`.
 
 ### 6.1 Salud
 
@@ -1198,7 +1198,7 @@ El contrato detallado, con bodies, filtros y reglas por entidad, está en
 
 ### 11.1 Entrega y mantenimiento (pendiente)
 
-- Revisión final del frontend contra `docs/ENTREGA_FRONTEND.md`.
+- Revisión final del frontend contra `ENTREGA_FRONTEND.md`.
 - Purgar del historial de Git los archivos antiguos con cédulas (`backend/scripts/docentes.sql`, `backend/scripts/horarios_liceo_2026.json`): requiere autorización explícita porque reescribe commits.
 - Push de `backend-dev` a `origin/backend-dev`: solo con autorización explícita.
 - Suite formal de `pytest` (hoy los smokes son temporales y se borran) y documentación de despliegue/empaquetado.

@@ -32,6 +32,7 @@ def _clave_usuario(ip: str, usuario: str) -> tuple[str, str]:
 
 
 def _clave_ip(ip: str) -> tuple[str, str]:
+    # El `*` separa la ventana global de IP de las ventanas por (IP, usuario).
     return (ip, "*")
 
 
@@ -125,5 +126,7 @@ def registrar_exito(ip: str, usuario: str) -> None:
     ahora = monotonic()
 
     with _bloqueo:
+        # El éxito también cuenta para el techo de la IP; solo se borra la
+        # ventana del usuario.
         _limpiar(_clave_ip(ip), ahora).append(ahora)
         _ventanas.pop(_clave_usuario(ip, usuario), None)

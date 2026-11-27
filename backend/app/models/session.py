@@ -21,8 +21,8 @@ def create_db_tables():
 
   SQLModel.metadata.create_all(engine)
 
-  # Migración no destructiva: `create_all()` no altera enums existentes.
-  # Este valor es necesario para registrar PDFs de docentes.
+  # `create_all()` no agrega columnas ni valores de enum: la columna guarda
+  # la versión del JWT y `docentes` habilita los PDFs de docentes.
   with engine.begin() as conn:
     conn.execute(
       text(
@@ -39,6 +39,7 @@ def inicializar_base_datos() -> tuple[int, int]:
   create_db_tables()
 
   with Session(engine) as session:
+    # El DELETE no se confirma aquí: se aprovecha el commit de `sembrar_datos`.
     limpiar_tokens_revocados(session)
     return sembrar_datos(session)
 
