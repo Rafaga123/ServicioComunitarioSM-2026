@@ -84,7 +84,11 @@ def _obtener_reporte_activo(session: Session, reporte_id: int) -> Reportes:
 def _obtener_estudiante_activo(session: Session, estudiante_id: int) -> Estudiantes:
   estudiante = session.get(Estudiantes, estudiante_id)
 
-  if not estudiante or estudiante.fecha_eliminacion is not None:
+  if (
+    not estudiante
+    or estudiante.fecha_eliminacion is not None
+    or estudiante.fecha_egreso is not None
+  ):
     raise HTTPException(
       status_code=status.HTTP_404_NOT_FOUND, detail="Estudiante no encontrado"
     )

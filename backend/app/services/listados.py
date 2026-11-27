@@ -122,6 +122,7 @@ def _filas_nominas_seccion(session: Session, seccion: Secciones) -> list[list[st
     .where(
       Estudiantes.id_seccion == seccion.id,
       Estudiantes.fecha_eliminacion.is_(None),
+      Estudiantes.fecha_egreso.is_(None),
     )
     .order_by(Estudiantes.primer_apellido, Estudiantes.primer_nombre, Estudiantes.id)
   ).all()
@@ -145,6 +146,7 @@ def _filas_representantes_seccion(
     .where(
       Estudiantes.id_seccion == seccion.id,
       Estudiantes.fecha_eliminacion.is_(None),
+      Estudiantes.fecha_egreso.is_(None),
       Representantes.fecha_eliminacion.is_(None),
     )
     .distinct()
@@ -160,6 +162,7 @@ def _filas_representantes_seccion(
         Estudiantes.id_representante == rep.id,
         Estudiantes.id_seccion == seccion.id,
         Estudiantes.fecha_eliminacion.is_(None),
+      Estudiantes.fecha_egreso.is_(None),
       )
       .order_by(Estudiantes.primer_apellido, Estudiantes.primer_nombre, Estudiantes.id)
     ).all()
@@ -265,6 +268,7 @@ def _filas_nominas_general(
       Secciones.periodo_lectivo == periodo,
       Grados.nivel == nivel,
       Estudiantes.fecha_eliminacion.is_(None),
+      Estudiantes.fecha_egreso.is_(None),
       Secciones.fecha_eliminacion.is_(None),
       Grados.fecha_eliminacion.is_(None),
     )
@@ -308,6 +312,7 @@ def _filas_representantes_general(
       Secciones.periodo_lectivo == periodo,
       Grados.nivel == nivel,
       Estudiantes.fecha_eliminacion.is_(None),
+      Estudiantes.fecha_egreso.is_(None),
       Secciones.fecha_eliminacion.is_(None),
       Representantes.fecha_eliminacion.is_(None),
     )
@@ -331,6 +336,7 @@ def _filas_representantes_general(
         Secciones.periodo_lectivo == periodo,
         Grados.nivel == nivel,
         Estudiantes.fecha_eliminacion.is_(None),
+      Estudiantes.fecha_egreso.is_(None),
         Secciones.fecha_eliminacion.is_(None),
         Grados.fecha_eliminacion.is_(None),
       )

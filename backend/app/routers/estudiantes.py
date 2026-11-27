@@ -8,8 +8,8 @@ from app.core.paginacion import (
   PaginacionBusqueda,
   RespuestaPaginada,
   construir_pagina,
-  filtro_activos,
   filtro_texto,
+  filtro_vigentes,
   paginar,
 )
 from app.models.db import (
@@ -162,7 +162,7 @@ def listar_estudiantes(
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
   """Devuelve una página de estudiantes activos."""
-  consulta = filtro_activos(select(Estudiantes), Estudiantes)
+  consulta = filtro_vigentes(select(Estudiantes), Estudiantes)
   consulta = consulta.join(Secciones, Estudiantes.id_seccion == Secciones.id)
   consulta = consulta.join(Grados, Secciones.id_grado == Grados.id)
 
@@ -192,7 +192,7 @@ def buscar_estudiantes(
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
   """Devuelve los estudiantes que coinciden con la búsqueda."""
-  consulta = filtro_activos(select(Estudiantes), Estudiantes)
+  consulta = filtro_vigentes(select(Estudiantes), Estudiantes)
   consulta = consulta.join(Secciones, Estudiantes.id_seccion == Secciones.id)
   consulta = consulta.join(Grados, Secciones.id_grado == Grados.id)
   consulta = filtro_texto(

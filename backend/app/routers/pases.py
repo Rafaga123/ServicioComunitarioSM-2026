@@ -89,7 +89,11 @@ def _obtener_pase_activo(session: Session, pase_id: int) -> Pases:
 def _obtener_estudiante_activo(session: Session, estudiante_id: int) -> Estudiantes:
   estudiante = session.get(Estudiantes, estudiante_id)
 
-  if not estudiante or estudiante.fecha_eliminacion is not None:
+  if (
+    not estudiante
+    or estudiante.fecha_eliminacion is not None
+    or estudiante.fecha_egreso is not None
+  ):
     raise HTTPException(
       status_code=status.HTTP_404_NOT_FOUND, detail="Estudiante no encontrado"
     )
