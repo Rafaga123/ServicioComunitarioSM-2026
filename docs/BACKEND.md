@@ -4,7 +4,7 @@ API REST para la gestión académica y disciplinaria de una escuela y un liceo. 
 
 > **Estado actual:** Fases 1–6 completadas en `backend-dev`. El backend expone **15 routers**, **47 rutas** y **84 operaciones** documentadas en OpenAPI. No se agregaron rutas: la revocación de JWT y el límite de login se implementaron dentro de `/auth/login`, `/auth/logout` y el CRUD de usuarios. El contrato detallado para el frontend está en [`ENTREGA_FRONTEND.md`](ENTREGA_FRONTEND.md).
 >
-> **Importante:** no hay migraciones (Alembic). `create_all()` **no altera** tablas existentes, pero en el arranque se ejecutan dos migraciones no destructivas: `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS version_tokens INTEGER NOT NULL DEFAULT 0` y `ALTER TYPE tipodocumento ADD VALUE IF NOT EXISTS 'docentes'`. Para el resto de cambios de esquema se usa `python -m scripts.cargar_datos_prueba --recrear-tablas`, que hace `drop_all()` antes de cargar y por eso es destructivo. La tabla nueva `tokens_revocados` sí la crea `create_all()` automáticamente.
+> **Importante:** no hay Alembic. `create_all()` **no altera** tablas existentes, por eso los `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` y los `CREATE INDEX IF NOT EXISTS` se concentran en `backend/app/core/migraciones.py`. El arranque hace `preparar_extensiones()` → `SQLModel.metadata.create_all()` → `aplicar_migraciones()`. Incluyen `usuarios.version_tokens`, el valor `docentes` del enum, `reportes.id_asignatura` y los índices de claves foráneas (más uno parcial de estudiantes vigentes). Todo es idempotente. Para el resto de cambios de esquema se usa `python -m scripts.cargar_datos_prueba --recrear-tablas`, que hace `drop_all()` antes de cargar y por eso es destructivo.
 
 > Documentación detallada del backend. Resumen en [`../README.md`](../README.md); guía corta en [`FRONTEND.md`](FRONTEND.md); contrato completo en [`ENTREGA_FRONTEND.md`](ENTREGA_FRONTEND.md).
 
@@ -1211,7 +1211,7 @@ El contrato detallado, con bodies, filtros y reglas por entidad, está en
 
 ### 11.2 Limitaciones actuales
 
-- **No hay Alembic.** `create_all()` no altera tablas existentes. Las migraciones automáticas del arranque son `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS version_tokens ...` y `ALTER TYPE tipodocumento ADD VALUE IF NOT EXISTS 'docentes'`. Para otros cambios de columna se usa `--recrear-tablas` (destructivo).
+- **No hay Alembic.** `create_all()` no altera tablas existentes: las migraciones automáticas viven en `app/core/migraciones.py` (columnas, enum, índices de FKs e índice parcial de vigentes) y se aplican en el arranque de forma idempotente. Para otros cambios de columna se usa `--recrear-tablas` (destructivo).
 - **Logout con revocación por `jti`** y revocación masiva por `version_tokens` (cambio de clave, baja, transferencia de admin).
 - **No hay refresh token.** El token dura 360 minutos por defecto.
 - **El límite de login es en memoria por proceso.** No sobrevive a reinicios ni es compartido entre workers; en despliegues con balanceador, moverlo a Redis o al gateway. El contador por IP incluye los logins correctos (default `20` por minuto).

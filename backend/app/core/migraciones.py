@@ -8,6 +8,44 @@ con SQLite sigan funcionando.
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
+# Índices de claves foráneas que `create_all()` no crea. Los nombres son
+# estables para que `IF NOT EXISTS` sea suficiente en arranques repetidos.
+DDL_INDICES = (
+  "CREATE INDEX IF NOT EXISTS ix_asignaturas_docentes_id_docente "
+  "ON asignaturas_docentes (id_docente)",
+  "CREATE INDEX IF NOT EXISTS ix_secciones_id_docente_titular "
+  "ON secciones (id_docente_titular)",
+  "CREATE INDEX IF NOT EXISTS ix_estudiantes_id_seccion ON estudiantes (id_seccion)",
+  "CREATE INDEX IF NOT EXISTS ix_estudiantes_id_representante "
+  "ON estudiantes (id_representante)",
+  "CREATE INDEX IF NOT EXISTS ix_estudiantes_vigentes "
+  "ON estudiantes (id_seccion) "
+  "WHERE fecha_eliminacion IS NULL AND fecha_egreso IS NULL",
+  "CREATE INDEX IF NOT EXISTS ix_reportes_id_estudiante ON reportes (id_estudiante)",
+  "CREATE INDEX IF NOT EXISTS ix_reportes_id_usuario ON reportes (id_usuario)",
+  "CREATE INDEX IF NOT EXISTS ix_reportes_id_docente ON reportes (id_docente)",
+  "CREATE INDEX IF NOT EXISTS ix_reportes_id_asignatura ON reportes (id_asignatura)",
+  "CREATE INDEX IF NOT EXISTS ix_pases_id_estudiante ON pases (id_estudiante)",
+  "CREATE INDEX IF NOT EXISTS ix_pases_id_usuario ON pases (id_usuario)",
+  "CREATE INDEX IF NOT EXISTS ix_pases_id_docente ON pases (id_docente)",
+  "CREATE INDEX IF NOT EXISTS ix_pases_id_asignatura ON pases (id_asignatura)",
+  "CREATE INDEX IF NOT EXISTS ix_horarios_id_seccion ON horarios (id_seccion)",
+  "CREATE INDEX IF NOT EXISTS ix_horarios_id_bloque ON horarios (id_bloque)",
+  "CREATE INDEX IF NOT EXISTS ix_horarios_id_asignatura ON horarios (id_asignatura)",
+  "CREATE INDEX IF NOT EXISTS ix_horarios_id_docente ON horarios (id_docente)",
+  "CREATE INDEX IF NOT EXISTS ix_auditorias_usuario_id ON auditorias (usuario_id)",
+  "CREATE INDEX IF NOT EXISTS ix_documentos_generados_id_grado "
+  "ON documentos_generados (id_grado)",
+  "CREATE INDEX IF NOT EXISTS ix_documentos_generados_id_seccion "
+  "ON documentos_generados (id_seccion)",
+  "CREATE INDEX IF NOT EXISTS ix_documentos_generados_generado_por "
+  "ON documentos_generados (generado_por)",
+  "CREATE INDEX IF NOT EXISTS ix_tokens_revocados_usuario_id "
+  "ON tokens_revocados (usuario_id)",
+  "CREATE INDEX IF NOT EXISTS ix_documentos_firmas_documento_id "
+  "ON documentos_firmas (documento_id)",
+)
+
 
 def _es_postgres(engine: Engine) -> bool:
   return engine.dialect.name == "postgresql"
@@ -55,9 +93,7 @@ def aplicar_migraciones(engine: Engine) -> None:
 
   if _es_postgres(engine):
     with engine.begin() as conn:
-      conn.execute(
-        text("ALTER TYPE tipodocumento ADD VALUE IF NOT EXISTS 'docentes'")
-      )
+      conn.execute(text("ALTER TYPE tipodocumento ADD VALUE IF NOT EXISTS 'docentes'"))
 
   _agregar_columna(
     engine,
@@ -65,14 +101,9 @@ def aplicar_migraciones(engine: Engine) -> None:
     "id_asignatura",
     "ALTER TABLE reportes "
     "ADD COLUMN IF NOT EXISTS id_asignatura INTEGER REFERENCES asignaturas(id)",
-    "ALTER TABLE reportes "
-    "ADD COLUMN id_asignatura INTEGER REFERENCES asignaturas(id)",
+    "ALTER TABLE reportes ADD COLUMN id_asignatura INTEGER REFERENCES asignaturas(id)",
   )
 
   with engine.begin() as conn:
-    conn.execute(
-      text(
-        "CREATE INDEX IF NOT EXISTS ix_reportes_id_asignatura "
-        "ON reportes (id_asignatura)"
-      )
-    )
+    for ddl in DDL_INDICES:
+      conn.execute(text(ddl))
