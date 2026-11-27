@@ -1,3 +1,5 @@
+"""Gestiona pases disciplinarios, adjuntos y validaciones de nivel."""
+
 from datetime import datetime
 from pathlib import Path
 

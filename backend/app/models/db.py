@@ -1,3 +1,5 @@
+"""Define las 17 tablas SQLModel y sus relaciones de negocio."""
+
 from datetime import time
 
 from pydantic import NaiveDatetime
@@ -8,8 +10,8 @@ import app.models.enums as en
 from app.utils.fechas import ahora_caracas
 
 
-# Clase Padre con los atributos base de cada tabla
 class EsquemaBase(SQLModel):
+  """Base común con fechas de creación, actualización y borrado lógico para las tablas."""
   fecha_creacion: NaiveDatetime = Field(default_factory=ahora_caracas)
   fecha_actualizacion: NaiveDatetime = Field(
     default_factory=ahora_caracas,
@@ -18,13 +20,8 @@ class EsquemaBase(SQLModel):
   fecha_eliminacion: NaiveDatetime | None = Field(default=None)
 
 
-# ====
-# TABLAS DE LA BASE DE DATOS
-# ====
-
-
-# Tabla de Usuarios
 class Usuarios(EsquemaBase, table=True):
+  """Cuenta de acceso con rol, nivel educativo y versión de tokens."""
   __tablename__ = "usuarios"
   __table_args__ = (
     Index(
@@ -54,8 +51,8 @@ class Usuarios(EsquemaBase, table=True):
   auditorias: list["Auditorias"] = Relationship(back_populates="usuario")
 
 
-# Tabla de Representantes
 class Representantes(EsquemaBase, table=True):
+  """Representante legal de uno o más estudiantes."""
   __tablename__ = "representantes"
   id: int | None = Field(default=None, primary_key=True)
 
@@ -69,8 +66,8 @@ class Representantes(EsquemaBase, table=True):
   estudiantes: list["Estudiantes"] = Relationship(back_populates="representante")
 
 
-# Tabla de Grados (catálogo fijo del 1 al 11)
 class Grados(EsquemaBase, table=True):
+  """Grado del catálogo institucional, de primero a undécimo."""
   __tablename__ = "grados"
   __table_args__ = (
     CheckConstraint(
@@ -96,8 +93,8 @@ class Grados(EsquemaBase, table=True):
   asignaturas: list["Asignaturas"] = Relationship(back_populates="grado")
 
 
-# Tabla intermedia de Asignaturas y Docentes
 class AsignaturasDocentes(EsquemaBase, table=True):
+  """Relación entre asignaturas y docentes en un periodo lectivo."""
   __tablename__ = "asignaturas_docentes"
   __table_args__ = (
     Index(
@@ -114,8 +111,8 @@ class AsignaturasDocentes(EsquemaBase, table=True):
   id_docente: int = Field(foreign_key="docentes.id")
 
 
-# Tabla de Asignaturas
 class Asignaturas(EsquemaBase, table=True):
+  """Asignatura impartida a un grado en un periodo lectivo."""
   __tablename__ = "asignaturas"
   __table_args__ = (
     Index(
@@ -140,8 +137,8 @@ class Asignaturas(EsquemaBase, table=True):
   horarios: list["Horarios"] = Relationship(back_populates="asignatura")
 
 
-# Tabla de Docentes
 class Docentes(EsquemaBase, table=True):
+  """Docente del catálogo institucional, asociado a un nivel educativo."""
   __tablename__ = "docentes"
   __table_args__ = (
     Index(
@@ -168,8 +165,8 @@ class Docentes(EsquemaBase, table=True):
   )
 
 
-# Tabla de Secciones (aulas activas de un grado)
 class Secciones(EsquemaBase, table=True):
+  """Sección activa de un grado en un periodo lectivo."""
   __tablename__ = "secciones"
   __table_args__ = (
     CheckConstraint("periodo_lectivo >= 2000", name="ck_secciones_periodo"),
@@ -197,8 +194,8 @@ class Secciones(EsquemaBase, table=True):
   horarios: list["Horarios"] = Relationship(back_populates="seccion")
 
 
-# Tabla de Periodos lectivos (catálogo de años escolares)
 class PeriodosLectivos(EsquemaBase, table=True):
+  """Periodo lectivo con el año de inicio y su estado activo."""
   __tablename__ = "periodos_lectivos"
   id: int | None = Field(default=None, primary_key=True)
   anio: int = Field(index=True)
@@ -207,8 +204,8 @@ class PeriodosLectivos(EsquemaBase, table=True):
   fecha_cierre: NaiveDatetime | None = Field(default=None)
 
 
-# Tabla de Estudiantes
 class Estudiantes(EsquemaBase, table=True):
+  """Estudiante inscrito en una sección y representado por una cuenta."""
   __tablename__ = "estudiantes"
   __table_args__ = (
     Index(
@@ -245,8 +242,8 @@ class Estudiantes(EsquemaBase, table=True):
   reportes: list["Reportes"] = Relationship(back_populates="estudiante")
 
 
-# Tabla de Reportes
 class Reportes(EsquemaBase, table=True):
+  """Reporte disciplinario de un estudiante con adjunto opcional."""
   __tablename__ = "reportes"
   id: int | None = Field(default=None, primary_key=True)
   id_estudiante: int = Field(foreign_key="estudiantes.id")
@@ -283,8 +280,8 @@ class Reportes(EsquemaBase, table=True):
   docente: Docentes | None = Relationship()
 
 
-# Tabla de Pases
 class Pases(EsquemaBase, table=True):
+  """Pase disciplinario de un estudiante con adjunto y autorizador opcional."""
   __tablename__ = "pases"
   id: int | None = Field(default=None, primary_key=True)
 
@@ -320,8 +317,8 @@ class Pases(EsquemaBase, table=True):
   asignatura: Asignaturas | None = Relationship()
 
 
-# Tabla de Bloques Horarios (jornada institucional del liceo)
 class BloquesHorarios(EsquemaBase, table=True):
+  """Tramo de la jornada institucional del liceo."""
   __tablename__ = "bloques_horarios"
   __table_args__ = (
     CheckConstraint("hora_fin > hora_inicio", name="ck_bloques_horarios_rango"),
@@ -349,8 +346,8 @@ class BloquesHorarios(EsquemaBase, table=True):
   horarios: list["Horarios"] = Relationship(back_populates="bloque")
 
 
-# Tabla de Horarios
 class Horarios(EsquemaBase, table=True):
+  """Asignación de asignatura y docente a un bloque de una sección."""
   __tablename__ = "horarios"
   __table_args__ = (
     CheckConstraint("dia_semana BETWEEN 1 AND 5", name="ck_horarios_dia_semana"),
@@ -382,8 +379,8 @@ class Horarios(EsquemaBase, table=True):
   docente: Docentes = Relationship(back_populates="horarios")
 
 
-# Tabla de Auditorias
 class Auditorias(EsquemaBase, table=True):
+  """Registro de auditoría de una acción realizada por un usuario."""
   __tablename__ = "auditorias"
   id: int | None = Field(default=None, primary_key=True)
   usuario_id: int = Field(foreign_key="usuarios.id")
@@ -394,8 +391,8 @@ class Auditorias(EsquemaBase, table=True):
   usuario: Usuarios = Relationship(back_populates="auditorias")
 
 
-# Tabla de Documentos generados como PDFs de listados institucionales.
 class DocumentosGenerados(EsquemaBase, table=True):
+  """PDF generado y almacenado bajo una ruta relativa."""
   __tablename__ = "documentos_generados"
   id: int | None = Field(default=None, primary_key=True)
   tipo: en.TipoDocumento
@@ -415,10 +412,8 @@ class DocumentosGenerados(EsquemaBase, table=True):
   seccion: Secciones | None = Relationship()
   usuario: Usuarios | None = Relationship()
 
-# Tabla de control: JWT revocados por logout o cierre por inactividad.
-# No es dato de negocio: se limpia con DELETE físico una vez vencido el token
-# y transcurrida la retención configurada.
 class TokensRevocados(EsquemaBase, table=True):
+  """JWT revocado por logout o cierre forzado, retenido hasta vencer y depurarse."""
   __tablename__ = "tokens_revocados"
   __table_args__ = (
     Index("uq_tokens_revocados_jti", "jti", unique=True),
@@ -431,9 +426,8 @@ class TokensRevocados(EsquemaBase, table=True):
   expira_en: NaiveDatetime
   motivo: str | None = Field(default=None, max_length=50)
 
-# Firma canónica de los datos que produjeron un PDF. Permite reutilizar el
-# documento cuando el listado no cambió y versionar cuando sí cambió.
 class DocumentosFirmas(EsquemaBase, table=True):
+  """Firma canónica que vincula un listado con su PDF vigente."""
   __tablename__ = "documentos_firmas"
   __table_args__ = (
     Index(

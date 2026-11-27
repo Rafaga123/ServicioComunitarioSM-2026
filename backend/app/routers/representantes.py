@@ -1,3 +1,5 @@
+"""Gestiona representantes y su vinculación con estudiantes."""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 

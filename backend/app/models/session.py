@@ -1,10 +1,12 @@
+"""Configura el engine PostgreSQL, las migraciones automáticas y la sesión de SQLModel."""
+
 from sqlmodel import Session, SQLModel, create_engine, text
 
 from app.core.config import DB_HOST, DB_NAME, DB_PASSWORD, DB_PORT, DB_USER, DEBUG
 from app.core.semilla import sembrar_datos
 from app.utils.tokens_revocados import limpiar_tokens_revocados
 
-# Construcción de la URL corregida para PostgreSQL
+# Construye la URL de conexión para PostgreSQL.
 sql_url = f"postgresql+psycopg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 engine = create_engine(sql_url, echo=DEBUG)
@@ -12,7 +14,7 @@ engine = create_engine(sql_url, echo=DEBUG)
 
 def create_db_tables():
   with engine.begin() as conn:
-    # Instalando las extensiones en lab base de datos
+    # Instala las extensiones requeridas en la base de datos.
     conn.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent;"))
     conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
 

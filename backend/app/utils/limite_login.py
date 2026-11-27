@@ -1,3 +1,5 @@
+"""Aplica el límite de intentos de login por usuario y por IP en memoria."""
+
 from collections import deque
 from threading import Lock
 from time import monotonic

@@ -1,3 +1,5 @@
+"""Marca registros como eliminados sin borrarlos físicamente."""
+
 from sqlmodel import Session
 
 from app.models.db import EsquemaBase

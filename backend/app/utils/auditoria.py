@@ -1,3 +1,5 @@
+"""Registra auditorías de forma centralizada para todas las mutaciones."""
+
 from sqlmodel import Session, select
 
 from app.models.db import Auditorias

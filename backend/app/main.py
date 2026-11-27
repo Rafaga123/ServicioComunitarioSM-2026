@@ -1,3 +1,5 @@
+"""Registra los routers, el middleware CORS y los endpoints de salud de la API."""
+
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, HTTPException, status
@@ -5,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-# ruff: noqa: F401 # Evita el error por importación sin uso para el Litner Ruff
+# ruff: noqa: F401  # db registra los modelos en SQLModel.
 from app.models import db
 from app.models.session import engine, inicializar_base_datos
 from app.routers import (

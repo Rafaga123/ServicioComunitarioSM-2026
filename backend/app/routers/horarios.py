@@ -1,3 +1,5 @@
+"""Gestiona la malla horaria por sección y periodo lectivo."""
+
 from datetime import date, time
 
 from fastapi import APIRouter, Depends, HTTPException, status

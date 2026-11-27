@@ -1,3 +1,5 @@
+"""Gestiona el catálogo de bloques de la jornada institucional."""
+
 from datetime import time
 
 from fastapi import APIRouter, Depends, HTTPException, status

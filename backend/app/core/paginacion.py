@@ -1,3 +1,5 @@
+"""Define el envelope paginado y las utilidades de consulta compartidas por los routers."""
+
 from typing import Generic, TypeVar
 
 from fastapi import Query
@@ -12,6 +14,7 @@ T = TypeVar("T")
 # Ejemplo: GET /estudiantes/?offset=0&size=15
 class Paginacion(BaseModel):
   # Registro desde el que se empieza a contar (0 = primera página)
+  """Parámetros de paginación enviados por el cliente en la query string."""
   offset: int = Query(0, ge=0)
   # Cantidad máxima de registros a devolver (máximo 100)
   size: int = Query(15, ge=1, le=100)
@@ -19,12 +22,14 @@ class Paginacion(BaseModel):
 
 # Variante usada por los buscadores: conserva el tope de 10 resultados.
 class PaginacionBusqueda(Paginacion):
+  """Variante de paginación con tope de diez resultados para buscadores."""
   size: int = Query(10, ge=1, le=100)
 
 
 # Forma estándar de toda respuesta paginada.
 class RespuestaPaginada(BaseModel, Generic[T]):
   # Registros que pertenecen a la página solicitada
+  """Envelope estándar con items, total, offset y size."""
   items: list[T]
   # Total de registros que cumplen los filtros, sin aplicar offset/size
   total: int

@@ -348,7 +348,7 @@ def cerrar_anio(
   try:
     ps = _obtener_o_crear_periodo_siguiente(session, periodo_siguiente)
 
-    # 1. Generar PDFs de listados por sección activa.
+    # 1. Genera los PDFs de listados por sección activa.
     for seccion in _secciones_activas(session, pa.anio):
       nivel = seccion.grado.nivel
       anadir_documento(
@@ -389,7 +389,7 @@ def cerrar_anio(
           )
         )
 
-    # 1b. Listado general de docentes por nivel.
+    # 1b. Genera el listado general de docentes por nivel.
     for nivel in (NivelEducativo.escuela, NivelEducativo.liceo):
       anadir_documento(
         _guardar_doc_general_staged(
@@ -402,7 +402,7 @@ def cerrar_anio(
         )
       )
 
-    # 2. Mover archivos de staging al destino final.
+    # 2. Mueve los archivos de staging al destino final.
     conservados: list[tuple[DocumentosGenerados, str | None]] = []
     for doc, firma in documentos:
       destino = ruta_absoluta(doc.ruta_relativa)
@@ -426,7 +426,7 @@ def cerrar_anio(
       if firma is not None:
         servicio_firmas.registrar_firma(session, firma, doc.id)
 
-    # 3. Traspaso de estudiantes y clonación de estructura.
+    # 3. Traspasa estudiantes y clona la estructura.
     secciones_nuevas = _crear_secciones_nuevas(
       session, ps.anio, _secciones_activas(session, pa.anio)
     )
@@ -435,7 +435,7 @@ def cerrar_anio(
     )
     asignaturas_creadas = _clonar_asignaturas(session, pa.anio, ps.anio)
 
-    # 4. Cerrar periodo actual y activar el nuevo.
+    # 4. Cierra el periodo actual y activa el nuevo.
     pa.cerrado = True
     pa.activo = False
     pa.fecha_cierre = ahora_caracas()

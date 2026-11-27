@@ -1,3 +1,5 @@
+"""Gestiona reportes, sus adjuntos y el filtro por nivel educativo."""
+
 from pathlib import Path
 
 from fastapi import (

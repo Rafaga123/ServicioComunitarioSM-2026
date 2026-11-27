@@ -1,3 +1,5 @@
+"""Valida JWT, resuelve roles y niveles, y aplica el control de acceso."""
+
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 

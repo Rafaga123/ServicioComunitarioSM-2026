@@ -1,11 +1,11 @@
-#imports
+"""Consulta el historial de auditorías del sistema."""
+
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlmodel import Session, col, select
 
-#imports de la app
 from app.core.paginacion import (
   Paginacion,
   RespuestaPaginada,
@@ -21,7 +21,6 @@ from app.utils.security import requerir_roles
 router = APIRouter(prefix="/auditorias", tags=["Auditorías"])
 
 
-# Funcion para listar las auditorias
 @router.get("/", response_model=RespuestaPaginada[PeticionAuditoria])
 def listar_auditorias(
   usuario: str | None = None,
@@ -32,14 +31,11 @@ def listar_auditorias(
   sesion: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
-  # ====
-  # Consulta el historial de auditorias del sistema con soporte de paginación 
-  # Se hace un inner join para evitar consultas adicionales desde el frontend
-  # ====
+  # El join evita una consulta adicional por fila desde el frontend.
   consulta = select(Auditorias, Usuarios.nombre).join(
     Usuarios, col(Auditorias.usuario_id) == col(Usuarios.id),)
- 
-  
+
+
   if usuario is not None:
     consulta = consulta.where(col(Usuarios.nombre).ilike(f"%{usuario}%"))
   if modulo is not None:
@@ -48,12 +44,11 @@ def listar_auditorias(
     consulta = consulta.where(col(Auditorias.accion).ilike(f"%{accion}%"))
   if fecha is not None:
     consulta = consulta.where(func.date(Auditorias.fecha_creacion) == fecha)
-    
-    
-  #ordenamos de mayor a menor (la mas reciente, a la mas antigua)
+
+
+  # Ordena de la auditoría más reciente a la más antigua.
   consulta = consulta.order_by(col(Auditorias.fecha_creacion).desc())
 
-  # paginamos y mapeamos cada fila (auditoria + nombre de usuario)
   filas, total = paginar(sesion, consulta, paginacion)
 
   items = [
@@ -64,8 +59,6 @@ def listar_auditorias(
   return construir_pagina(items, total, paginacion)
 
 
-
-# Funcion para obtener una auditoria en especifico por su id
 @router.get("/{auditoria_id}", response_model=PeticionAuditoria)
 def obtener_auditoria(
   auditoria_id: int,
@@ -73,23 +66,23 @@ def obtener_auditoria(
   usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
   auditoria = sesion.get(Auditorias, auditoria_id)
-  
-  
+
+
   if not auditoria:
     raise HTTPException(
       status_code = status.HTTP_404_NOT_FOUND,
       detail="Registro de auditoria no encontrado"
     )
-  
+
   usuario = sesion.get(Usuarios, auditoria.usuario_id)
-  
-  
+
+
   if not usuario:
     raise HTTPException(
       status_code=status.HTTP_404_NOT_FOUND,
       detail="Usuario asociado a la auditoría no encontrado",
     )
-  
+
   return PeticionAuditoria(
     **auditoria.model_dump(),
     usuario=usuario.nombre,

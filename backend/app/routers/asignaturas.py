@@ -1,3 +1,5 @@
+"""Gestiona asignaturas, su vinculación con docentes y los horarios asociados."""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 

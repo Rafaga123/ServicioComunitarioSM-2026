@@ -1,3 +1,5 @@
+"""Centraliza la zona horaria institucional y la construcción de fechas."""
+
 from datetime import datetime
 from zoneinfo import ZoneInfo
 

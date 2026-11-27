@@ -1,3 +1,5 @@
+"""Administra la denylist de JWT revocados por logout o cierre forzado."""
+
 from datetime import UTC, datetime, timedelta
 from threading import Lock
 from time import monotonic

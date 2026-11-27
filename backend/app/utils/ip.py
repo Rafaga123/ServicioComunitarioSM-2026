@@ -1,3 +1,5 @@
+"""Obtiene la IP local para mostrar las direcciones de acceso de la API."""
+
 import socket
 
 

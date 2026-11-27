@@ -1,3 +1,5 @@
+"""Declara los contratos de entrada y salida de los endpoints."""
+
 from datetime import datetime, time
 
 from pydantic import field_validator, model_validator
@@ -41,10 +43,9 @@ def validar_bloque_horario(
     raise ValueError("Un receso no debe tener número de bloque académico")
 
 
-# ====
-# Esquemas para Usuarios
-# ====
+# Esquemas para Usuarios.
 class CrearUsuario(SQLModel):
+  """Datos necesarios para crear una cuenta de usuario."""
   nombre: str = Field(min_length=1, max_length=100)
   clave: str = Field(min_length=8, max_length=72)
   rol: en.RolesAsignables
@@ -54,6 +55,7 @@ class CrearUsuario(SQLModel):
 
 
 class PeticionUsuario(SQLModel):
+  """Datos visibles de una cuenta de usuario."""
   id: int | None
   nombre: str
   rol: en.RolesUsuario
@@ -61,6 +63,7 @@ class PeticionUsuario(SQLModel):
 
 
 class ActualizarUsuario(SQLModel):
+  """Campos editables de una cuenta por parte del administrador."""
   nombre: str | None = Field(default=None, min_length=1, max_length=100)
   rol: en.RolesAsignables | None = None
   nivel: en.NivelEducativo | None = None
@@ -70,24 +73,23 @@ class ActualizarUsuario(SQLModel):
 
 
 class CambiarClave(SQLModel):
+  """Clave actual y nueva para el cambio propio de clave."""
   clave_actual: str
   clave_nueva: str = Field(min_length=8, max_length=72)
 
 
-# ====
-# Esquemas para Grados (catálogo de solo lectura)
-# ====
+# Esquemas para Grados, de solo lectura.
 class PeticionGrado(SQLModel):
+  """Grado del catálogo expuesto al frontend."""
   id: int
   numero: int
   nombre: str
   nivel: en.NivelEducativo
 
 
-# ====
-# Esquemas para Secciones
-# ====
+# Esquemas para Secciones.
 class CrearSeccion(SQLModel):
+  """Datos para crear una sección de un grado."""
   id_grado: int
   letra: str
   periodo_lectivo: int = Field(ge=2000)
@@ -100,6 +102,7 @@ class CrearSeccion(SQLModel):
 
 
 class ActualizarSeccion(SQLModel):
+  """Campos editables de una sección."""
   letra: str | None = None
   periodo_lectivo: int | None = Field(default=None, ge=2000)
   id_docente_titular: int | None = None
@@ -111,6 +114,7 @@ class ActualizarSeccion(SQLModel):
 
 
 class PeticionSeccion(SQLModel):
+  """Datos visibles de una sección."""
   id: int
   id_grado: int
   letra: str
@@ -124,10 +128,9 @@ class PeticionSeccion(SQLModel):
   docente_titular: str | None = None
 
 
-# ====
-# Esquemas para Representantes
-# ====
+# Esquemas para Representantes.
 class CrearRepresentante(SQLModel):
+  """Datos para registrar un representante."""
   primer_nombre: str = Field(min_length=1)
   segundo_nombre: str | None = None
   primer_apellido: str = Field(min_length=1)
@@ -137,6 +140,7 @@ class CrearRepresentante(SQLModel):
 
 
 class ActualizarRepresentante(SQLModel):
+  """Campos editables de un representante."""
   primer_nombre: str | None = Field(default=None, min_length=1)
   segundo_nombre: str | None = None
   primer_apellido: str | None = Field(default=None, min_length=1)
@@ -145,6 +149,7 @@ class ActualizarRepresentante(SQLModel):
 
 
 class PeticionRepresentante(SQLModel):
+  """Datos visibles de un representante."""
   id: int
   primer_nombre: str
   segundo_nombre: str | None = None
@@ -153,10 +158,9 @@ class PeticionRepresentante(SQLModel):
   telefono: str
 
 
-# ====
-# Esquemas para Docentes
-# ====
+# Esquemas para Docentes.
 class CrearDocente(SQLModel):
+  """Datos para registrar un docente."""
   primer_nombre: str = Field(min_length=1)
   segundo_nombre: str | None = None
   primer_apellido: str = Field(min_length=1)
@@ -167,6 +171,7 @@ class CrearDocente(SQLModel):
 
 
 class ActualizarDocente(SQLModel):
+  """Campos editables de un docente."""
   primer_nombre: str | None = Field(default=None, min_length=1)
   segundo_nombre: str | None = None
   primer_apellido: str | None = Field(default=None, min_length=1)
@@ -176,6 +181,7 @@ class ActualizarDocente(SQLModel):
 
 
 class PeticionDocente(SQLModel):
+  """Datos visibles de un docente."""
   id: int
   primer_nombre: str
   segundo_nombre: str | None = None
@@ -185,10 +191,9 @@ class PeticionDocente(SQLModel):
   nivel: en.NivelEducativo
 
 
-# ====
-# Esquemas para Estudiantes
-# ====
+# Esquemas para Estudiantes.
 class CrearEstudiante(SQLModel):
+  """Datos para inscribir un estudiante."""
   id_seccion: int
   id_representante: int | None = None
 
@@ -208,6 +213,7 @@ class CrearEstudiante(SQLModel):
 
 
 class ActualizarEstudiante(SQLModel):
+  """Campos editables de un estudiante."""
   id_seccion: int | None = None
   id_representante: int | None = None
 
@@ -227,6 +233,7 @@ class ActualizarEstudiante(SQLModel):
 
 
 class PeticionEstudiante(SQLModel):
+  """Datos visibles de un estudiante con su ubicación académica."""
   id: int
   id_seccion: int
   id_representante: int | None = None
@@ -252,10 +259,9 @@ class PeticionEstudiante(SQLModel):
   representante: str | None = None
 
 
-# ====
-# Esquemas para Asignaturas
-# ====
+# Esquemas para Asignaturas.
 class CrearAsignatura(SQLModel):
+  """Datos para crear una asignatura."""
   id_grado: int
   nombre: str = Field(min_length=1)
   # Opcional: si no se envía, se usa el periodo lectivo activo.
@@ -263,6 +269,7 @@ class CrearAsignatura(SQLModel):
 
 
 class ActualizarAsignatura(SQLModel):
+  """Campos editables de una asignatura."""
   id_grado: int | None = None
   nombre: str | None = Field(default=None, min_length=1)
   # El periodo lectivo se asigna en el registro; el cliente no puede cambiarlo.
@@ -270,6 +277,7 @@ class ActualizarAsignatura(SQLModel):
 
 
 class PeticionAsignatura(SQLModel):
+  """Datos visibles de una asignatura y sus docentes."""
   id: int
   id_grado: int
   periodo_lectivo: int
@@ -282,13 +290,13 @@ class PeticionAsignatura(SQLModel):
 
 
 class VincularDocente(SQLModel):
+  """Identificador del docente a vincular a una asignatura."""
   id_docente: int
 
 
-# ====
-# Esquemas para Bloques Horarios
-# ====
+# Esquemas para Bloques Horarios.
 class CrearBloqueHorario(SQLModel):
+  """Datos para crear un bloque de la jornada."""
   orden: int = Field(ge=1, le=10)
   numero: int | None = Field(default=None, ge=1, le=8)
   nombre: str = Field(min_length=1)
@@ -303,6 +311,7 @@ class CrearBloqueHorario(SQLModel):
 
 
 class ActualizarBloqueHorario(SQLModel):
+  """Campos editables de un bloque horario."""
   orden: int | None = Field(default=None, ge=1, le=10)
   numero: int | None = Field(default=None, ge=1, le=8)
   nombre: str | None = Field(default=None, min_length=1)
@@ -312,6 +321,7 @@ class ActualizarBloqueHorario(SQLModel):
 
 
 class PeticionBloqueHorario(SQLModel):
+  """Datos visibles de un bloque horario."""
   id: int
   orden: int
   numero: int | None = None
@@ -321,10 +331,9 @@ class PeticionBloqueHorario(SQLModel):
   hora_fin: time
 
 
-# ====
-# Esquemas para Horarios
-# ====
+# Esquemas para Horarios.
 class CrearHorario(SQLModel):
+  """Datos para asignar un horario a una sección."""
   id_seccion: int
   id_bloque: int
   id_asignatura: int
@@ -334,6 +343,7 @@ class CrearHorario(SQLModel):
 
 
 class ActualizarHorario(SQLModel):
+  """Campos editables de un horario."""
   id_seccion: int | None = None
   id_bloque: int | None = None
   id_asignatura: int | None = None
@@ -343,6 +353,7 @@ class ActualizarHorario(SQLModel):
 
 
 class PeticionHorario(SQLModel):
+  """Datos visibles de una celda del horario."""
   id: int
   id_seccion: int
   id_bloque: int
@@ -366,6 +377,7 @@ class PeticionHorario(SQLModel):
 # Respuesta del autocompletado: resuelve la sección del estudiante y el
 # bloque institucional, sin usar una hora suelta como clave del horario.
 class PeticionConsultaHorario(SQLModel):
+  """Respuesta del autocompletado de horario por estudiante y bloque."""
   encontrado: bool
   id_horario: int | None = None
   id_bloque: int | None = None
@@ -378,10 +390,9 @@ class PeticionConsultaHorario(SQLModel):
   hora_fin: time | None = None
 
 
-# ====
-# Esquemas para Pases
-# ====
+# Esquemas para Pases.
 class CrearPase(SQLModel):
+  """Datos para registrar un pase disciplinario."""
   id_estudiante: int
   id_docente: int | None = None
   id_asignatura: int | None = None
@@ -397,6 +408,7 @@ class CrearPase(SQLModel):
 
 
 class ActualizacionPase(SQLModel):
+  """Campos editables de un pase."""
   id_docente: int | None = None
   id_asignatura: int | None = None
   tipo: en.TipoPase | None = None
@@ -411,6 +423,7 @@ class ActualizacionPase(SQLModel):
 
 
 class PeticionPase(SQLModel):
+  """Datos visibles de un pase."""
   id: int
   id_estudiante: int
   id_usuario: int
@@ -439,6 +452,7 @@ class PeticionPase(SQLModel):
 
 
 class PeticionPeriodoLectivo(SQLModel):
+  """Datos visibles de un periodo lectivo."""
   id: int | None = None
   anio: int = Field(ge=2000)
   activo: bool = False
@@ -446,19 +460,20 @@ class PeticionPeriodoLectivo(SQLModel):
 
 
 class CrearPeriodoLectivo(SQLModel):
+  """Datos para crear un periodo lectivo."""
   anio: int = Field(ge=2000)
   activo: bool = False
 
 
 class ActualizarPeriodoLectivo(SQLModel):
+  """Campos editables de un periodo lectivo."""
   activo: bool | None = None
   cerrado: bool | None = None
 
 
-# ====
-# Esquemas para Reportes
-# ====
+# Esquemas para Reportes.
 class CrearReporte(SQLModel):
+  """Datos para registrar un reporte disciplinario."""
   id_estudiante: int
   id_docente: int | None = None
 
@@ -477,6 +492,7 @@ class CrearReporte(SQLModel):
 
 
 class ActualizarReporte(SQLModel):
+  """Campos editables de un reporte."""
   id_docente: int | None = None
 
   articulo: int | None = Field(default=None, ge=1)
@@ -494,6 +510,7 @@ class ActualizarReporte(SQLModel):
 
 
 class PeticionReporte(SQLModel):
+  """Datos visibles de un reporte."""
   id: int
   id_estudiante: int
   id_usuario: int
@@ -523,15 +540,15 @@ class PeticionReporte(SQLModel):
   docente: str | None = None
 
 
-# ====
-# Esquemas para Listados (PDFs generados por tipo)
-# ====
+# Esquemas para Listados, agrupados por tipo de PDF.
 class SolicitudCierreAnio(SQLModel):
+  """Parámetros solicitados para ejecutar el cierre de año."""
   periodo_actual: int = Field(ge=2000)
   periodo_siguiente: int = Field(ge=2000)
 
 
 class PeticionCierreAnio(SQLModel):
+  """Resultado del cierre de año ejecutado."""
   periodo_cerrado: int
   periodo_activado: int
   documentos_generados: int
@@ -556,6 +573,7 @@ class SolicitudListado(SQLModel):
 
 
 class PeticionDocumentoGenerado(SQLModel):
+  """Datos visibles de un PDF generado y su ruta de descarga."""
   id: int | None = None
   tipo: en.TipoDocumento
   periodo_lectivo: int | None = None
@@ -576,10 +594,9 @@ class PeticionDocumentoGenerado(SQLModel):
   grado_nombre: str | None = None
 
 
-# ====
-# Esquema para el resumen de gestión académica
-# ====
+# Esquema para el resumen de gestión académica.
 class PeticionResumenGestion(SQLModel):
+  """Resumen agregado de gestión académica por nivel."""
   nivel: en.NivelEducativo | None = None
   periodo_lectivo: int | None = None
   representantes: int
@@ -592,10 +609,9 @@ class PeticionResumenGestion(SQLModel):
   reportes: int
 
 
-# ====
-# Esquema para Auditoría
-# ====
+# Esquema para Auditoría.
 class PeticionAuditoria(SQLModel):
+  """Registro de auditoría expuesto al frontend."""
   id: int | None
   usuario_id: int | None
   usuario: str | None = None

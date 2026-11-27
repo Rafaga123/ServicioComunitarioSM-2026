@@ -1,3 +1,5 @@
+"""Autentica usuarios, emite JWT y registra el cierre de sesión."""
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
@@ -39,7 +41,6 @@ def _hash_para_usuario_inexistente() -> str:
   return _HASH_FANTASMA
 
 
-# Endpoint para iniciar sesión
 @router.post("/login")
 def iniciar_sesion(
   request: Request,

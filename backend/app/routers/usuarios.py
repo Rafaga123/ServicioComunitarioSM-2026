@@ -1,3 +1,5 @@
+"""Gestiona cuentas, claves, roles y revocación de sesiones."""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 

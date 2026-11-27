@@ -1,3 +1,5 @@
+"""Gestiona el catálogo de docentes y su filtro por nivel educativo."""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 

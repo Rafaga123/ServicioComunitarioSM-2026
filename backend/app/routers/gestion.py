@@ -1,3 +1,5 @@
+"""Expone el resumen académico agregado por nivel educativo."""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlmodel import Session, select

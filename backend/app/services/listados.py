@@ -52,6 +52,7 @@ TITULOS_DOCUMENTO = {
 
 @dataclass
 class DocumentoListado:
+  """Estructura intermedia con filas, encabezados y metadata para renderizar un listado."""
   seccion_id: int | None
   grado_id: int | None
   grado: Grados | None
@@ -112,9 +113,7 @@ def _nombre_representante(representante: Representantes | None) -> str:
   return nombre_completo(representante) or "-"
 
 
-# =====
-# Consultas por sección
-# =====
+# Consultas por sección.
 def _filas_nominas_seccion(session: Session, seccion: Secciones) -> list[list[str]]:
   estudiantes = session.exec(
     select(Estudiantes)
@@ -249,9 +248,7 @@ def _datos_horarios(
   return cabecera, filas, docentes
 
 
-# =====
-# Consultas general (por nivel y periodo, sin sección)
-# =====
+# Consultas generales por nivel y periodo, sin sección.
 def _filas_nominas_general(
   session: Session,
   periodo: int,

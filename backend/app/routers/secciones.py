@@ -1,3 +1,5 @@
+"""Gestiona secciones activas por grado y periodo lectivo."""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 

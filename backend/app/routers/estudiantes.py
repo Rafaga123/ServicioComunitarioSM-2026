@@ -1,3 +1,5 @@
+"""Gestiona estudiantes, su ubicación académica y el autocompletado por cédula."""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
