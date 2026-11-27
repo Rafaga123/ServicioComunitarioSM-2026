@@ -2,8 +2,9 @@
 //
 //   GET    /horarios/registros/?offset=0&size=10&nivel=&id_seccion=&id_grado=
 //          &id_asignatura=&id_docente=&id_bloque=&periodo_lectivo=&dia_semana=
-//          -> { items, total, offset, size }
-//   GET    /horarios/registros/{id}       -> PeticionHorario
+//          -> { items, total, offset, size } (lectura para cualquier usuario
+//             autenticado; el backend limita el nivel según su rol)
+//   GET    /horarios/registros/{id}       -> PeticionHorario (ídem)
 //   POST   /horarios/registros/           -> 201 (solo ADMIN)
 //   PUT    /horarios/registros/{id}       -> PeticionHorario (solo ADMIN)
 //   DELETE /horarios/registros/{id}       -> 204 (solo ADMIN)
@@ -199,6 +200,42 @@ export async function listarBloquesAcademicos() {
   return (data?.items ?? [])
     .map(aBloque)
     .sort((a, b) => a.orden - b.orden)
+}
+
+/**
+ * Todos los bloques de la jornada (académicos y recesos), en orden.
+ * La grilla semanal los usa como filas para que se vean también los huecos.
+ */
+export async function listarBloquesHorarios() {
+  const data = await apiFetch(BLOQUES, {
+    params: { offset: 0, size: MAXIMO_POR_PAGINA },
+  })
+  return (data?.items ?? [])
+    .map(aBloque)
+    .sort((a, b) => a.orden - b.orden)
+}
+
+/**
+ * Horario completo de una sección en un período: como máximo 5 días × 8
+ * bloques, así que una sola página de 100 registros basta para la grilla.
+ */
+export async function listarHorarioSemana({ idSeccion, periodoLectivo, nivel } = {}) {
+  if (!idSeccion) return { items: [], total: 0 }
+
+  const data = await apiFetch(RECURSO, {
+    params: {
+      offset: 0,
+      size: MAXIMO_POR_PAGINA,
+      id_seccion: idSeccion,
+      periodo_lectivo: periodoLectivo || undefined,
+      nivel: nivel || undefined,
+    },
+  })
+
+  return {
+    items: (data?.items ?? []).map(aHorario),
+    total: data?.total ?? 0,
+  }
 }
 
 /**

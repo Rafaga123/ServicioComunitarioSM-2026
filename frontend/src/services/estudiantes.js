@@ -110,15 +110,30 @@ export async function listarEstudiantes({
  *
  * @param {object} [opciones]
  * @param {string} [opciones.nivel] LICEO | ESCUELA (opcional).
+ * @param {number} [opciones.idGrado] Filtro por año/grado.
+ * @param {number} [opciones.idSeccion] Filtro por sección.
+ * @param {number} [opciones.periodoLectivo] Filtro por período lectivo.
  */
-export async function listarTodosEstudiantes({ nivel } = {}) {
+export async function listarTodosEstudiantes({
+  nivel,
+  idGrado,
+  idSeccion,
+  periodoLectivo,
+} = {}) {
   const items = []
   let offset = 0
   let total
 
   do {
     const data = await apiFetch(RECURSO, {
-      params: { offset, size: MAXIMO_POR_PAGINA, nivel: nivel || undefined },
+      params: {
+        offset,
+        size: MAXIMO_POR_PAGINA,
+        nivel: nivel || undefined,
+        id_grado: idGrado || undefined,
+        id_seccion: idSeccion || undefined,
+        periodo_lectivo: periodoLectivo || undefined,
+      },
     })
     const pagina = (data?.items ?? []).map(aEstudiante)
 

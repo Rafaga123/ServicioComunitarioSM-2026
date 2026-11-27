@@ -1,18 +1,22 @@
 // Servicio del resumen de gestión académica.
 //
-//   GET /gestion/resumen?nivel=  -> PeticionResumenGestion
+//   GET /gestion/resumen?nivel=&periodo_lectivo=  -> PeticionResumenGestion
 //
 // Devuelve de una sola vez la cantidad de registros activos por módulo. El
 // administrador puede pedir LICEO, ESCUELA o ningún nivel (ambos); los
-// operadores quedan restringidos a su nivel por el backend.
+// operadores quedan restringidos a su nivel por el backend. Si no se indica
+// período, el backend usa el activo.
 import { apiFetch } from './api'
 
 const aEntero = (valor) => (typeof valor === 'number' ? valor : Number(valor) || 0)
 
 /** Conteos globales de la vista de gestión académica. */
-export async function obtenerResumenGestion({ nivel } = {}) {
+export async function obtenerResumenGestion({ nivel, periodoLectivo } = {}) {
   const data = await apiFetch('/gestion/resumen', {
-    params: { nivel: nivel || undefined },
+    params: {
+      nivel: nivel || undefined,
+      periodo_lectivo: periodoLectivo || undefined,
+    },
   })
 
   return {

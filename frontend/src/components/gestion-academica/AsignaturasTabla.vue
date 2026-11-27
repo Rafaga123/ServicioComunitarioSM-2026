@@ -25,7 +25,7 @@ const emit = defineEmits(['editar', 'eliminar'])
           <th :class="th">Grado / año</th>
           <th :class="th">Período</th>
           <th :class="th">Docentes</th>
-          <th :class="[th, 'text-right']">Acciones</th>
+          <th v-if="puedeGestionar" :class="[th, 'text-right']">Acciones</th>
         </tr>
       </thead>
       <tbody>
@@ -39,9 +39,8 @@ const emit = defineEmits(['editar', 'eliminar'])
               <span v-for="d in a.docentes" :key="d.id" :class="tag">{{ nomDocente(d) }}</span>
             </div>
           </td>
-          <td :class="[td, 'whitespace-nowrap text-right']">
+          <td v-if="puedeGestionar" :class="[td, 'whitespace-nowrap text-right']">
             <button
-              v-if="puedeGestionar"
               type="button"
               :class="btnMini"
               :aria-label="'Editar ' + a.nombre"
@@ -50,7 +49,6 @@ const emit = defineEmits(['editar', 'eliminar'])
               Editar
             </button>
             <button
-              v-if="puedeGestionar"
               type="button"
               :class="[btnMini, '!text-[#8a1c14]']"
               :aria-label="'Eliminar ' + a.nombre"

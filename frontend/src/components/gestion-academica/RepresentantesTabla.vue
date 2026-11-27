@@ -5,6 +5,7 @@ import { th, td, btnMini, tag, nada, sinRes } from './estilos'
 const props = defineProps({
   filas: { type: Array, required: true },
   estudiantes: { type: Array, default: () => [] },
+  cargandoEstudiantes: { type: Boolean, default: false },
   buscando: { type: Boolean, default: false },
   cargando: { type: Boolean, default: false },
   filtrando: { type: Boolean, default: false },
@@ -29,9 +30,9 @@ const estudiantesDe = (repId) =>
         <tr>
           <th :class="th">Representante</th>
           <th :class="th">Teléfono</th>
-          <!-- La API de representantes no incluye a sus estudiantes; la columna
-               aparece cuando la pestaña Estudiantes esté conectada. -->
-          <th v-if="estudiantes.length" :class="th">Estudiantes a cargo</th>
+          <!-- La vista carga todos los estudiantes del nivel y período para
+               cruzar el id_representante, no solo la página visible. -->
+          <th v-if="estudiantes.length || cargandoEstudiantes" :class="th">Estudiantes a cargo</th>
           <th v-if="puedeGestionar" :class="[th, 'text-right']">Acciones</th>
         </tr>
       </thead>
@@ -39,8 +40,9 @@ const estudiantesDe = (repId) =>
         <tr v-for="r in filas" :key="r.id">
           <td :class="[td, 'font-semibold']">{{ nomPersona(r) }}</td>
           <td :class="[td, 'whitespace-nowrap']">{{ r.telefono || '—' }}</td>
-          <td v-if="estudiantes.length" :class="td">
-            <span v-if="!estudiantesDe(r.id).length" :class="nada">Sin estudiantes vinculados aún</span>
+          <td v-if="estudiantes.length || cargandoEstudiantes" :class="td">
+            <span v-if="cargandoEstudiantes && !estudiantes.length" :class="nada">Cargando estudiantes…</span>
+            <span v-else-if="!estudiantesDe(r.id).length" :class="nada">Sin estudiantes vinculados aún</span>
             <div v-else class="flex flex-wrap gap-1">
               <span v-for="e in estudiantesDe(r.id).slice(0, 3)" :key="e.id" :class="tag">
                 {{ e.primerNombre }} {{ e.primerApellido }}

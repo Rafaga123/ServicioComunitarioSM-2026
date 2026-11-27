@@ -49,6 +49,8 @@ import {
   actualizarHorario,
   eliminarHorario,
   listarBloquesAcademicos,
+  listarBloquesHorarios,
+  listarHorarioSemana,
 } from '../services/horarios'
 import { useRecursoPaginado } from '@/composables/useRecursoPaginado'
 import SeccionesTabla from '@/components/gestion-academica/SeccionesTabla.vue'
@@ -56,7 +58,11 @@ import RepresentantesTabla from '@/components/gestion-academica/RepresentantesTa
 import EstudiantesTabla from '@/components/gestion-academica/EstudiantesTabla.vue'
 import AsignaturasTabla from '@/components/gestion-academica/AsignaturasTabla.vue'
 import DocentesTabla from '@/components/gestion-academica/DocentesTabla.vue'
-import HorariosTabla from '@/components/gestion-academica/HorariosTabla.vue'
+import HorarioGrilla from '@/components/gestion-academica/HorarioGrilla.vue'
+import {
+  exportarListadoGeneral,
+  exportarListadoHorarios,
+} from '@/services/listados'
 import {
   dias,
   norm,
@@ -123,6 +129,24 @@ const tabsVisibles = computed(() =>
     ? tabs.filter((t) => t.id !== 'asignaturas' && t.id !== 'horarios')
     : tabs,
 )
+// Navegación con flechas/Home/End entre pestañas (patrón ARIA de tablist).
+const moverTab = (evento, id) => {
+  const teclas = ['ArrowLeft', 'ArrowRight', 'Home', 'End']
+  if (!teclas.includes(evento.key)) return
+  evento.preventDefault()
+  const lista = tabsVisibles.value
+  const indice = lista.findIndex((t) => t.id === id)
+  if (indice < 0) return
+  let destino = indice
+  if (evento.key === 'ArrowLeft') destino = (indice - 1 + lista.length) % lista.length
+  else if (evento.key === 'ArrowRight') destino = (indice + 1) % lista.length
+  else if (evento.key === 'Home') destino = 0
+  else if (evento.key === 'End') destino = lista.length - 1
+  const nuevo = lista[destino]?.id
+  if (!nuevo) return
+  tab.value = nuevo
+  nextTick(() => document.getElementById(`tab-${nuevo}`)?.focus())
+}
 const placeholders = {
   secciones: 'Buscar por grado, letra, nivel o docente titular',
   representantes: 'Buscar por nombre o apellido',
@@ -165,12 +189,21 @@ const datos = reactive({ secciones: [], representantes: [], estudiantes: [], asi
 // - El administrador no tiene nivel propio y puede ver ambos; el filtro es suyo.
 // - Los operadores quedan atados a su nivel (el backend también lo impone).
 const nivelFiltro = ref(esAdministrador.value ? '' : (nivelActual.value ?? ''))
-// Sección cuyo horario se quiere ubicar al llegar desde la pestaña Secciones.
-// El horario de Liceo es por bloques; el de Escuela es corrido y no se enlaza.
-const horarioSeccion = ref(null)
 // Período con el que se trabajan Secciones, Asignaturas y Horarios. Se
 // inicializa con el activo del backend.
 const periodoSeleccionado = ref('')
+// Filtros de Estudiantes: año/grado y sección. El backend ya los acepta en
+// /estudiantes/ y en el listado de nóminas, así que la tabla y el PDF coinciden.
+const filtroAnio = ref('')
+const filtroSeccion = ref('')
+// Evita recargar dos veces cuando nivel/período reinician los filtros a la vez.
+let ajustandoFiltros = false
+const reiniciarFiltrosEstudiantes = () => {
+  ajustandoFiltros = true
+  filtroAnio.value = ''
+  filtroSeccion.value = ''
+  nextTick(() => { ajustandoFiltros = false })
+}
 const nivelConsulta = computed(() =>
   esAdministrador.value ? nivelFiltro.value : (nivelActual.value ?? ''),
 )
@@ -186,9 +219,6 @@ const vacioTitulo = computed(() => {
   }
   if (tab.value === 'asignaturas' && periodoSeleccionado.value) {
     return `No hay asignaturas en ${alcanceNivel.value} · ${periodoSeleccionado.value}`
-  }
-  if (tab.value === 'horarios' && horarioSeccion.value) {
-    return `No hay horarios para ${etiquetaHorarioSeccion.value}`
   }
   if (!nivelConsulta.value) return vacios[tab.value].titulo
   if (tab.value === 'representantes') return `No hay representantes en ${alcanceNivel.value}`
@@ -206,14 +236,14 @@ const vacioTexto = computed(() => {
   if (tab.value === 'asignaturas' && periodoSeleccionado.value) {
     return `Las asignaturas solo se registran en grados de Liceo para el período ${periodoSeleccionado.value}. Cambia el filtro de nivel o de período.`
   }
-  if (tab.value === 'horarios' && horarioSeccion.value) {
-    return 'Registra un horario para esa sección o quita el filtro para ver los demás.'
-  }
   if (!nivelConsulta.value) return vacios[tab.value].texto
   if (tab.value === 'representantes') {
     return 'Solo aparecen representantes con estudiantes activos en ese nivel.'
   }
   if (tab.value === 'estudiantes') {
+    if (filtroAnio.value || filtroSeccion.value) {
+      return 'No hay estudiantes para el año o sección seleccionados. Cambia los filtros.'
+    }
     return 'Registra un estudiante en ese nivel o cambia el filtro de nivel.'
   }
   return vacios[tab.value].texto
@@ -255,8 +285,20 @@ const representantes = useRecursoPaginado({
   porDefecto: POR_PAGINA,
 })
 const estudiantes = useRecursoPaginado({
-  listar: listarEstudiantes,
-  listarTodos: listarTodosEstudiantes,
+  // El composable solo conoce el nivel: aquí se inyectan año, sección y
+  // período para que la paginación y la búsqueda usen los mismos filtros.
+  listar: (args) => listarEstudiantes({
+    ...args,
+    idGrado: filtroSeccion.value ? undefined : (filtroAnio.value || undefined),
+    idSeccion: filtroSeccion.value || undefined,
+    periodoLectivo: periodoSeleccionado.value || undefined,
+  }),
+  listarTodos: (args) => listarTodosEstudiantes({
+    ...args,
+    idGrado: filtroSeccion.value ? undefined : (filtroAnio.value || undefined),
+    idSeccion: filtroSeccion.value || undefined,
+    periodoLectivo: periodoSeleccionado.value || undefined,
+  }),
   getNivel: () => nivelConsulta.value,
   asignar: (items) => { datos.estudiantes = items },
   porDefecto: POR_PAGINA,
@@ -276,18 +318,16 @@ const asignaturas = useRecursoPaginado({
   asignar: (items) => { datos.asignaturas = items },
   porDefecto: POR_PAGINA,
 })
-// Los horarios comparten el período elegido y, al venir desde Secciones, se
-// reducen a la sección elegida. El nivel lo inyecta el composable.
+// El listado plano de horarios ya no tiene vista propia: solo se mantiene
+// conectado para los totales y los formularios. La grilla se carga aparte.
 const horarios = useRecursoPaginado({
   listar: (args) => listarHorarios({
     ...args,
     periodoLectivo: periodoSeleccionado.value || undefined,
-    idSeccion: horarioSeccion.value?.id ?? undefined,
   }),
   listarTodos: (args) => listarTodosHorarios({
     ...args,
     periodoLectivo: periodoSeleccionado.value || undefined,
-    idSeccion: horarioSeccion.value?.id ?? undefined,
   }),
   getNivel: () => nivelConsulta.value,
   asignar: (items) => { datos.horarios = items },
@@ -314,21 +354,35 @@ const cargarHorarios = horarios.cargar
 const cargarTodosHorariosApi = horarios.cargarTodos
 
 // Conteos globales para las insignias de las pestañas. Se piden una sola vez
-// al /gestion/resumen en vez de esperar a que se visite cada listado.
-const resumen = reactive({ datos: null, cargando: false, error: '' })
+// al /gestion/resumen en vez de esperar a que se visite cada listado. El
+// resumen se pide para el período seleccionado (no solo para el activo), para
+// que las insignias coincidan con las tablas.
+const resumen = reactive({ datos: null, liceo: null, cargando: false, error: '' })
 let resumenSolicitud = 0
 const cargarResumen = async () => {
   const solicitud = ++resumenSolicitud
   resumen.cargando = true
   resumen.error = ''
+  const nivel = nivelConsulta.value || undefined
+  const periodoLectivo = periodoSeleccionado.value || undefined
   try {
-    const datos = await obtenerResumenGestion({
-      nivel: nivelConsulta.value || undefined,
-    })
-    if (solicitud === resumenSolicitud) resumen.datos = datos
+    // Horarios es siempre de Liceo: con el filtro en Escuela hace falta un
+    // segundo conteo para que su insignia no muestre 0 mientras la grilla
+    // sigue mostrando secciones de Liceo.
+    const [datos, liceo] = await Promise.all([
+      obtenerResumenGestion({ nivel, periodoLectivo }),
+      esAdministrador.value && nivel === NIVELES.ESCUELA
+        ? obtenerResumenGestion({ nivel: NIVELES.LICEO, periodoLectivo })
+        : Promise.resolve(null),
+    ])
+    if (solicitud === resumenSolicitud) {
+      resumen.datos = datos
+      resumen.liceo = liceo
+    }
   } catch (error) {
     if (solicitud !== resumenSolicitud) return
     resumen.datos = null
+    resumen.liceo = null
     resumen.error = error?.message || 'No se pudo cargar el resumen de gestión.'
   } finally {
     if (solicitud === resumenSolicitud) resumen.cargando = false
@@ -336,6 +390,7 @@ const cargarResumen = async () => {
 }
 watch(nivelConsulta, () => {
   resumen.datos = null
+  resumen.liceo = null
   cargarResumen()
 })
 // Los totales de los listados cambian al crear o eliminar registros: eso también
@@ -352,25 +407,44 @@ watch(
   () => { cargarResumen() },
 )
 
-// Cambiar el período recarga la matriz de secciones, las asignaturas y los
-// horarios de ese año; los demás listados no dependen de él.
+// Cambiar el período recarga la matriz de secciones, las asignaturas, los
+// horarios y los catálogos de ese año. Estudiantes filtra por período; en
+// Representantes se recalculan los estudiantes a cargo (el backend de ese
+// listado aún no filtra por año).
 watch(periodoSeleccionado, () => {
+  // Las opciones de año/sección dependen del período; una selección anterior
+  // podría ya no existir en el año elegido.
+  reiniciarFiltrosEstudiantes()
+  // Las insignias cuentan por período: se recalculan con el año elegido.
+  cargarResumen()
+  // El catálogo del formulario de horarios también es de un año concreto.
+  invalidarCatalogoHorarios()
+  // Grados, secciones y períodos del formulario (y la matriz de Secciones)
+  // son del período elegido.
+  if (catalogos.periodoCargado !== periodoSeleccionado.value) cargarCatalogos()
+  if (tab.value === 'estudiantes' && estudiantesApi.cargado) {
+    recargarEstudiantesPorFiltro()
+  }
+  if (tab.value === 'representantes') {
+    cargarEstudiantesReps()
+  }
   // La carga inicial ya se hace en onMounted; solo reaccionamos a cambios
-  // posteriores del selector de período.
+  // posteriores del selector de período. Si hay búsqueda activa se recarga la
+  // caché completa para que el filtro siga funcionando.
   if (tab.value === 'secciones' && seccionesApi.cargado) {
     pagina.secciones = 1
     secciones.reiniciar()
-    cargarSecciones(1)
+    recargarTab()
   }
   if (tab.value === 'asignaturas' && asignaturasApi.cargado) {
     pagina.asignaturas = 1
     asignaturas.reiniciar()
-    cargarAsignaturas(1)
+    recargarTab()
   }
   if (tab.value === 'horarios' && horariosApi.cargado) {
     pagina.horarios = 1
     horarios.reiniciar()
-    cargarHorarios(1)
+    recargarTab()
   }
 })
 
@@ -382,6 +456,9 @@ const catalogos = reactive({
   secciones: [],
   periodos: [],
   periodoActivo: null,
+  // Año con el que se cargaron grados/secciones; evita recargar dos veces al
+  // inicializar el período activo.
+  periodoCargado: '',
   cargando: false,
   error: '',
 })
@@ -389,13 +466,14 @@ const catalogos = reactive({
 const cargarCatalogos = async () => {
   catalogos.cargando = true
   catalogos.error = ''
+  const periodoPedido = periodoSeleccionado.value || undefined
   try {
     const nivel = nivelConsulta.value || undefined
     // /gestion/periodos es solo ADMIN. En modo consulta se usa el período
     // activo, disponible para cualquier usuario autenticado.
     const [grados, secciones, periodos, periodo] = await Promise.all([
       listarTodosGrados({ nivel }),
-      listarTodasSecciones({ nivel }),
+      listarTodasSecciones({ nivel, periodoLectivo: periodoPedido }),
       puedeGestionar.value ? listarPeriodos() : Promise.resolve(null),
       obtenerPeriodoActivo(),
     ])
@@ -408,12 +486,62 @@ const cargarCatalogos = async () => {
         : []
     catalogos.periodoActivo = periodo
     if (periodo && !periodoSeleccionado.value) periodoSeleccionado.value = periodo.anio
+    // El backend usa el período activo si no se envía uno: al fijarlo arriba,
+    // las secciones cargadas ya corresponden a ese año.
+    catalogos.periodoCargado = periodoSeleccionado.value
   } catch (error) {
     catalogos.error = error?.message || 'No se pudieron cargar los grados, las secciones o los períodos.'
   } finally {
     catalogos.cargando = false
   }
 }
+
+// Opciones de los filtros de Estudiantes. Se derivan del catálogo ya cargado
+// para no hacer peticiones extra y para que año y sección sean coherentes con
+// el nivel y el período activos.
+const seccionesDelPeriodo = computed(() => {
+  const anio = Number(periodoSeleccionado.value)
+  return catalogos.secciones.filter(
+    (s) => !anio || Number(s.periodoLectivo) === anio,
+  )
+})
+const gradosFiltro = computed(() => {
+  const ids = new Set(seccionesDelPeriodo.value.map((s) => Number(s.idGrado)))
+  return catalogos.grados.filter((g) => {
+    const nivelOk = !nivelConsulta.value || g.nivel === nivelConsulta.value
+    return nivelOk && ids.has(Number(g.id))
+  })
+})
+const seccionesFiltro = computed(() => {
+  const anio = Number(filtroAnio.value)
+  return seccionesDelPeriodo.value.filter((s) => {
+    const nivelOk = !nivelConsulta.value || s.nivel === nivelConsulta.value
+    return nivelOk && (!anio || Number(s.idGrado) === anio)
+  })
+})
+const resumenFiltrosEstudiantes = computed(() => {
+  if (tab.value !== 'estudiantes') return alcanceNivel.value
+  const partes = []
+  const seccion = filtroSeccion.value
+    ? seccionesFiltro.value.find((s) => s.id === Number(filtroSeccion.value))
+    : null
+  const grado = filtroAnio.value
+    ? gradosFiltro.value.find((g) => g.id === Number(filtroAnio.value))
+    : null
+  // Con el filtro de nivel en «Todos», el año o la sección ya determinan el
+  // nivel. Se muestra ese alcance para que coincida con lo que se exporta.
+  const nivelInferido = seccion?.nivel || grado?.nivel || ''
+  const alcance = nivelConsulta.value || !nivelInferido
+    ? alcanceNivel.value
+    : etiquetaNivel(nivelInferido)
+  if (seccion) {
+    // La etiqueta de la sección ya incluye el año/grado: no repetirlo.
+    partes.push(etiquetaSeccionGrilla(seccion))
+  } else if (grado) {
+    partes.push(grado.nombre)
+  }
+  return partes.length ? `${alcance} · ${partes.join(' · ')}` : alcance
+})
 
 // El selector del formulario de estudiantes necesita TODOS los representantes,
 // sin el filtro de nivel de la pestaña: un representante es global y puede no
@@ -437,6 +565,32 @@ const cargarRepsFormulario = async () => {
 const invalidarRepsFormulario = () => {
   repsFormulario.items = []
   repsFormulario.listo = false
+}
+
+// La pestaña Representantes necesita TODOS los estudiantes del nivel para
+// mostrar «Estudiantes a cargo»; la tabla paginada solo trae una página. El
+// listado de representantes no filtra por período (el backend aún no lo
+// admite), así que los estudiantes tampoco se acotan por período aquí.
+const estudiantesReps = reactive({ items: [], cargando: false, error: '' })
+let solicitudEstudiantesReps = 0
+const cargarEstudiantesReps = async () => {
+  const solicitud = ++solicitudEstudiantesReps
+  estudiantesReps.cargando = true
+  estudiantesReps.error = ''
+  try {
+    const { items } = await listarTodosEstudiantes({
+      nivel: nivelConsulta.value || undefined,
+    })
+    if (solicitud !== solicitudEstudiantesReps) return
+    estudiantesReps.items = items
+  } catch (error) {
+    if (solicitud !== solicitudEstudiantesReps) return
+    estudiantesReps.items = []
+    estudiantesReps.error =
+      error?.message || 'No se pudieron cargar los estudiantes de los representantes.'
+  } finally {
+    if (solicitud === solicitudEstudiantesReps) estudiantesReps.cargando = false
+  }
 }
 
 // Titulares posibles para secciones de Escuela. Se cargan aparte porque el
@@ -496,6 +650,147 @@ const invalidarCatalogoAsignaturas = () => {
   catalogoAsignaturas.listo = false
 }
 
+// ───────────── Vista de Horarios: grilla semanal ─────────────
+// Es la única vista de la pestaña: una sección por vez, filas = bloques de la
+// jornada (con los recreos) y columnas = lunes a viernes. No hay filtro de
+// nivel aquí: los horarios son siempre de Liceo.
+const seccionGrilla = ref(null)
+const bloquesGrilla = reactive({ items: [], listo: false, cargando: false, error: '' })
+const semanaGrilla = reactive({ items: [], seccionId: null, cargando: false, error: '' })
+let solicitudSemana = 0
+
+// Las secciones de la grilla se piden aparte del catálogo general: así el
+// filtro de nivel usado en otras pestañas no puede ocultar las de Liceo.
+const seccionesLiceo = ref([])
+const seccionesGrillaCargadas = ref(false)
+const seccionesGrillaCargando = ref(false)
+const seccionesGrillaError = ref('')
+let solicitudSeccionesGrilla = 0
+const seccionesGrilla = computed(() =>
+  seccionesLiceo.value
+    .filter(
+      (s) =>
+        !periodoSeleccionado.value ||
+        Number(s.periodoLectivo) === Number(periodoSeleccionado.value),
+    )
+    .sort(
+      (a, b) =>
+        (Number(a.gradoNumero) || 0) - (Number(b.gradoNumero) || 0) ||
+        String(a.letra ?? '').localeCompare(String(b.letra ?? '')),
+    ),
+)
+
+const cargarSeccionesGrilla = async () => {
+  const solicitud = ++solicitudSeccionesGrilla
+  seccionesGrillaCargando.value = true
+  seccionesGrillaError.value = ''
+  try {
+    const { items } = await listarTodasSecciones({
+      nivel: 'LICEO',
+      periodoLectivo: periodoSeleccionado.value || undefined,
+    })
+    if (solicitud !== solicitudSeccionesGrilla) return
+    seccionesLiceo.value = items
+    seccionesGrillaCargadas.value = true
+  } catch (error) {
+    if (solicitud !== solicitudSeccionesGrilla) return
+    // Sin el catálogo no se puede distinguir «no hay secciones» de «falló la
+    // carga»: se guarda el error para ofrecer reintento en la grilla.
+    seccionesLiceo.value = []
+    seccionesGrillaError.value =
+      error?.message || 'No se pudieron cargar las secciones de Liceo.'
+  } finally {
+    if (solicitud === solicitudSeccionesGrilla) seccionesGrillaCargando.value = false
+  }
+}
+
+const etiquetaSeccionGrilla = (s) =>
+  `${s.gradoNombre || (s.gradoNumero ? `${s.gradoNumero}° Año` : 'Grado')} · Sección ${s.letra}`
+
+const elegirSeccionGrilla = (valor) => {
+  seccionGrilla.value =
+    seccionesGrilla.value.find((s) => s.id === Number(valor)) ?? null
+}
+
+const cargarBloquesGrilla = async () => {
+  if (bloquesGrilla.cargando) return
+  bloquesGrilla.cargando = true
+  bloquesGrilla.error = ''
+  try {
+    bloquesGrilla.items = await listarBloquesHorarios()
+    bloquesGrilla.listo = true
+  } catch (error) {
+    bloquesGrilla.error = error?.message || 'No se pudieron cargar los bloques horarios.'
+  } finally {
+    bloquesGrilla.cargando = false
+  }
+}
+
+const cargarSemanaGrilla = async () => {
+  const seccion = seccionGrilla.value
+  if (!seccion) {
+    solicitudSemana += 1
+    semanaGrilla.items = []
+    semanaGrilla.seccionId = null
+    semanaGrilla.cargando = false
+    semanaGrilla.error = ''
+    return
+  }
+
+  const solicitud = ++solicitudSemana
+  semanaGrilla.cargando = true
+  semanaGrilla.error = ''
+  try {
+    const { items } = await listarHorarioSemana({
+      idSeccion: seccion.id,
+      periodoLectivo: seccion.periodoLectivo || periodoSeleccionado.value || undefined,
+    })
+    if (solicitud !== solicitudSemana) return
+    semanaGrilla.items = items
+    semanaGrilla.seccionId = seccion.id
+  } catch (error) {
+    if (solicitud !== solicitudSemana) return
+    semanaGrilla.items = []
+    semanaGrilla.error = error?.message || 'No se pudo cargar el horario de la sección.'
+  } finally {
+    if (solicitud === solicitudSemana) semanaGrilla.cargando = false
+  }
+}
+
+const recargarGrilla = () => {
+  cargarSeccionesGrilla()
+  cargarBloquesGrilla()
+  if (seccionGrilla.value) cargarSemanaGrilla()
+}
+
+// Al cargar el catálogo de Liceo (o cambiar de período) la sección elegida
+// puede dejar de existir; en ese caso la grilla vuelve a pedir una sección.
+watch(seccionesGrilla, (lista) => {
+  if (!seccionesGrillaCargadas.value) return
+  if (seccionGrilla.value && !lista.some((s) => s.id === seccionGrilla.value.id)) {
+    seccionGrilla.value = null
+  }
+})
+
+// Cambiar de sección en el selector recarga su semana.
+watch(seccionGrilla, () => {
+  if (tab.value === 'horarios') cargarSemanaGrilla()
+})
+
+watch(periodoSeleccionado, () => {
+  if (tab.value !== 'horarios') return
+  // La sección elegida pertenece al período anterior: se limpia antes de
+  // recargar el catálogo del nuevo año.
+  if (
+    seccionGrilla.value &&
+    Number(seccionGrilla.value.periodoLectivo) !== Number(periodoSeleccionado.value)
+  ) {
+    seccionGrilla.value = null
+  }
+  cargarSeccionesGrilla()
+  if (seccionGrilla.value) cargarSemanaGrilla()
+})
+
 // Catálogo del panel de horarios: secciones de Liceo (para elegir el grado),
 // asignaturas con sus docentes vinculados, bloques académicos y un listado
 // completo de horarios para detectar choques de sección/docente.
@@ -511,7 +806,8 @@ const catalogoHorarios = reactive({
 let promesaCatalogoHorarios = null
 let versionCatalogoHorarios = 0
 const cargarCatalogoHorarios = () => {
-  // El backend solo permite listar horarios al administrador.
+  // El catálogo solo se usa en el formulario de alta/edición: en modo consulta
+  // el listado se sirve directamente desde el endpoint paginado.
   if (!puedeGestionar.value) return Promise.resolve()
   if (catalogoHorarios.listo) return Promise.resolve()
   if (promesaCatalogoHorarios) return promesaCatalogoHorarios
@@ -522,10 +818,18 @@ const cargarCatalogoHorarios = () => {
   promesaCatalogoHorarios = (async () => {
     try {
       const [secciones, asignaturas, bloques, todos] = await Promise.all([
-        listarTodasSecciones({ nivel: 'LICEO' }),
-        listarTodasAsignaturas({ nivel: 'LICEO' }),
+        listarTodasSecciones({
+          nivel: 'LICEO',
+          periodoLectivo: periodoSeleccionado.value || undefined,
+        }),
+        listarTodasAsignaturas({
+          nivel: 'LICEO',
+          periodoLectivo: periodoSeleccionado.value || undefined,
+        }),
         listarBloquesAcademicos(),
-        listarTodosHorarios(),
+        listarTodosHorarios({
+          periodoLectivo: periodoSeleccionado.value || undefined,
+        }),
       ])
       // Si algo invalidó el catálogo mientras cargaba, estos datos ya no sirven.
       if (version !== versionCatalogoHorarios) return
@@ -562,9 +866,7 @@ const apiTab = computed(() =>
     representantes: representantesApi,
     estudiantes: estudiantesApi,
     asignaturas: asignaturasApi,
-    // El backend restringe el listado de horarios a ADMIN; en modo consulta se
-    // muestra un aviso en vez de pedir ese endpoint.
-    horarios: puedeGestionar.value ? horariosApi : null,
+    horarios: horariosApi,
   }[tab.value] ?? null),
 )
 
@@ -574,9 +876,7 @@ const cargarTab = (paginaSolicitada) => {
   if (tab.value === 'representantes') return cargarRepresentantes(paginaSolicitada)
   if (tab.value === 'estudiantes') return cargarEstudiantes(paginaSolicitada)
   if (tab.value === 'asignaturas') return cargarAsignaturas(paginaSolicitada)
-  if (tab.value === 'horarios') {
-    return puedeGestionar.value ? cargarHorarios(paginaSolicitada) : Promise.resolve()
-  }
+  if (tab.value === 'horarios') return cargarHorarios(paginaSolicitada)
 }
 const cargarTodosTab = () => {
   if (tab.value === 'secciones') return cargarTodosSecciones()
@@ -584,9 +884,7 @@ const cargarTodosTab = () => {
   if (tab.value === 'representantes') return cargarTodosRepresentantes()
   if (tab.value === 'estudiantes') return cargarTodosEstudiantes()
   if (tab.value === 'asignaturas') return cargarTodosAsignaturas()
-  if (tab.value === 'horarios') {
-    return puedeGestionar.value ? cargarTodosHorariosApi() : Promise.resolve()
-  }
+  if (tab.value === 'horarios') return cargarTodosHorariosApi()
 }
 const recargarTab = () =>
   filtrando.value ? cargarTodosTab() : cargarTab(apiTab.value?.page ?? 1)
@@ -618,7 +916,11 @@ const refrescarEstudiantes = () =>
   estudiantes.refrescar({ conTodos: filtrando.value })
 const refrescarHorarios = () => {
   invalidarCatalogoHorarios()
-  return horarios.refrescar({ conTodos: filtrando.value })
+  const tareas = [horarios.refrescar({ conTodos: filtrando.value })]
+  if (tab.value === 'horarios' && seccionGrilla.value) {
+    tareas.push(cargarSemanaGrilla())
+  }
+  return Promise.all(tareas)
 }
 
 onMounted(async () => {
@@ -628,13 +930,20 @@ onMounted(async () => {
   // Primero los catálogos: así el período activo ya está elegido cuando se
   // pide la primera página de secciones.
   await cargarCatalogos()
-  if (apiTab.value) cargarTab(1)
+  const enHorarios = tab.value === 'horarios'
+  // Horarios solo usa la grilla: la lista plana no se pide nunca.
+  if (apiTab.value && !enHorarios) cargarTab(1)
+  if (enHorarios) {
+    cargarSeccionesGrilla()
+    cargarBloquesGrilla()
+    if (seccionGrilla.value) cargarSemanaGrilla()
+  }
   if (puedeGestionar.value) {
     if (tab.value === 'estudiantes') cargarRepsFormulario()
     if (tab.value === 'secciones') cargarTitulares()
     if (tab.value === 'asignaturas') cargarCatalogoAsignaturas()
-    if (tab.value === 'horarios') cargarCatalogoHorarios()
   }
+  if (tab.value === 'representantes') cargarEstudiantesReps()
 })
 
 // ───────────── Helpers ─────────────
@@ -766,10 +1075,37 @@ vigilarTamano('estudiantes', estudiantesApi, cargarEstudiantes)
 vigilarTamano('asignaturas', asignaturasApi, cargarAsignaturas)
 vigilarTamano('horarios', horariosApi, cargarHorarios)
 
+// Un cambio de año/sección debe descartar la caché: el total y la búsqueda
+// cliente vuelven a calcularse sobre el nuevo conjunto de estudiantes.
+const recargarEstudiantesPorFiltro = () => {
+  pagina.estudiantes = 1
+  estudiantes.reiniciar()
+  if (tab.value !== 'estudiantes') return
+  if (filtrando.value) return cargarTodosEstudiantes()
+  return cargarEstudiantes(1)
+}
+watch(filtroAnio, () => {
+  if (ajustandoFiltros) return
+  if (
+    filtroSeccion.value &&
+    !seccionesFiltro.value.some((s) => s.id === Number(filtroSeccion.value))
+  ) {
+    // El año ya no contiene la sección elegida: el watcher de sección recarga.
+    filtroSeccion.value = ''
+    return
+  }
+  recargarEstudiantesPorFiltro()
+})
+watch(filtroSeccion, () => {
+  if (ajustandoFiltros) return
+  recargarEstudiantesPorFiltro()
+})
+
 // Cambiar el nivel reinicia los listados del servidor y recarga los catálogos
 // del formulario (grados y secciones del nivel).
 watch(nivelFiltro, () => {
   if (!esAdministrador.value) return
+  reiniciarFiltrosEstudiantes()
   pagina.secciones = 1
   pagina.docentes = 1
   pagina.representantes = 1
@@ -782,14 +1118,19 @@ watch(nivelFiltro, () => {
   estudiantes.reiniciar()
   asignaturas.reiniciar()
   horarios.reiniciar()
-  if (apiTab.value) cargarTab(1)
+  // Con búsqueda activa hay que recargar la caché completa; sin ella, la
+  // primera página del nuevo nivel.
+  if (apiTab.value) recargarTab()
   cargarCatalogos()
+  if (tab.value === 'representantes') cargarEstudiantesReps()
 })
 
 const totalTab = (id) => {
   // El resumen es la fuente de verdad: incluye pestañas que todavía no se
   // visitaron. Mientras carga se conserva el total local del listado activo.
-  const conteo = resumen.datos
+  // Horarios es siempre de Liceo: con el filtro en Escuela se usa el conteo de
+  // Liceo para no mostrar 0 mientras la grilla sigue mostrando secciones.
+  const conteo = id === 'horarios' && resumen.liceo ? resumen.liceo : resumen.datos
   if (conteo && Object.prototype.hasOwnProperty.call(conteo, id)) return conteo[id]
   if (id === 'secciones') return seccionesApi.total
   if (id === 'docentes') return docentesApi.total
@@ -812,7 +1153,26 @@ const panel = reactive({ abierto: false, modo: 'crear' })
 const form = ref({})
 const errorForm = ref('')
 const panelRef = ref(null)
+// Devuelve el foco al control que abrió el panel al cerrarlo.
+let focoAntesDelPanel = null
+watch(
+  () => panel.abierto,
+  (abierto) => {
+    if (abierto) {
+      focoAntesDelPanel = document.activeElement
+      return
+    }
+    const anterior = focoAntesDelPanel
+    focoAntesDelPanel = null
+    if (anterior instanceof HTMLElement && document.contains(anterior)) {
+      nextTick(() => anterior.focus())
+    }
+  },
+)
 const repBusq = ref('')
+// Al abrir el panel con valores precargados (por ejemplo desde una celda de la
+// grilla) los watchers de dependencias no deben borrar lo ya elegido.
+let prefijandoHorario = false
 
 const formVacio = {
   secciones: () => ({
@@ -824,7 +1184,13 @@ const formVacio = {
     letra: '',
     idDocenteTitular: null,
   }),
-  representantes: () => ({ primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: '', telefono: '' }),
+  // El nivel no existe en el modelo del backend para representantes: se pide
+  // para saber con qué nivel de estudiante se vinculará y se conserva solo en
+  // el formulario (el servicio no lo envía en el payload).
+  representantes: () => ({
+    primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: '', telefono: '',
+    nivel: nivelFiltro.value || '',
+  }),
   estudiantes: () => ({
     cedula: '',
     primerNombre: '',
@@ -886,14 +1252,14 @@ const fijarTitular = (letra, valor) => {
   form.value.titulares ??= { U: null, A: null, B: null }
   form.value.titulares[letra] = valor === '' || valor === null ? null : Number(valor)
 }
-const etiquetaHorarioSeccion = computed(() => {
-  const s = horarioSeccion.value
-  return s ? `${s.gradoNombre || 'Grado'} · Sección ${s.letra}` : ''
-})
-
 const enfocarPrimerCampo = async () => {
   await nextTick()
-  panelRef.value?.querySelector('input, select, textarea')?.focus()
+  // Al editar una sección casi todos los campos están bloqueados; hay que
+  // buscar el primero habilitado o, si no hay ninguno, enfocar el panel.
+  const campo = panelRef.value?.querySelector(
+    'input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
+  )
+  ;(campo || panelRef.value)?.focus()
 }
 const abrirNuevo = () => {
   if (!puedeGestionar.value) return
@@ -1014,35 +1380,158 @@ const crearSeccionEn = ({ idGrado, formato, periodoLectivo }) => {
   enfocarPrimerCampo()
 }
 
-// Desde una sección de Liceo se salta a Horarios con el contexto de esa
-// sección. Escuela no se enlaza: su horario es corrido, no por bloques.
+// Desde una sección de Liceo se salta a Horarios con la grilla de esa sección.
+// Escuela no se enlaza: su horario es corrido, no por bloques.
 const verHorario = (seccion) => {
   if (!tabsVisibles.value.some((t) => t.id === 'horarios')) return
-  const yaEnHorarios = tab.value === 'horarios'
-  horarioSeccion.value = seccion
-  busq.horarios = ''
-  pagina.horarios = 1
-  horarios.reiniciar()
+  seccionGrilla.value = seccion
   tab.value = 'horarios'
-  // Si ya estábamos en Horarios, el watch de tab no se dispara.
-  if (yaEnHorarios && puedeGestionar.value && !horariosApi.loading) cargarHorarios(1)
 }
-const limpiarHorarioSeccion = () => {
-  horarioSeccion.value = null
-  pagina.horarios = 1
-  horarios.reiniciar()
-  if (tab.value === 'horarios' && puedeGestionar.value && !horariosApi.loading) cargarHorarios(1)
+
+// Alta de un horario desde una celda de la grilla: sección, bloque y día ya
+// vienen elegidos; el usuario solo completa asignatura y docente.
+const crearHorarioEn = async ({ idSeccion, idBloque, diaSemana } = {}) => {
+  if (!puedeGestionar.value) return
+  const seccion =
+    seccionesGrilla.value.find((s) => s.id === Number(idSeccion)) ?? seccionGrilla.value
+  prefijandoHorario = true
+  form.value = {
+    ...formVacio.horarios(),
+    idSeccion: idSeccion ?? null,
+    idBloque: idBloque ?? null,
+    diaSemana: diaSemana ?? '',
+    periodoLectivo: seccion?.periodoLectivo || periodoSeleccionado.value || '',
+  }
+  // La sección ya se conoce aunque el catálogo tarde en cargar: se conserva
+  // como "actual" para que el selector la muestre de inmediato.
+  if (seccion) form.value.seccionActual = { ...seccion }
+  panel.modo = 'crear'
+  errorForm.value = ''
+  repBusq.value = ''
+  reiniciarRepInline()
+  cargarCatalogoHorarios()
+  panel.abierto = true
+  await nextTick()
+  prefijandoHorario = false
+  enfocarPrimerCampo()
+}
+
+// Exportación con el generador de PDF del backend: se crea el documento y se
+// descarga el archivo devuelto por /listados.
+const guardarArchivoDescargado = ({ blob, nombre }) => {
+  const url = URL.createObjectURL(blob)
+  const enlace = document.createElement('a')
+  enlace.href = url
+  enlace.download = nombre || 'listado.pdf'
+  document.body.appendChild(enlace)
+  enlace.click()
+  enlace.remove()
+  // Revocar de inmediato puede cancelar la descarga en algunos navegadores.
+  setTimeout(() => URL.revokeObjectURL(url), 10000)
+}
+
+const exportandoHorario = ref(false)
+const exportarHorario = async () => {
+  const seccion = seccionGrilla.value
+  if (!seccion || exportandoHorario.value) return
+
+  exportandoHorario.value = true
+  try {
+    guardarArchivoDescargado(
+      await exportarListadoHorarios({
+        idSeccion: seccion.id,
+        periodoLectivo: seccion.periodoLectivo || periodoSeleccionado.value,
+      }),
+    )
+    avisar('El horario se descargó en PDF.')
+  } catch (error) {
+    avisar(error?.message || 'No se pudo exportar el horario.')
+  } finally {
+    exportandoHorario.value = false
+  }
+}
+
+// Las exportaciones de Estudiantes, Representantes y Docentes se generan por
+// nivel. El administrador elige el nivel, salvo que el filtro de año/sección ya
+// lo determine; el PDF no mezcla Liceo y Escuela.
+const EXPORTACIONES_TAB = {
+  estudiantes: {
+    tipo: 'nominas',
+    etiqueta: 'Exportar estudiantes',
+    ayuda: 'Nómina del año/sección seleccionados (o del nivel y período elegidos); la búsqueda por texto no se incluye.',
+  },
+  representantes: {
+    tipo: 'representantes',
+    etiqueta: 'Exportar representantes',
+    ayuda: 'Representantes del nivel del usuario y del período seleccionado.',
+  },
+  docentes: {
+    tipo: 'docentes',
+    etiqueta: 'Exportar docentes',
+    ayuda: 'Docentes del nivel del usuario y del período seleccionado.',
+  },
+}
+const exportacionTab = computed(() => EXPORTACIONES_TAB[tab.value] ?? null)
+const nivelExportacion = computed(() => {
+  if (nivelConsulta.value) return nivelConsulta.value
+  if (tab.value !== 'estudiantes') return ''
+  const seccion = catalogos.secciones.find(
+    (s) => s.id === Number(filtroSeccion.value),
+  )
+  const grado = catalogos.grados.find((g) => g.id === Number(filtroAnio.value))
+  return seccion?.nivel || grado?.nivel || ''
+})
+const exportandoListado = ref(false)
+const exportarListadoDeTab = async () => {
+  const configuracion = exportacionTab.value
+  if (!configuracion || exportandoListado.value) return
+  const nivel = configuracion.tipo === 'nominas'
+    ? nivelExportacion.value
+    : nivelConsulta.value
+  if (!nivel) {
+    avisar('Elige Liceo o Escuela en el filtro de nivel para exportar.')
+    return
+  }
+
+  exportandoListado.value = true
+  try {
+    guardarArchivoDescargado(
+      await exportarListadoGeneral(configuracion.tipo, {
+        nivel,
+        periodoLectivo: periodoSeleccionado.value,
+        ...(configuracion.tipo === 'nominas'
+          ? {
+              idGrado: filtroAnio.value || undefined,
+              idSeccion: filtroSeccion.value || undefined,
+            }
+          : {}),
+      }),
+    )
+    avisar('El listado se descargó en PDF.')
+  } catch (error) {
+    avisar(error?.message || 'No se pudo exportar el listado.')
+  } finally {
+    exportandoListado.value = false
+  }
 }
 
 watch(tab, (valor) => {
   cerrarPanel()
   // La primera vez que se abre una pestaña conectada se pide la página 1.
-  if (apiTab.value && !apiTab.value.cargado && !apiTab.value.loading) cargarTab(1)
+  // Horarios no tiene lista: solo trabaja con la grilla.
+  if (apiTab.value && !apiTab.value.cargado && !apiTab.value.loading && valor !== 'horarios') {
+    cargarTab(1)
+  }
+  if (valor === 'horarios') {
+    cargarSeccionesGrilla()
+    cargarBloquesGrilla()
+    if (seccionGrilla.value) cargarSemanaGrilla()
+  }
+  if (valor === 'representantes') cargarEstudiantesReps()
   if (!puedeGestionar.value) return
   if (valor === 'estudiantes') cargarRepsFormulario()
   if (valor === 'secciones') cargarTitulares()
   if (valor === 'asignaturas') cargarCatalogoAsignaturas()
-  if (valor === 'horarios') cargarCatalogoHorarios()
 })
 
 // Selector de representantes del formulario de estudiantes.
@@ -1076,6 +1565,13 @@ const quitarRep = () => {
 // Alta de representante sin abandonar el formulario del estudiante.
 const abrirRepInline = () => {
   if (!puedeGestionar.value) return
+  // Aquí el nivel se infiere del grado del estudiante que se está registrando,
+  // igual que en la pestaña Estudiantes.
+  repInline.form.nivel =
+    catalogos.grados.find((g) => g.id === Number(form.value.idGrado))?.nivel ||
+    nivelFiltro.value ||
+    ''
+  repInline.form.inline = true
   repInline.error = ''
   repInline.abierto = true
 }
@@ -1118,10 +1614,12 @@ const guardarRepInline = async () => {
 }
 
 // Catálogos del formulario de estudiantes. Se toman del catálogo general (que
-// trae todos los períodos) y se añade lo que ya tenía el estudiante al editar
-// para que el filtro de nivel nunca deje un selector vacío.
+// ya está acotado al período elegido) y se añade lo que ya tenía el estudiante
+// al editar para que el filtro de nivel nunca deje un selector vacío.
 const gradosDelFormulario = computed(() => {
-  const grados = [...catalogos.grados]
+  // Solo se ofrecen grados que tengan al menos una sección en el período.
+  const idsConSeccion = new Set(catalogos.secciones.map((s) => Number(s.idGrado)))
+  const grados = catalogos.grados.filter((g) => idsConSeccion.has(Number(g.id)))
   const actual = form.value?.gradoActual
   if (actual && !grados.some((g) => g.id === actual.id)) grados.push(actual)
   return grados
@@ -1129,12 +1627,16 @@ const gradosDelFormulario = computed(() => {
 const seccionesDelFormulario = computed(() => {
   const idGrado = Number(form.value?.idGrado)
   if (!idGrado) return []
+  const periodo = Number(periodoSeleccionado.value) || null
   const seleccionada = Number(form.value?.idSeccion)
   const secciones = [...catalogos.secciones]
   const actual = form.value?.seccionActual
   if (actual && !secciones.some((s) => s.id === actual.id)) secciones.push(actual)
   return secciones.filter(
-    (s) => Number(s.idGrado) === idGrado || s.id === seleccionada,
+    (s) =>
+      (Number(s.idGrado) === idGrado &&
+        (!periodo || Number(s.periodoLectivo) === periodo)) ||
+      s.id === seleccionada,
   )
 })
 // Si cambia el grado, la sección elegida deja de ser válida.
@@ -1208,6 +1710,7 @@ const docentesDelHorario = computed(() => {
 watch(
   () => form.value?.periodoLectivo,
   (valor, anterior) => {
+    if (prefijandoHorario) return
     if (!panel.abierto || panel.modo !== 'crear' || tab.value !== 'horarios' || valor === anterior) return
     form.value.idSeccion = null
     form.value.idAsignatura = null
@@ -1217,6 +1720,7 @@ watch(
 watch(
   () => form.value?.idSeccion,
   (valor, anterior) => {
+    if (prefijandoHorario) return
     if (!panel.abierto || panel.modo !== 'crear' || tab.value !== 'horarios' || valor === anterior) return
     form.value.idAsignatura = null
     form.value.idDocente = null
@@ -1225,6 +1729,7 @@ watch(
 watch(
   () => form.value?.idAsignatura,
   (valor, anterior) => {
+    if (prefijandoHorario) return
     if (!panel.abierto || panel.modo !== 'crear' || tab.value !== 'horarios' || valor === anterior) return
     form.value.idDocente = null
   },
@@ -1250,6 +1755,14 @@ const validar = (t, f) => {
   if (t === 'representantes') {
     if (!f.primerNombre || !f.primerApellido) return 'El primer nombre y el primer apellido son obligatorios.'
     if (!f.telefono) return 'El número telefónico es obligatorio.'
+    // Con «Todos» el administrador debe decir para qué nivel registra al
+    // representante; con un nivel de filtro ya viene prefijado. Al editar no se
+    // pide porque el backend no guarda este campo.
+    // El alta rápida dentro del formulario de estudiantes no lo pide: el nivel
+    // ya se deduce del grado que se está registrando.
+    if (!f.inline && panel.modo === 'crear' && !nivelFiltro.value && !f.nivel) {
+      return 'Selecciona el nivel del estudiante que representará.'
+    }
   }
   if (t === 'estudiantes') {
     if (!f.cedula) return 'La cédula del estudiante es obligatoria.'
@@ -1264,6 +1777,12 @@ const validar = (t, f) => {
     if (!seccion) return 'La sección elegida no está registrada.'
     if (Number(seccion.idGrado) !== Number(f.idGrado)) {
       return 'La sección elegida no corresponde al grado seleccionado.'
+    }
+    if (
+      periodoSeleccionado.value &&
+      Number(seccion.periodoLectivo) !== Number(periodoSeleccionado.value)
+    ) {
+      return 'La sección elegida pertenece a otro período lectivo.'
     }
   }
   if (t === 'docentes' && !f.nivel) return 'Selecciona el nivel educativo del docente.'
@@ -1417,7 +1936,14 @@ const guardar = async () => {
 
 // ───────────── Eliminar, confirmaciones y avisos ─────────────
 const confirmacion = ref(null)
+const confirmRef = ref(null)
 const pedirConfirmacion = (titulo, texto, boton, accion) => { confirmacion.value = { titulo, texto, boton, accion } }
+// La confirmación se abre con el foco en «Cancelar», la opción segura.
+watch(confirmacion, async (valor) => {
+  if (!valor) return
+  await nextTick()
+  confirmRef.value?.querySelector('button')?.focus()
+})
 const confirmar = async () => {
   const accion = confirmacion.value?.accion
   confirmacion.value = null
@@ -1527,14 +2053,12 @@ const eliminar = (item) => {
 <template>
   <div class="mx-auto flex w-full max-w-[1320px] flex-col font-sans text-[#1b2a2f]">
 
-    <p v-if="soloLectura" role="note" class="mb-4 rounded-xl border border-[#b4d0f8] bg-[#eef3fb] px-4 py-3 text-sm text-[#233E47]">
-      Estás consultando Gestión Académica en modo solo lectura. Puedes ver los listados, pero no crear, editar ni eliminar registros.
-    </p>
-
     <div :class="[card, 'overflow-hidden']">
       <!-- Pestañas (arriba, pegadas al inicio del componente) -->
       <div role="tablist" aria-label="Secciones de gestión académica" class="flex gap-1 overflow-x-auto border-b border-[#d5dbe6] bg-[#f6f9fe] px-3 pt-2.5">
-        <button v-for="t in tabsVisibles" :key="t.id" role="tab" type="button" :aria-selected="tab === t.id" @click="tab = t.id"
+        <button v-for="t in tabsVisibles" :id="'tab-' + t.id" :key="t.id" role="tab" type="button"
+                :aria-selected="tab === t.id" aria-controls="panel-gestion" :tabindex="tab === t.id ? 0 : -1"
+                @click="tab = t.id" @keydown="moverTab($event, t.id)"
                 :class="['flex min-h-11 items-center gap-2 whitespace-nowrap rounded-t-xl border-b-[3px] px-4 text-[15px] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#233E47]',
                          tab === t.id ? 'border-[#233E47] bg-white font-bold text-[#233E47]' : 'border-transparent font-semibold text-[#4a5a63] hover:text-[#233E47]']">
           {{ t.label }}
@@ -1547,16 +2071,16 @@ const eliminar = (item) => {
         <button type="button" class="ml-2 font-bold underline" @click="cargarResumen">Reintentar</button>
       </p>
 
-      <div role="tabpanel" class="flex flex-col gap-5 p-5 md:p-6">
+      <div id="panel-gestion" role="tabpanel" :aria-labelledby="'tab-' + tab" class="flex flex-col gap-5 p-5 md:p-6">
 
-        <!-- Barra: buscador + nivel + tamaño de página + botón nuevo -->
-        <div v-if="tab !== 'horarios' || puedeGestionar" class="flex flex-wrap items-center gap-3">
-          <div class="relative min-w-[220px] flex-1">
+        <!-- Barra: buscador + nivel + período + sección + acción -->
+        <div class="flex flex-wrap items-center gap-3">
+          <div v-if="tab !== 'horarios'" class="relative min-w-[220px] flex-1">
             <label for="busq" class="sr-only">Buscar</label>
             <svg aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5b6a72]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
             <input id="busq" v-model="busq[tab]" type="search" :placeholder="placeholders[tab]" :class="[inp, '!pl-10']">
           </div>
-          <div v-if="apiTab && esAdministrador" class="flex items-center gap-2">
+          <div v-if="apiTab && esAdministrador && tab !== 'horarios'" class="flex items-center gap-2">
             <label for="nivel-filtro" class="whitespace-nowrap text-sm font-semibold text-[#233E47]">Nivel</label>
             <select id="nivel-filtro" v-model="nivelFiltro" :class="[inp, '!h-10 !w-auto']">
               <option value="">Todos</option>
@@ -1564,12 +2088,33 @@ const eliminar = (item) => {
               <option value="ESCUELA">Escuela</option>
             </select>
           </div>
-          <div v-if="tab === 'secciones' || tab === 'asignaturas' || tab === 'horarios'" class="flex items-center gap-2">
+          <div v-if="tab === 'estudiantes'" class="flex items-center gap-2">
+            <label for="filtro-anio" class="whitespace-nowrap text-sm font-semibold text-[#233E47]">Año</label>
+            <select id="filtro-anio" v-model.number="filtroAnio" :class="[inp, '!h-10 !w-auto']">
+              <option value="">Todos</option>
+              <option v-for="g in gradosFiltro" :key="g.id" :value="g.id">{{ g.nombre }}</option>
+            </select>
+          </div>
+          <div v-if="tab === 'estudiantes'" class="flex items-center gap-2">
+            <label for="filtro-seccion" class="whitespace-nowrap text-sm font-semibold text-[#233E47]">Sección</label>
+            <select id="filtro-seccion" v-model.number="filtroSeccion" :class="[inp, '!h-10 !w-auto']">
+              <option value="">Todas</option>
+              <option v-for="s in seccionesFiltro" :key="s.id" :value="s.id">{{ etiquetaSeccionGrilla(s) }}</option>
+            </select>
+          </div>
+          <div v-if="tab === 'secciones' || tab === 'asignaturas' || tab === 'horarios' || tab === 'estudiantes'" class="flex items-center gap-2">
             <label for="periodo-filtro" class="whitespace-nowrap text-sm font-semibold text-[#233E47]">Período</label>
             <select id="periodo-filtro" v-model.number="periodoSeleccionado" :class="[inp, '!h-10 !w-auto']">
               <option v-for="p in catalogos.periodos" :key="p.id ?? p.anio" :value="p.anio">
                 {{ p.anio }}{{ p.activo ? ' · activo' : '' }}{{ p.cerrado ? ' · cerrado' : '' }}
               </option>
+            </select>
+          </div>
+          <div v-if="tab === 'horarios'" class="flex items-center gap-2">
+            <label for="seccion-grilla" class="whitespace-nowrap text-sm font-semibold text-[#233E47]">Sección</label>
+            <select id="seccion-grilla" :value="seccionGrilla?.id ?? ''" :class="[inp, '!h-10 !w-auto']" @change="elegirSeccionGrilla($event.target.value)">
+              <option value="">Elige una sección…</option>
+              <option v-for="s in seccionesGrilla" :key="s.id" :value="s.id">{{ etiquetaSeccionGrilla(s) }}</option>
             </select>
           </div>
           <div v-if="tab === 'docentes'" class="flex items-center gap-2">
@@ -1608,27 +2153,30 @@ const eliminar = (item) => {
               <option :value="100">100</option>
             </select>
           </div>
-          <div v-else-if="tab === 'horarios'" class="flex items-center gap-2">
-            <label for="tam-hor" class="whitespace-nowrap text-sm font-semibold text-[#233E47]">Por página</label>
-            <select id="tam-hor" v-model.number="horariosApi.size" :class="[inp, '!h-10 !w-auto']">
-              <option :value="10">10</option>
-              <option :value="25">25</option>
-              <option :value="50">50</option>
-              <option :value="100">100</option>
-            </select>
-          </div>
-          <button v-if="puedeGestionar" type="button" :class="btnP" @click="abrirNuevo">
+          <button v-if="exportacionTab" type="button"
+                  :title="!nivelExportacion ? 'Elige Liceo o Escuela en el filtro de nivel para exportar.' : exportacionTab.ayuda"
+                  :class="[btnS, 'disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white']"
+                  :disabled="!nivelExportacion || exportandoListado" @click="exportarListadoDeTab">
+            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg>
+            {{ exportandoListado ? 'Exportando…' : exportacionTab.etiqueta }}
+          </button>
+          <button v-if="tab === 'horarios'" type="button"
+                  :class="[btnS, 'disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white']"
+                  :disabled="!seccionGrilla || exportandoHorario" @click="exportarHorario">
+            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg>
+            {{ exportandoHorario ? 'Exportando…' : 'Exportar horario' }}
+          </button>
+          <button v-if="puedeGestionar && tab !== 'horarios'" type="button" :class="btnP" @click="abrirNuevo">
             <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
             {{ tabActual.nuevo }}
           </button>
         </div>
 
         <!-- Resumen del filtro y del total -->
-        <p v-if="apiTab && !(apiTab.error && !apiTab.cargado)" class="-mt-1 text-sm text-[#4a5a63]">
-          <span v-if="buscandoTab">Buscando en todos los {{ tabActual.label.toLowerCase() }}…</span>
+        <p v-if="apiTab && tab !== 'horarios' && !(apiTab.error && !apiTab.cargado)" class="-mt-1 text-sm text-[#4a5a63]">
+          <span v-if="buscandoTab">Buscando en la lista completa…</span>
           <span v-else-if="filtrando"><b class="text-[#233E47]">{{ totalFiltrado }}</b> coincidencia(s) de <b class="text-[#233E47]">{{ apiTab.total }}</b> {{ apiTab.total === 1 ? sustantivo.uno : sustantivo.varios }}</span>
-          <span v-else-if="tab === 'horarios' && horarioSeccion"><b class="text-[#233E47]">{{ apiTab.total }}</b> {{ apiTab.total === 1 ? sustantivo.uno : sustantivo.varios }} para {{ etiquetaHorarioSeccion }}</span>
-          <span v-else><b class="text-[#233E47]">{{ apiTab.total }}</b> {{ apiTab.total === 1 ? sustantivo.uno : sustantivo.varios }} en {{ alcanceNivel }}</span>
+          <span v-else><b class="text-[#233E47]">{{ apiTab.total }}</b> {{ apiTab.total === 1 ? sustantivo.uno : sustantivo.varios }} en {{ resumenFiltrosEstudiantes }}</span>
         </p>
 
         <!-- El nivel de un representante se deduce de sus estudiantes -->
@@ -1637,44 +2185,50 @@ const eliminar = (item) => {
         </p>
 
         <!-- Error de carga -->
-        <p v-if="apiTab && apiTab.error" role="alert" class="rounded-xl bg-[#fbd5d2] px-4 py-3 text-sm font-semibold text-[#8a1c14]">
+        <p v-if="apiTab && apiTab.error && tab !== 'horarios'" role="alert" class="rounded-xl bg-[#fbd5d2] px-4 py-3 text-sm font-semibold text-[#8a1c14]">
           {{ apiTab.error }}
           <button type="button" class="ml-2 font-bold underline" @click="recargarTab">Reintentar</button>
         </p>
 
         <!-- Cargando la primera página -->
-        <p v-if="apiTab && apiTab.loading && !datos[tab].length" :class="sinRes">Cargando {{ tabActual.label.toLowerCase() }}…</p>
-
-        <!-- El backend reserva el listado de horarios al administrador -->
-        <div v-if="tab === 'horarios' && !puedeGestionar" class="flex flex-col items-center gap-2 rounded-xl border border-dashed border-[#91a5c9] bg-[#f6f9fe] px-4 py-14 text-center">
-          <svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#91a5c9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-          <p class="text-lg font-bold text-[#233E47]">Listado de horarios no disponible para tu rol</p>
-          <p class="max-w-md text-sm text-[#4a5a63]">El servidor restringe este listado al rol administrador. Puedes consultar las demás pestañas de gestión académica.</p>
-        </div>
+        <p v-if="apiTab && apiTab.loading && !datos[tab].length && tab !== 'horarios'" :class="sinRes">Cargando {{ tabActual.label.toLowerCase() }}…</p>
 
         <!-- En Secciones se muestra la matriz aunque esté vacía: las celdas
              "+ Crear" son el punto de entrada para registrar la primera. -->
-        <p v-if="tab === 'secciones' && !datos.secciones.length && !apiTab.loading && !apiTab.error" :class="aviso2">
+        <p v-if="tab === 'secciones' && !datos.secciones.length && !apiTab.loading && !apiTab.cargandoTodos && !apiTab.error && !filtrando" :class="aviso2">
           {{ puedeGestionar ? 'Aún no hay secciones. Usa las celdas «+ Crear» del grado que corresponda.' : 'Aún no hay secciones registradas para tu nivel.' }}
         </p>
 
         <!-- Estado vacío general (aún no hay ningún dato) -->
-        <div v-if="tab !== 'secciones' && !(tab === 'horarios' && !puedeGestionar) && !datos[tab].length && !(apiTab && (apiTab.loading || apiTab.error))" class="flex flex-col items-center gap-2 rounded-xl border border-dashed border-[#91a5c9] bg-[#f6f9fe] px-4 py-14 text-center">
+        <div v-if="tab !== 'secciones' && tab !== 'horarios' && !listaTab.length && !(apiTab && (apiTab.loading || apiTab.cargandoTodos || apiTab.error))" class="flex flex-col items-center gap-2 rounded-xl border border-dashed border-[#91a5c9] bg-[#f6f9fe] px-4 py-14 text-center">
           <svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#91a5c9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M7 9.5V15c0 1.5 2.2 3 5 3s5-1.5 5-3V9.5"/></svg>
           <p class="text-lg font-bold text-[#233E47]">{{ vacioTitulo }}</p>
           <p class="max-w-md text-sm text-[#4a5a63]">{{ vacioTexto }}</p>
           <button v-if="puedeGestionar" type="button" :class="[btnS, 'mt-2']" @click="abrirNuevo">{{ vacios[tab].boton }}</button>
         </div>
 
-        <!-- Contexto traído desde Secciones: horario de una sección de Liceo -->
-        <div v-if="tab === 'horarios' && horarioSeccion && puedeGestionar" class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#b4d0f8] bg-[#eef3fb] px-4 py-3">
-          <p class="text-sm text-[#233E47]">
-            Mostrando el horario de <b>{{ etiquetaHorarioSeccion }}</b> (Liceo).
-          </p>
-          <button type="button" :class="btnS" @click="limpiarHorarioSeccion">Quitar filtro</button>
-        </div>
+        <!-- Vista principal y única de Horarios: grilla semanal por sección -->
+        <HorarioGrilla
+          v-if="tab === 'horarios'"
+          :seccion="seccionGrilla"
+          :hay-secciones="seccionesGrilla.length > 0"
+          :bloques="bloquesGrilla.items"
+          :horarios="semanaGrilla.items"
+          :cargando="semanaGrilla.cargando"
+          :cargando-bloques="bloquesGrilla.cargando"
+          :cargando-secciones="seccionesGrillaCargando"
+          :error="semanaGrilla.error"
+          :error-bloques="bloquesGrilla.error"
+          :error-secciones="seccionesGrillaError"
+          :puede-gestionar="puedeGestionar"
+          @crear="crearHorarioEn"
+          @editar="abrirEditar"
+          @eliminar="eliminar"
+          @reintentar="recargarGrilla"
+          @ir-secciones="tab = 'secciones'"
+        />
 
-        <template v-if="datos[tab].length || tab === 'secciones'">
+        <template v-else-if="listaTab.length || tab === 'secciones'">
 
           <!-- Cada pestaña vive en su propio componente -->
           <SeccionesTabla
@@ -1697,7 +2251,8 @@ const eliminar = (item) => {
           <RepresentantesTabla
             v-else-if="tab === 'representantes'"
             :filas="filasPagina"
-            :estudiantes="datos.estudiantes"
+            :estudiantes="estudiantesReps.items"
+            :cargando-estudiantes="estudiantesReps.cargando"
             :buscando="buscandoTab"
             :cargando="apiTab.cargandoTodos"
             :filtrando="filtrando"
@@ -1739,17 +2294,6 @@ const eliminar = (item) => {
             @eliminar="eliminar"
           />
 
-          <HorariosTabla
-            v-else
-            :filas="filasPagina"
-            :buscando="buscandoTab"
-            :cargando="apiTab.cargandoTodos"
-            :filtrando="filtrando"
-            :puede-gestionar="puedeGestionar"
-            @editar="abrirEditar"
-            @eliminar="eliminar"
-          />
-
           <!-- Paginación -->
           <nav v-if="totalFiltrado > 0" aria-label="Paginación" class="flex flex-wrap items-center justify-between gap-3">
             <p class="text-sm text-[#4a5a63]">
@@ -1780,7 +2324,7 @@ const eliminar = (item) => {
         <div v-if="panel.abierto" class="fixed inset-0 z-40 bg-[#0f1f24]/50" aria-hidden="true" @click="cerrarPanel"></div>
       </Transition>
       <Transition enter-active-class="transition-transform duration-300 ease-out" enter-from-class="translate-x-full" leave-active-class="transition-transform duration-200 ease-in" leave-to-class="translate-x-full">
-        <aside v-if="panel.abierto" ref="panelRef" role="dialog" aria-modal="true" :aria-label="tituloPanel" @keydown.esc="cerrarPanel"
+        <aside v-if="panel.abierto" ref="panelRef" role="dialog" aria-modal="true" tabindex="-1" :aria-label="tituloPanel" @keydown.esc="cerrarPanel"
                class="fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-white font-sans text-[#1b2a2f] shadow-2xl sm:max-w-[480px]">
           <header class="flex items-center justify-between border-b border-[#d5dbe6] bg-[#f6f9fe] px-6 py-4">
             <h2 class="text-lg font-bold text-[#233E47]">{{ tituloPanel }}</h2>
@@ -1822,7 +2366,7 @@ const eliminar = (item) => {
                   </div>
                   <div>
                     <label for="f-s-periodo" :class="lbl">Período lectivo</label>
-                    <select id="f-s-periodo" v-model.number="form.periodoLectivo" required :class="[inp, 'mt-1']">
+                    <select id="f-s-periodo" v-model.number="form.periodoLectivo" required :disabled="panel.modo === 'editar'" :class="[inp, 'mt-1', panel.modo === 'editar' ? 'bg-[#f3f6f1] opacity-70' : '']">
                       <option value="" disabled>Selecciona</option>
                       <option v-for="p in catalogos.periodos" :key="p.id ?? p.anio" :value="p.anio">
                         {{ p.anio }}{{ p.activo ? ' · activo' : '' }}{{ p.cerrado ? ' · cerrado' : '' }}
@@ -1875,7 +2419,7 @@ const eliminar = (item) => {
                 </p>
 
                 <p v-if="panel.modo === 'editar'" class="text-sm text-[#4a5a63]">
-                  El grado y la letra no se pueden cambiar. Para pasar de sección única a A y B (o al revés), da de baja la actual y crea el otro formato.
+                  El grado, la letra y el período no se pueden cambiar. Para pasar de sección única a A y B (o al revés) o de año lectivo, da de baja la actual y crea el otro formato.
                 </p>
               </template>
 
@@ -1888,6 +2432,22 @@ const eliminar = (item) => {
                   <div><label for="f-r-sa" :class="lbl">Segundo apellido</label><input id="f-r-sa" v-model="form.segundoApellido" maxlength="50" :class="[inp, 'mt-1']"></div>
                 </div>
                 <div><label for="f-tel" :class="lbl">Número telefónico</label><input id="f-tel" v-model="form.telefono" type="tel" maxlength="50" required :class="[inp, 'mt-1']"></div>
+                <!-- Con el filtro en «Todos» hay que pedir el nivel también
+                     aquí, igual que en el formulario de docentes. El backend no
+                     almacena este campo: sirve para indicar con qué estudiantes
+                     debe vincularse desde la pestaña Estudiantes. -->
+                <template v-if="!nivelFiltro && panel.modo === 'crear'">
+                  <div>
+                    <label for="f-r-nivel" :class="lbl">Nivel del estudiante que representará</label>
+                    <select id="f-r-nivel" v-model="form.nivel" required :class="[inp, 'mt-1']">
+                      <option value="" disabled>Selecciona</option>
+                      <option v-for="n in [NIVELES.LICEO, NIVELES.ESCUELA]" :key="n" :value="n">{{ etiquetaNivel(n) }}</option>
+                    </select>
+                  </div>
+                  <p class="text-sm text-[#4a5a63] sm:col-span-2">
+                    El nivel no se guarda en el representante: vincúlalo con un estudiante de {{ etiquetaNivel(form.nivel) || 'ese nivel' }} desde la pestaña Estudiantes.
+                  </p>
+                </template>
               </template>
 
               <!-- Estudiante -->
@@ -2125,7 +2685,7 @@ const eliminar = (item) => {
 
       <!-- Confirmación -->
       <div v-if="confirmacion" class="fixed inset-0 z-[70] grid place-items-center bg-[#0f1f24]/60 p-4 font-sans" @keydown.esc="confirmacion = null">
-        <div role="alertdialog" aria-modal="true" :aria-label="confirmacion.titulo" class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <div ref="confirmRef" role="alertdialog" aria-modal="true" tabindex="-1" :aria-label="confirmacion.titulo" class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" @keydown.esc="confirmacion = null">
           <h2 class="text-lg font-bold text-[#233E47]">{{ confirmacion.titulo }}</h2>
           <p class="mt-2 text-sm text-[#4a5a63]">{{ confirmacion.texto }}</p>
           <div class="mt-5 flex justify-end gap-3">

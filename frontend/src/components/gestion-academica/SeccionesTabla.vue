@@ -179,21 +179,25 @@ const crear = (grado, formato) =>
                     </div>
 
                     <div class="flex flex-wrap items-center gap-1">
-                      <button v-if="puedeGestionar" type="button" :class="btnMini" @click="emit('editar', seccionDe(grado, letra))">
+                      <!-- La letra puede no estar en `filas` (búsqueda activa o
+                           página parcial) aunque el formato del catálogo la
+                           espere; sin sección no hay acciones válidas. -->
+                      <button v-if="puedeGestionar && seccionDe(grado, letra)" type="button" :class="btnMini" @click="emit('editar', seccionDe(grado, letra))">
                         Editar
                       </button>
-                      <button v-if="puedeGestionar" type="button" :class="[btnMini, '!text-[#8a1c14]']" @click="emit('eliminar', seccionDe(grado, letra))">
+                      <button v-if="puedeGestionar && seccionDe(grado, letra)" type="button" :class="[btnMini, '!text-[#8a1c14]']" @click="emit('eliminar', seccionDe(grado, letra))">
                         Eliminar
                       </button>
                       <button
-                        v-if="grupo.nivel === 'LICEO'"
+                        v-if="grupo.nivel === 'LICEO' && seccionDe(grado, letra)"
                         type="button"
                         :class="[btnMini, '!text-[#1c5d86]']"
                         @click="emit('ver-horario', seccionDe(grado, letra))"
                       >
                         Ver horario →
                       </button>
-                      <span v-else-if="grupo.nivel === 'ESCUELA'" :class="nada">Horario corrido</span>
+                      <span v-else-if="grupo.nivel === 'ESCUELA' && seccionDe(grado, letra)" :class="nada">Horario corrido</span>
+                      <span v-else-if="!seccionDe(grado, letra)" :class="nada">Falta esta sección</span>
                     </div>
                   </div>
                 </div>

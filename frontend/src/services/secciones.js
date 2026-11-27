@@ -66,15 +66,20 @@ export async function listarSecciones({
   }
 }
 
-/** Trae todas las secciones del nivel indicado (o de ambos). */
-export async function listarTodasSecciones({ nivel } = {}) {
+/** Trae todas las secciones del nivel y período indicados. */
+export async function listarTodasSecciones({ nivel, periodoLectivo } = {}) {
   const items = []
   let offset = 0
   let total
 
   do {
     const data = await apiFetch(RECURSO, {
-      params: { offset, size: MAXIMO_POR_PAGINA, nivel: nivel || undefined },
+      params: {
+        offset,
+        size: MAXIMO_POR_PAGINA,
+        nivel: nivel || undefined,
+        periodo_lectivo: periodoLectivo || undefined,
+      },
     })
     const pagina = (data?.items ?? []).map(aSeccion)
 

@@ -81,9 +81,13 @@ export function useRecursoPaginado({
     estado.error = ''
 
     try {
-      const { items } = await listarTodos({ nivel: getNivel() || undefined })
+      const { items, total } = await listarTodos({ nivel: getNivel() || undefined })
       if (solicitud !== peticionTodos) return
       estado.todos = items
+      // La lista completa usa los mismos filtros que la paginada, así que su
+      // total sirve para que el resumen («N de M») siga siendo correcto aunque
+      // no se haya pedido una página del servidor.
+      estado.total = Number.isFinite(total) ? total : items.length
       estado.todosListo = true
     } catch (error) {
       if (solicitud !== peticionTodos) return

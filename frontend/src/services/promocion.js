@@ -1,4 +1,4 @@
-
+/* global api */
 //La parte de la API esta documentada para prueba nada mas
 //import api from './api'
 
