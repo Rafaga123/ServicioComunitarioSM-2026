@@ -297,6 +297,8 @@ Validaciones (400):
 - `periodo_siguiente` debe ser > `periodo_actual`.
 - Si el periodo siguiente no existe: se crea (activo, sin secciones). Si ya existe cerrado: 400. Si ya tiene secciones: 400.
 
+`409`: si dos administradores cierran el mismo periodo a la vez, el segundo recibe `El periodo ya fue cerrado por otra solicitud`. No reintentar el cierre; recargar `/api/gestion/periodos`.
+
 Efectos (orden):
 1. Genera y guarda PDFs por **sección activa** del periodo actual: nóminas y representantes para todas las secciones; horarios solo para las de LICEO. También genera el listado general de docentes por nivel. Los PDFs se preparan en staging y se mueven al destino solo si toda la operación tiene éxito; si falla, se revierten. Se registran en `DocumentosGenerados` (`GET /api/listados/documentos`).
 2. Traspaso de estudiantes activos: 6to Grado → 1er Año; grados intermedios → siguiente grado; 5to Año → egreso (`fecha_egreso`).
