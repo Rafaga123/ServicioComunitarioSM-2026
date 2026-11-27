@@ -1,5 +1,6 @@
 """Generación de PDFs de listados institucionales (ReportLab)."""
 
+from functools import lru_cache
 from io import BytesIO
 from xml.sax.saxutils import escape
 
@@ -8,6 +9,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.platypus import (
   Paragraph,
@@ -35,6 +37,74 @@ INSTITUCION_Y = letter[1] - MARGEN - 0.35 * cm
 TITULO_Y = letter[1] - MARGEN - 1.05 * cm
 ESPACIO_MEMBRETE = LOGO_ALTO + 0.35 * cm
 
+# Los estilos se crean una sola vez al importar el módulo: construir un PDF
+# no debería reconstruir la hoja de estilos ni siete `ParagraphStyle`.
+_ESTILOS_BASE = getSampleStyleSheet()
+
+ESTILO_ENCABEZADO_LISTADO = ParagraphStyle(
+  "EncabezadoListado",
+  parent=_ESTILOS_BASE["BodyText"],
+  fontName="Helvetica-Bold",
+  fontSize=8,
+  leading=10,
+  alignment=TA_CENTER,
+  textColor=colors.whitesmoke,
+)
+ESTILO_CELDA_LISTADO = ParagraphStyle(
+  "CeldaListado",
+  parent=_ESTILOS_BASE["BodyText"],
+  fontName="Helvetica",
+  fontSize=8,
+  leading=10,
+  alignment=TA_CENTER,
+)
+ESTILO_ENCABEZADO_HORARIO = ParagraphStyle(
+  "EncabezadoHorario",
+  parent=_ESTILOS_BASE["BodyText"],
+  fontName="Helvetica-Bold",
+  fontSize=8,
+  leading=10,
+  alignment=TA_CENTER,
+  textColor=colors.white,
+)
+ESTILO_FILA_PERIODO_HORARIO = ParagraphStyle(
+  "FilaPeriodoHorario",
+  parent=_ESTILOS_BASE["BodyText"],
+  fontName="Helvetica",
+  fontSize=7.5,
+  leading=9,
+  alignment=TA_CENTER,
+  textColor=colors.white,
+)
+ESTILO_CELDA_HORARIO = ParagraphStyle(
+  "CeldaHorario",
+  parent=_ESTILOS_BASE["BodyText"],
+  fontName="Helvetica",
+  fontSize=7.5,
+  leading=9,
+  alignment=TA_CENTER,
+)
+ESTILO_IZQUIERDA_HORARIO = ParagraphStyle(
+  "CeldaDocente",
+  parent=ESTILO_CELDA_HORARIO,
+  alignment=TA_LEFT,
+)
+ESTILO_TITULO_SECCION = ParagraphStyle(
+  "TituloDocentes",
+  parent=_ESTILOS_BASE["BodyText"],
+  fontName="Helvetica-Bold",
+  fontSize=9,
+  leading=11,
+)
+
+
+@lru_cache(maxsize=1)
+def _logo_reader() -> ImageReader:
+  """Carga el logo una sola vez; valida el archivo en el primer uso."""
+  if not LOGO_PATH.is_file():
+    raise FileNotFoundError(f"No se encontró el logo institucional: {LOGO_PATH}")
+  return ImageReader(BytesIO(LOGO_PATH.read_bytes()))
+
 
 def _tamano_ajustado(
   texto: str, fuente: str, tamano_max: float, tamano_min: float, ancho_max: float
@@ -50,12 +120,10 @@ def _membrete(titulo: str):
   """Devuelve el callback que dibuja logo + membrete en todas las páginas."""
   def dibujar(canvas, doc) -> None:
     """Dibuja el membrete y el título en cada página del PDF."""
-    if not LOGO_PATH.is_file():
-      raise FileNotFoundError(f"No se encontró el logo institucional: {LOGO_PATH}")
     canvas.saveState()
     try:
       canvas.drawImage(
-        str(LOGO_PATH),
+        _logo_reader(),
         LOGO_X,
         LOGO_Y,
         width=LOGO_ANCHO,
@@ -155,35 +223,17 @@ def construir_pdf(
     topMargin=MARGEN + ESPACIO_MEMBRETE,
     bottomMargin=MARGEN,
   )
-  estilos = getSampleStyleSheet()
-  estilo_encabezado = ParagraphStyle(
-    "EncabezadoListado",
-    parent=estilos["BodyText"],
-    fontName="Helvetica-Bold",
-    fontSize=8,
-    leading=10,
-    alignment=TA_CENTER,
-    textColor=colors.whitesmoke,
-  )
-  estilo_celda = ParagraphStyle(
-    "CeldaListado",
-    parent=estilos["BodyText"],
-    fontName="Helvetica",
-    fontSize=8,
-    leading=10,
-    alignment=TA_CENTER,
-  )
-
   _validar_tabla(encabezados, filas, col_anchos)
 
   elementos: list = []
 
   fila_encabezado = [
-    Paragraph(_texto_parrafo(encabezado), estilo_encabezado)
+    Paragraph(_texto_parrafo(encabezado), ESTILO_ENCABEZADO_LISTADO)
     for encabezado in encabezados
   ]
   filas_parrafo = [
-    [Paragraph(_texto_parrafo(celda), estilo_celda) for celda in fila] for fila in filas
+    [Paragraph(_texto_parrafo(celda), ESTILO_CELDA_LISTADO) for celda in fila]
+    for fila in filas
   ]
 
   tabla = Table(
@@ -233,70 +283,31 @@ def construir_pdf_horarios(
     topMargin=MARGEN + ESPACIO_MEMBRETE,
     bottomMargin=MARGEN,
   )
-  estilos = getSampleStyleSheet()
-  estilo_encabezado = ParagraphStyle(
-    "EncabezadoHorario",
-    parent=estilos["BodyText"],
-    fontName="Helvetica-Bold",
-    fontSize=8,
-    leading=10,
-    alignment=TA_CENTER,
-    textColor=colors.white,
-  )
-  estilo_fila_periodo = ParagraphStyle(
-    "FilaPeriodoHorario",
-    parent=estilos["BodyText"],
-    fontName="Helvetica",
-    fontSize=7.5,
-    leading=9,
-    alignment=TA_CENTER,
-    textColor=colors.white,
-  )
-  estilo_celda = ParagraphStyle(
-    "CeldaHorario",
-    parent=estilos["BodyText"],
-    fontName="Helvetica",
-    fontSize=7.5,
-    leading=9,
-    alignment=TA_CENTER,
-  )
-  estilo_izquierda = ParagraphStyle(
-    "CeldaDocente",
-    parent=estilo_celda,
-    alignment=TA_LEFT,
-  )
-  estilo_titulo_seccion = ParagraphStyle(
-    "TituloDocentes",
-    parent=estilos["BodyText"],
-    fontName="Helvetica-Bold",
-    fontSize=9,
-    leading=11,
-  )
-
   for fila in filas:
     if len(fila) != 6:
       raise ValueError("Cada fila del horario debe tener hora y cinco días")
 
   fila_periodo = [
     Paragraph(
-      f"<b>Periodo:</b> {_texto_parrafo(cabecera['periodo'])}", estilo_fila_periodo
+      f"<b>Periodo:</b> {_texto_parrafo(cabecera['periodo'])}", ESTILO_FILA_PERIODO_HORARIO
     ),
     "",
     Paragraph(
-      f"<b>Curso:</b> {_texto_parrafo(cabecera['curso'])}", estilo_fila_periodo
+      f"<b>Curso:</b> {_texto_parrafo(cabecera['curso'])}", ESTILO_FILA_PERIODO_HORARIO
     ),
     "",
     Paragraph(
-      f"<b>Sección:</b> {_texto_parrafo(cabecera['seccion'])}", estilo_fila_periodo
+      f"<b>Sección:</b> {_texto_parrafo(cabecera['seccion'])}", ESTILO_FILA_PERIODO_HORARIO
     ),
     "",
   ]
   fila_dias = [
-    Paragraph(_texto_parrafo(dia), estilo_encabezado)
+    Paragraph(_texto_parrafo(dia), ESTILO_ENCABEZADO_HORARIO)
     for dia in ("Hora", "LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES")
   ]
   filas_tabla = [fila_periodo, fila_dias] + [
-    [Paragraph(_texto_parrafo(celda), estilo_celda) for celda in fila] for fila in filas
+    [Paragraph(_texto_parrafo(celda), ESTILO_CELDA_HORARIO) for celda in fila]
+    for fila in filas
   ]
 
   ancho_hora = 2.2 * cm
@@ -327,13 +338,13 @@ def construir_pdf_horarios(
   elementos = [
     tabla,
     Spacer(1, 14),
-    Paragraph("Docentes:", estilo_titulo_seccion),
+    Paragraph("Docentes:", ESTILO_TITULO_SECCION),
     Spacer(1, 4),
   ]
   for materia, docente in docentes:
     elementos.append(
       Paragraph(
-        f"{_texto_parrafo(materia)}: {_texto_parrafo(docente)}", estilo_izquierda
+        f"{_texto_parrafo(materia)}: {_texto_parrafo(docente)}", ESTILO_IZQUIERDA_HORARIO
       )
     )
 

@@ -8,6 +8,7 @@ Construye los datos de nóminas, representantes y horarios de una sección
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from app.models.db import (
@@ -124,6 +125,7 @@ def _filas_nominas_seccion(session: Session, seccion: Secciones) -> list[list[st
       Estudiantes.fecha_eliminacion.is_(None),
       Estudiantes.fecha_egreso.is_(None),
     )
+    .options(selectinload(Estudiantes.representante))
     .order_by(Estudiantes.primer_apellido, Estudiantes.primer_nombre, Estudiantes.id)
   ).all()
   return [
@@ -154,26 +156,33 @@ def _filas_representantes_seccion(
       Representantes.primer_apellido, Representantes.primer_nombre, Representantes.id
     )
   ).all()
-  filas = []
-  for rep in repes:
-    ests = session.exec(
+
+  ids = [rep.id for rep in repes if rep.id is not None]
+  por_representante: dict[int, list[Estudiantes]] = {id_: [] for id_ in ids}
+  if ids:
+    estudiantes = session.exec(
       select(Estudiantes)
       .where(
-        Estudiantes.id_representante == rep.id,
+        Estudiantes.id_representante.in_(ids),
         Estudiantes.id_seccion == seccion.id,
         Estudiantes.fecha_eliminacion.is_(None),
-      Estudiantes.fecha_egreso.is_(None),
+        Estudiantes.fecha_egreso.is_(None),
       )
       .order_by(Estudiantes.primer_apellido, Estudiantes.primer_nombre, Estudiantes.id)
     ).all()
-    filas.append(
-      [
-        _nombre_representante(rep),
-        rep.telefono,
-        "; ".join(nombre_completo(e) for e in ests) or "-",
-      ]
-    )
-  return filas
+    for estudiante in estudiantes:
+      if estudiante.id_representante in por_representante:
+        por_representante[estudiante.id_representante].append(estudiante)
+
+  return [
+    [
+      _nombre_representante(rep),
+      rep.telefono,
+      "; ".join(nombre_completo(e) for e in por_representante.get(rep.id, [])) or "-",
+    ]
+    for rep in repes
+    if rep.id is not None
+  ]
 
 
 def _filas_horarios_seccion(session: Session, seccion: Secciones) -> list[list[str]]:
@@ -185,6 +194,11 @@ def _filas_horarios_seccion(session: Session, seccion: Secciones) -> list[list[s
     .where(
       Horarios.id_seccion == seccion.id,
       Horarios.fecha_eliminacion.is_(None),
+    )
+    .options(
+      selectinload(Horarios.bloque),
+      selectinload(Horarios.asignatura),
+      selectinload(Horarios.docente),
     )
     .order_by(Horarios.dia_semana, BloquesHorarios.orden)
   ).all()
@@ -215,9 +229,14 @@ def _datos_horarios(
     .order_by(BloquesHorarios.orden)
   ).all()
   horarios = session.exec(
-    select(Horarios).where(
+    select(Horarios)
+    .where(
       Horarios.id_seccion == seccion.id,
       Horarios.fecha_eliminacion.is_(None),
+    )
+    .options(
+      selectinload(Horarios.asignatura),
+      selectinload(Horarios.docente),
     )
   ).all()
   por_bloque_dia = {(h.id_bloque, h.dia_semana): h for h in horarios}
@@ -272,6 +291,10 @@ def _filas_nominas_general(
       Secciones.fecha_eliminacion.is_(None),
       Grados.fecha_eliminacion.is_(None),
     )
+    .options(
+      selectinload(Estudiantes.seccion).selectinload(Secciones.grado),
+      selectinload(Estudiantes.representante),
+    )
   )
   if grado is not None:
     consulta = consulta.where(Secciones.id_grado == grado.id)
@@ -325,18 +348,19 @@ def _filas_representantes_general(
       Representantes.primer_apellido, Representantes.primer_nombre, Representantes.id
     )
   ).all()
-  filas = []
-  for rep in repes:
+  ids = [rep.id for rep in repes if rep.id is not None]
+  por_representante: dict[int, list[Estudiantes]] = {id_: [] for id_ in ids}
+  if ids:
     consulta_estudiantes = (
       select(Estudiantes)
       .join(Secciones, Estudiantes.id_seccion == Secciones.id)
       .join(Grados, Secciones.id_grado == Grados.id)
       .where(
-        Estudiantes.id_representante == rep.id,
+        Estudiantes.id_representante.in_(ids),
         Secciones.periodo_lectivo == periodo,
         Grados.nivel == nivel,
         Estudiantes.fecha_eliminacion.is_(None),
-      Estudiantes.fecha_egreso.is_(None),
+        Estudiantes.fecha_egreso.is_(None),
         Secciones.fecha_eliminacion.is_(None),
         Grados.fecha_eliminacion.is_(None),
       )
@@ -346,19 +370,27 @@ def _filas_representantes_general(
         Secciones.id_grado == grado.id
       )
 
-    ests = session.exec(
+    estudiantes = session.exec(
       consulta_estudiantes.order_by(
-        Estudiantes.primer_apellido, Estudiantes.primer_nombre, Estudiantes.id
+        Estudiantes.id_representante,
+        Estudiantes.primer_apellido,
+        Estudiantes.primer_nombre,
+        Estudiantes.id,
       )
     ).all()
-    filas.append(
-      [
-        _nombre_representante(rep),
-        rep.telefono,
-        "; ".join(nombre_completo(e) for e in ests) or "-",
-      ]
-    )
-  return filas
+    for estudiante in estudiantes:
+      if estudiante.id_representante in por_representante:
+        por_representante[estudiante.id_representante].append(estudiante)
+
+  return [
+    [
+      _nombre_representante(rep),
+      rep.telefono,
+      "; ".join(nombre_completo(e) for e in por_representante.get(rep.id, [])) or "-",
+    ]
+    for rep in repes
+    if rep.id is not None
+  ]
 
 
 def _filas_docentes_general(
@@ -387,56 +419,68 @@ def _filas_docentes_general(
     )
   ).all()
 
-  filas: list[list[str]] = []
-  for docente in docentes:
-    if docente.id is None:
-      continue
+  ids = [docente.id for docente in docentes if docente.id is not None]
+  por_docente: dict[int, list[str]] = {id_: [] for id_ in ids}
 
-    detalle = "-"
-    if nivel == NivelEducativo.liceo:
-      asignaturas = session.exec(
-        select(Asignaturas)
-        .join(Horarios, Horarios.id_asignatura == Asignaturas.id)
-        .join(Grados, Asignaturas.id_grado == Grados.id)
-        .where(
-          Horarios.id_docente == docente.id,
-          Horarios.periodo_lectivo == periodo,
-          Horarios.fecha_eliminacion.is_(None),
-          Asignaturas.periodo_lectivo == periodo,
-          Asignaturas.fecha_eliminacion.is_(None),
-          Grados.fecha_eliminacion.is_(None),
-        )
-        .order_by(Grados.numero, Asignaturas.nombre)
-      ).all()
-      vistos: set[tuple[str, str]] = set()
-      etiquetas: list[str] = []
-      for asignatura in asignaturas:
-        etiqueta = f"{asignatura.nombre} {asignatura.grado.nombre}"
-        clave = (asignatura.nombre, asignatura.grado.nombre)
-        if clave in vistos:
-          continue
-        vistos.add(clave)
-        etiquetas.append(etiqueta)
-      detalle = ", ".join(etiquetas) or "-"
-    else:
-      secciones = session.exec(
-        select(Secciones)
-        .join(Grados, Secciones.id_grado == Grados.id)
-        .where(
-          Secciones.id_docente_titular == docente.id,
-          Secciones.periodo_lectivo == periodo,
-          Secciones.fecha_eliminacion.is_(None),
-          Grados.fecha_eliminacion.is_(None),
-        )
-        .order_by(Grados.numero, Secciones.letra)
-      ).all()
-      detalle = (
-        "; ".join(f'{seccion.grado.nombre} "{seccion.letra}"' for seccion in secciones)
-        or "-"
+  if ids and nivel == NivelEducativo.liceo:
+    consulta = (
+      select(Horarios.id_docente, Asignaturas)
+      .join(Asignaturas, Horarios.id_asignatura == Asignaturas.id)
+      .join(Grados, Asignaturas.id_grado == Grados.id)
+      .where(
+        Horarios.id_docente.in_(ids),
+        Horarios.periodo_lectivo == periodo,
+        Horarios.fecha_eliminacion.is_(None),
+        Asignaturas.periodo_lectivo == periodo,
+        Asignaturas.fecha_eliminacion.is_(None),
+        Grados.fecha_eliminacion.is_(None),
       )
+      .options(selectinload(Asignaturas.grado))
+      .order_by(Horarios.id_docente, Grados.numero, Asignaturas.nombre)
+    )
+    vistos: dict[int, set[tuple[str, str]]] = {id_: set() for id_ in ids}
+    for id_docente, asignatura in session.exec(consulta).all():
+      if asignatura.grado is None:
+        continue
+      clave = (asignatura.nombre, asignatura.grado.nombre)
+      if clave in vistos[id_docente]:
+        continue
+      vistos[id_docente].add(clave)
+      por_docente[id_docente].append(
+        f"{asignatura.nombre} {asignatura.grado.nombre}"
+      )
+  elif ids:
+    consulta = (
+      select(Secciones.id_docente_titular, Secciones)
+      .join(Grados, Secciones.id_grado == Grados.id)
+      .where(
+        Secciones.id_docente_titular.in_(ids),
+        Secciones.periodo_lectivo == periodo,
+        Secciones.fecha_eliminacion.is_(None),
+        Grados.fecha_eliminacion.is_(None),
+      )
+      .options(selectinload(Secciones.grado))
+      .order_by(Secciones.id_docente_titular, Grados.numero, Secciones.letra)
+    )
+    for id_docente, seccion in session.exec(consulta).all():
+      if seccion.grado is None:
+        continue
+      por_docente[id_docente].append(f'{seccion.grado.nombre} "{seccion.letra}"')
 
-    filas.append([docente.cedula, nombre_completo(docente), detalle])
-  return filas
+  return [
+    [
+      docente.cedula,
+      nombre_completo(docente),
+      (
+        ", ".join(por_docente.get(docente.id, []))
+        if nivel == NivelEducativo.liceo
+        else "; ".join(por_docente.get(docente.id, []))
+      )
+      or "-",
+    ]
+    for docente in docentes
+    if docente.id is not None
+  ]
 
 
 FILAS_POR_SECCION: dict[

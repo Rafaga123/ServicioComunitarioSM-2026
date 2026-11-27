@@ -4,7 +4,7 @@ API REST para la gestión académica y disciplinaria de una escuela y un liceo. 
 
 > **Estado actual:** Fases 1–6 completadas en `backend-dev`. El backend expone **15 routers**, **47 rutas** y **84 operaciones** documentadas en OpenAPI. No se agregaron rutas: la revocación de JWT y el límite de login se implementaron dentro de `/auth/login`, `/auth/logout` y el CRUD de usuarios. El contrato detallado para el frontend está en [`ENTREGA_FRONTEND.md`](ENTREGA_FRONTEND.md).
 >
-> **Importante:** no hay migraciones (Alembic). `create_all()` **no altera** tablas existentes, pero en el arranque se ejecutan dos migraciones no destructivas: `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS version_tokens INTEGER NOT NULL DEFAULT 0` y `ALTER TYPE tipodocumento ADD VALUE IF NOT EXISTS 'docentes'`. Para el resto de cambios de esquema se usa `python -m scripts.cargar_datos_prueba --recrear-tablas`, que hace `drop_all()` antes de cargar y por eso es destructivo. La tabla nueva `tokens_revocados` sí la crea `create_all()` automáticamente.
+> **Importante:** no hay Alembic. `create_all()` **no altera** tablas existentes, por eso los `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` y los `CREATE INDEX IF NOT EXISTS` se concentran en `backend/app/core/migraciones.py`. El arranque hace `preparar_extensiones()` → `SQLModel.metadata.create_all()` → `aplicar_migraciones()`. Incluyen `usuarios.version_tokens`, el valor `docentes` del enum, `reportes.id_asignatura` y los índices de claves foráneas (más uno parcial de estudiantes vigentes). Todo es idempotente. Para el resto de cambios de esquema se usa `python -m scripts.cargar_datos_prueba --recrear-tablas`, que hace `drop_all()` antes de cargar y por eso es destructivo.
 
 > Documentación detallada del backend. Resumen en [`../README.md`](../README.md); guía corta en [`FRONTEND.md`](FRONTEND.md); contrato completo en [`ENTREGA_FRONTEND.md`](ENTREGA_FRONTEND.md).
 
@@ -803,6 +803,7 @@ Crear reporte:
 {
   "id_estudiante": 1,
   "id_docente": null,
+  "id_asignatura": null,
   "articulo": 1,
   "reglamento": "LOPNNA",
   "incidencia": "Interrupción reiterada de la clase",
@@ -820,8 +821,9 @@ Reglas:
 - `reglamento`: `LOPNNA`, `LOE`, `CBV` o `NC`.
 - `nivel_gravedad`: `LEVE` o `GRAVE`.
 - `categoria`: `CONDUCTUAL` o `ACADEMICO`.
-- `id_docente` es opcional; si se envía, debe estar activo.
-- La respuesta incluye `estudiante`, `cedula_estudiantil`, `nivel`, `usuario` y `docente`.
+- `id_docente` es opcional; si se envía, debe estar activo y pertenecer al nivel del estudiante.
+- `id_asignatura` es opcional: registra la asignatura durante la cual ocurrió la incidencia. Si se envía, debe estar activa y pertenecer al grado del estudiante. Si también se envía `id_docente`, el docente debe estar vinculado a esa asignatura. Se puede quitar con `null` en `PUT`.
+- La respuesta incluye `estudiante`, `cedula_estudiantil`, `nivel`, `usuario`, `docente` y `asignatura` (nombre de la asignatura, o `null`).
 - No existe un campo de estado (“borrador/enviado/atendido”): el contrato actual no lo contempla.
 
 ### 6.14 Gestión (`/api/gestion`)
@@ -890,7 +892,7 @@ Reglas de conteo:
 
 Devuelve `200` con `{ periodo_cerrado, periodo_activado, documentos_generados, estudiantes_promovidos, egresados, secciones_creadas, asignaturas_creadas }`.
 
-- El período actual debe estar activo y abierto; el siguiente debe ser mayor y no tener secciones creadas.
+- El período actual debe estar activo y abierto; el siguiente debe ser mayor y no tener secciones creadas. El cierre toma `FOR UPDATE` sobre el período actual y revalida su estado: si otra petición lo cerró primero, devuelve `409 "El periodo ya fue cerrado por otra solicitud"` en vez de repetir el traspaso.
 - Genera PDFs de nóminas y representantes para todas las secciones, de horarios solo para las de LICEO y un listado general de docentes por nivel. Se preparan en staging y se mueven solo si toda la operación tiene éxito; si falla, se revierten.
 - Traspasa estudiantes al siguiente grado (6to Grado → 1er Año) y marca el egreso en 5to Año mediante `fecha_egreso` (solo lectura en la API normal). Los egresados no se traspasan dos veces: se excluyen del traspaso y de los conteos de la nómina vigente.
 - Replica las combinaciones grado+letra existentes sin docentes titulares y copia los nombres de asignaturas de liceo sin docentes.
@@ -1209,7 +1211,7 @@ El contrato detallado, con bodies, filtros y reglas por entidad, está en
 
 ### 11.2 Limitaciones actuales
 
-- **No hay Alembic.** `create_all()` no altera tablas existentes. Las migraciones automáticas del arranque son `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS version_tokens ...` y `ALTER TYPE tipodocumento ADD VALUE IF NOT EXISTS 'docentes'`. Para otros cambios de columna se usa `--recrear-tablas` (destructivo).
+- **No hay Alembic.** `create_all()` no altera tablas existentes: las migraciones automáticas viven en `app/core/migraciones.py` (columnas, enum, índices de FKs e índice parcial de vigentes) y se aplican en el arranque de forma idempotente. Para otros cambios de columna se usa `--recrear-tablas` (destructivo).
 - **Logout con revocación por `jti`** y revocación masiva por `version_tokens` (cambio de clave, baja, transferencia de admin).
 - **No hay refresh token.** El token dura 360 minutos por defecto.
 - **El límite de login es en memoria por proceso.** No sobrevive a reinicios ni es compartido entre workers; en despliegues con balanceador, moverlo a Redis o al gateway. El contador por IP incluye los logins correctos (default `20` por minuto).
