@@ -3,8 +3,8 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-# Zona horaria institucional. Todas las fechas del sistema se guardan
-# como datetime naive en esta zona, sin conversiones a UTC.
+# Zona horaria institucional. Las columnas de fecha guardan hora local de
+# Caracas sin tzinfo; los `exp` de los JWT sí se calculan en UTC.
 ZONA_CARACAS = ZoneInfo("America/Caracas")
 
 

@@ -22,7 +22,7 @@ _INTERVALO_PODA_SEGUNDOS = 3600
 
 
 def ip_cliente(request: Request) -> str:
-    """IP del cliente. No confiamos en X-Forwarded-For por defecto."""
+    """Devuelve la IP del cliente; ignora `X-Forwarded-For` por defecto."""
 
     return request.client.host if request.client else "desconocida"
 
@@ -74,7 +74,7 @@ def _segundos_restantes(clave: tuple[str, str], ahora: float) -> int:
 
 
 def verificar_limite(ip: str, usuario: str) -> None:
-    """Se llama ANTES de buscar el usuario y antes de bcrypt."""
+    """Comprueba el límite por usuario y por IP antes de verificar la clave."""
 
     ahora = monotonic()
 

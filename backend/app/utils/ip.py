@@ -4,7 +4,7 @@ import socket
 
 
 def obtener_ip_local() -> str:
-  """Obtiene la IP local real simulando una conexión (sin enviar datos)"""
+  """Devuelve la IP local de salida; sin red, devuelve `127.0.0.1`."""
   try:
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
       s.connect(("8.8.8.8", 80))

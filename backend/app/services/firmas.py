@@ -25,7 +25,7 @@ def firma_documento(
   nivel: NivelEducativo | None,
   documento: DocumentoListado,
 ) -> str:
-  """SHA-256 canónico de los datos que determinan el contenido del PDF."""
+  """Devuelve el SHA-256 canónico de los datos que determinan el PDF."""
   payload = {
     "tipo": tipo.value,
     "periodo": periodo,

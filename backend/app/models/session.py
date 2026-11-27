@@ -33,7 +33,7 @@ def create_db_tables():
 
 
 def inicializar_base_datos() -> tuple[int, int]:
-  """Crea el esquema, limpia revocaciones viejas y carga la semilla."""
+  """Crea el esquema, solicita la limpieza de revocaciones y carga la semilla."""
 
   create_db_tables()
 

@@ -43,14 +43,13 @@ def validar_bloque_horario(
     raise ValueError("Un receso no debe tener número de bloque académico")
 
 
-# Esquemas para Usuarios.
 class CrearUsuario(SQLModel):
   """Datos necesarios para crear una cuenta de usuario."""
   nombre: str = Field(min_length=1, max_length=100)
   clave: str = Field(min_length=8, max_length=72)
   rol: en.RolesAsignables
   # Coordinador y secretaria siempre pertenecen a un nivel. El
-  # administrador se crea por script con nivel None.
+  # administrador se crea por script o se obtiene al transferir el rol.
   nivel: en.NivelEducativo
 
 
@@ -78,7 +77,6 @@ class CambiarClave(SQLModel):
   clave_nueva: str = Field(min_length=8, max_length=72)
 
 
-# Esquemas para Grados, de solo lectura.
 class PeticionGrado(SQLModel):
   """Grado del catálogo expuesto al frontend."""
   id: int
@@ -87,7 +85,6 @@ class PeticionGrado(SQLModel):
   nivel: en.NivelEducativo
 
 
-# Esquemas para Secciones.
 class CrearSeccion(SQLModel):
   """Datos para crear una sección de un grado."""
   id_grado: int
@@ -128,7 +125,6 @@ class PeticionSeccion(SQLModel):
   docente_titular: str | None = None
 
 
-# Esquemas para Representantes.
 class CrearRepresentante(SQLModel):
   """Datos para registrar un representante."""
   primer_nombre: str = Field(min_length=1)
@@ -158,7 +154,6 @@ class PeticionRepresentante(SQLModel):
   telefono: str
 
 
-# Esquemas para Docentes.
 class CrearDocente(SQLModel):
   """Datos para registrar un docente."""
   primer_nombre: str = Field(min_length=1)
@@ -191,7 +186,6 @@ class PeticionDocente(SQLModel):
   nivel: en.NivelEducativo
 
 
-# Esquemas para Estudiantes.
 class CrearEstudiante(SQLModel):
   """Datos para inscribir un estudiante."""
   id_seccion: int
@@ -259,7 +253,6 @@ class PeticionEstudiante(SQLModel):
   representante: str | None = None
 
 
-# Esquemas para Asignaturas.
 class CrearAsignatura(SQLModel):
   """Datos para crear una asignatura."""
   id_grado: int
@@ -294,7 +287,6 @@ class VincularDocente(SQLModel):
   id_docente: int
 
 
-# Esquemas para Bloques Horarios.
 class CrearBloqueHorario(SQLModel):
   """Datos para crear un bloque de la jornada."""
   orden: int = Field(ge=1, le=10)
@@ -331,7 +323,6 @@ class PeticionBloqueHorario(SQLModel):
   hora_fin: time
 
 
-# Esquemas para Horarios.
 class CrearHorario(SQLModel):
   """Datos para asignar un horario a una sección."""
   id_seccion: int
@@ -390,7 +381,6 @@ class PeticionConsultaHorario(SQLModel):
   hora_fin: time | None = None
 
 
-# Esquemas para Pases.
 class CrearPase(SQLModel):
   """Datos para registrar un pase disciplinario."""
   id_estudiante: int
@@ -471,7 +461,6 @@ class ActualizarPeriodoLectivo(SQLModel):
   cerrado: bool | None = None
 
 
-# Esquemas para Reportes.
 class CrearReporte(SQLModel):
   """Datos para registrar un reporte disciplinario."""
   id_estudiante: int
@@ -540,7 +529,6 @@ class PeticionReporte(SQLModel):
   docente: str | None = None
 
 
-# Esquemas para Listados, agrupados por tipo de PDF.
 class SolicitudCierreAnio(SQLModel):
   """Parámetros solicitados para ejecutar el cierre de año."""
   periodo_actual: int = Field(ge=2000)
@@ -594,7 +582,6 @@ class PeticionDocumentoGenerado(SQLModel):
   grado_nombre: str | None = None
 
 
-# Esquema para el resumen de gestión académica.
 class PeticionResumenGestion(SQLModel):
   """Resumen agregado de gestión académica por nivel."""
   nivel: en.NivelEducativo | None = None
@@ -609,7 +596,6 @@ class PeticionResumenGestion(SQLModel):
   reportes: int
 
 
-# Esquema para Auditoría.
 class PeticionAuditoria(SQLModel):
   """Registro de auditoría expuesto al frontend."""
   id: int | None

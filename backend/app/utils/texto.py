@@ -7,7 +7,7 @@ def texto_legible(valor: object) -> str:
   """Convierte texto técnico a texto legible.
 
   Reglas: `_` → espacio y `ano`/`anio` → `año` (respetando mayúsculas).
-  No toca rutas ni claves de la API.
+  Se aplica a cualquier texto recibido, incluidas rutas y claves.
   """
   texto = str(valor or "").replace("_", " ")
 

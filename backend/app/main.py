@@ -70,8 +70,8 @@ app.include_router(api_router)
 app.add_middleware(
   CORSMiddleware,
   allow_origins=["*"],
-  # El auth viaja como Bearer en el header, no en cookies. Con el
-  # frontend servido desde el mismo backend tampoco hay cross-origin.
+  # La autenticación viaja como Bearer en el header, no en cookies; por eso
+  # no se requieren credenciales aunque se admitan todos los orígenes.
   allow_credentials=False,
   allow_methods=["*"],
   allow_headers=["*"],

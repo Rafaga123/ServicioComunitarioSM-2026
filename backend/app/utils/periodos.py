@@ -6,7 +6,7 @@ from app.models.db import PeriodosLectivos
 
 
 def etiqueta_periodo(anio: int) -> str:
-  """Etiqueta legible del periodo: 2026 → «2026-2027»."""
+  """Devuelve la etiqueta legible del periodo: 2026 → «2026-2027»."""
   return f"{anio}-{anio + 1}"
 
 

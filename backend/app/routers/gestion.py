@@ -1,4 +1,4 @@
-"""Expone el resumen académico agregado por nivel educativo."""
+"""Expone el resumen académico, los periodos lectivos y el cierre de año."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func

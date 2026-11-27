@@ -1,13 +1,10 @@
 """Servicios para cerrar el año lectivo: generar listados y traspasar estudiantes.
 
-Flujo de `POST /api/gestion/cerrar-anio`:
-1. Validar periodo actual (activo) y periodo siguiente (¿existe? crear).
-2. Generar PDFs de listados (nóminas/representantes/horarios-liceo por sección
-   y docentes generales por nivel) en RAM y guardarlos en staging.
-3. Mover los archivos staging → destino final en STORAGE_ROOT.
-4. En una sola transacción: insertar los `DocumentosGenerados` y ejecutar el
-   traspaso de estudiantes (6to Año→egreso, grados intermedios→siguiente).
-5. Commit. Si falla, se revierten inserts y se eliminan archivos movidos.
+El cierre valida el periodo activo y el siguiente, genera los PDFs en staging,
+los mueve a `STORAGE_ROOT` y, en una sola transacción, registra los documentos
+y traspasa los estudiantes: los de 5to Año egresan y los demás pasan al grado
+siguiente. Si la transacción falla, se revierten los inserts y se eliminan los
+archivos movidos.
 """
 
 import shutil
@@ -41,7 +38,7 @@ from app.utils.storage import (
   ruta_con_nombre,
 )
 
-GRADOS_PROMOVIDOS_MAX = 11  # 11 = 5to Año, último grado del liceo (egreso)
+GRADOS_PROMOVIDOS_MAX = 11  # 5to Año, último grado del liceo; egresa
 
 
 def _validar_periodo_lectivo(
@@ -348,7 +345,6 @@ def cerrar_anio(
   try:
     ps = _obtener_o_crear_periodo_siguiente(session, periodo_siguiente)
 
-    # 1. Genera los PDFs de listados por sección activa.
     for seccion in _secciones_activas(session, pa.anio):
       nivel = seccion.grado.nivel
       anadir_documento(
@@ -389,7 +385,6 @@ def cerrar_anio(
           )
         )
 
-    # 1b. Genera el listado general de docentes por nivel.
     for nivel in (NivelEducativo.escuela, NivelEducativo.liceo):
       anadir_documento(
         _guardar_doc_general_staged(
@@ -402,7 +397,6 @@ def cerrar_anio(
         )
       )
 
-    # 2. Mueve los archivos de staging al destino final.
     conservados: list[tuple[DocumentosGenerados, str | None]] = []
     for doc, firma in documentos:
       destino = ruta_absoluta(doc.ruta_relativa)
@@ -426,7 +420,6 @@ def cerrar_anio(
       if firma is not None:
         servicio_firmas.registrar_firma(session, firma, doc.id)
 
-    # 3. Traspasa estudiantes y clona la estructura.
     secciones_nuevas = _crear_secciones_nuevas(
       session, ps.anio, _secciones_activas(session, pa.anio)
     )
@@ -435,7 +428,6 @@ def cerrar_anio(
     )
     asignaturas_creadas = _clonar_asignaturas(session, pa.anio, ps.anio)
 
-    # 4. Cierra el periodo actual y activa el nuevo.
     pa.cerrado = True
     pa.activo = False
     pa.fecha_cierre = ahora_caracas()

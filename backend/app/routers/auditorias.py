@@ -35,7 +35,6 @@ def listar_auditorias(
   consulta = select(Auditorias, Usuarios.nombre).join(
     Usuarios, col(Auditorias.usuario_id) == col(Usuarios.id),)
 
-
   if usuario is not None:
     consulta = consulta.where(col(Usuarios.nombre).ilike(f"%{usuario}%"))
   if modulo is not None:
@@ -45,8 +44,6 @@ def listar_auditorias(
   if fecha is not None:
     consulta = consulta.where(func.date(Auditorias.fecha_creacion) == fecha)
 
-
-  # Ordena de la auditoría más reciente a la más antigua.
   consulta = consulta.order_by(col(Auditorias.fecha_creacion).desc())
 
   filas, total = paginar(sesion, consulta, paginacion)

@@ -107,7 +107,7 @@ def _titulo(
 
 
 def _nombre_representante(representante: Representantes | None) -> str:
-  """Nombre del representante, o '-' cuando solo se conoce su teléfono."""
+  """Devuelve el nombre del representante o '-' si no hay nombre usable."""
   if representante is None:
     return "-"
   return nombre_completo(representante) or "-"

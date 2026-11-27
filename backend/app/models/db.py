@@ -34,9 +34,7 @@ class Usuarios(EsquemaBase, table=True):
   id: int | None = Field(default=None, primary_key=True)
   nombre: str = Field(index=True)
   clave: str
-  rol: en.RolesUsuario = Field(
-    default=en.RolesUsuario.secretaria
-  )  # ENUM: ADMINISTRADOR, COORDINADOR, SECRETARIA
+  rol: en.RolesUsuario = Field(default=en.RolesUsuario.secretaria)
   # El administrador opera sin nivel (None); coordinador y secretaria
   # siempre deben pertenecer a ESCUELA o LICEO.
   nivel: en.NivelEducativo | None = Field(default=None)
@@ -231,9 +229,7 @@ class Estudiantes(EsquemaBase, table=True):
 
   fecha_nacimiento: NaiveDatetime
 
-  # Para estudiantes del 5to Año al cerrar el año: marca de egreso y, de
-  # paso, deja de contarse como activo en las listas (los 5to Año dejan de
-  # estar en secciones que se promueven).
+  # Marca de egreso de los estudiantes de 5to Año al cerrar el año.
   fecha_egreso: NaiveDatetime | None = Field(default=None)
 
   seccion: Secciones = Relationship(back_populates="estudiantes")
@@ -252,13 +248,11 @@ class Reportes(EsquemaBase, table=True):
 
   incidencia: str
   articulo: int
-  reglamento: en.Reglamentos  # ENUM
+  reglamento: en.Reglamentos
 
   defensa: str  # Defensa escrita del estudiante
-  nivel_gravedad: en.NivelGravedad = Field(
-    default=en.NivelGravedad.leve
-  )  # ENUM: LEVE | GRAVE
-  categoria: en.CategoriaReportes  # ENUM: TIPO DE REPORTE
+  nivel_gravedad: en.NivelGravedad = Field(default=en.NivelGravedad.leve)
+  categoria: en.CategoriaReportes
 
   fecha: NaiveDatetime
 
@@ -289,7 +283,7 @@ class Pases(EsquemaBase, table=True):
   id_usuario: int = Field(foreign_key="usuarios.id")
   id_docente: int | None = Field(default=None, foreign_key="docentes.id")
   id_asignatura: int | None = Field(default=None, foreign_key="asignaturas.id")
-  tipo: en.TipoPase = Field(default=en.TipoPase.entrada)  # ENUM: TIPO DE PASE DADO
+  tipo: en.TipoPase = Field(default=en.TipoPase.entrada)
 
   motivo: str
 

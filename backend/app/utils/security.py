@@ -17,9 +17,8 @@ from app.models.session import get_session
 from app.utils.tokens_revocados import esta_revocado
 
 
-# Obtiene el texto simple de la clave y lo encripta en hash
 def obtener_hash_clave(clave: str) -> str:
-  """Recibe una contraseña en texto plano y devuelve su hash irreversible."""
+  """Devuelve el hash bcrypt de una clave en texto plano."""
 
   clave_bytes = clave.encode("utf-8")
   salt = bcrypt.gensalt()
@@ -28,9 +27,8 @@ def obtener_hash_clave(clave: str) -> str:
   return hash_bytes.decode("utf-8")
 
 
-# Compara la clave en texto plano con un hash para verificar si son la misma
 def verificar_clave(clave: str, clave_hash: str) -> bool:
-  """Compara una contraseña ingresada en texto plano con un hash para verificar su concordancia."""
+  """Devuelve True si la clave en texto plano coincide con el hash."""
 
   clave_bytes = clave.encode("utf-8")
   hash_bytes = clave_hash.encode("utf-8")
@@ -38,7 +36,6 @@ def verificar_clave(clave: str, clave_hash: str) -> bool:
   return bcrypt.checkpw(clave_bytes, hash_bytes)
 
 
-# Crea y firma el JWT
 def crear_token_acceso(data: dict, version_tokens: int) -> str:
   """Crea y firma el JWT con identificador único y versión del usuario."""
 
