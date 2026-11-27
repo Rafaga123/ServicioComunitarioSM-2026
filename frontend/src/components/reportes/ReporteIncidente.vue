@@ -57,6 +57,7 @@ const buscando = ref(false)
 const docenteDerivado = reactive({
   cargando: false,
   idDocente: null,
+  idAsignatura: null,
   docente: '',
   origen: '',
   asignatura: '',
@@ -102,6 +103,7 @@ const periodoEstudiante = computed(() => estudiante.value?.periodoLectivo || 'â€
 const docenteVacio = () => ({
   cargando: false,
   idDocente: null,
+  idAsignatura: null,
   docente: '',
   origen: '',
   asignatura: '',
@@ -122,7 +124,9 @@ function conservarDocenteDelReporte(mensaje) {
     Object.assign(docenteDerivado, {
       origen: 'REPORTE',
       idDocente: reporte.idDocente,
+      idAsignatura: reporte.idAsignatura ?? null,
       docente: reporte.docente || '',
+      asignatura: reporte.asignatura || '',
       aviso: mensaje,
     })
   } else {
@@ -195,6 +199,7 @@ function resolverDocente() {
         Object.assign(docenteDerivado, {
           origen: 'HORARIO',
           idDocente: clase.idDocente,
+          idAsignatura: clase.idAsignatura ?? null,
           docente: clase.docente || '',
           asignatura: clase.asignatura || '',
           bloque: clase.bloque || '',
@@ -441,6 +446,7 @@ function enviarFormulario() {
   emit('submit', {
     idEstudiante: estudiante.value.id,
     idDocente: docenteDerivado.idDocente ?? null,
+    idAsignatura: docenteDerivado.idAsignatura ?? null,
     fecha: `${formulario.fecha}T${formulario.hora || '00:00'}:00`,
     categoria: formulario.categoria,
     articulo,

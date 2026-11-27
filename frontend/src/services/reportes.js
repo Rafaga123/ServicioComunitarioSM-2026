@@ -4,6 +4,7 @@
 //          &anio=&mes=&periodo_lectivo=&categoria=&nivel_gravedad=&nivel=
 //                                          -> { items, total, offset, size }
 //   GET    /reportes/{id}                  -> PeticionReporte
+//   GET    /reportes/{id}/pdf              -> application/pdf (Content-Disposition)
 //   POST   /reportes/                      -> 201 PeticionReporte
 //   PUT    /reportes/{id}                  -> PeticionReporte
 //   DELETE /reportes/{id}                  -> 204
@@ -45,6 +46,7 @@ const aReporte = (reporte) => {
     idEstudiante: reporte.id_estudiante,
     idUsuario: reporte.id_usuario,
     idDocente: reporte.id_docente ?? null,
+    idAsignatura: reporte.id_asignatura ?? null,
     articulo: reporte.articulo ?? null,
     reglamento: reporte.reglamento ?? '',
     incidencia: reporte.incidencia ?? '',
@@ -60,6 +62,7 @@ const aReporte = (reporte) => {
     nivel: reporte.nivel ?? '',
     usuario: reporte.usuario ?? '',
     docente: reporte.docente ?? '',
+    asignatura: reporte.asignatura ?? '',
     archivoNombre: reporte.archivo_nombre ?? '',
     archivoMime: reporte.archivo_mime ?? '',
     archivoTamano: reporte.archivo_tamano ?? null,
@@ -165,6 +168,10 @@ const aPayload = (datos) => {
   if (Object.prototype.hasOwnProperty.call(datos, 'idDocente')) {
     payload.id_docente = datos.idDocente ? Number(datos.idDocente) : null
   }
+  // null explícito permite desvincular la asignatura en una actualización.
+  if (Object.prototype.hasOwnProperty.call(datos, 'idAsignatura')) {
+    payload.id_asignatura = datos.idAsignatura ? Number(datos.idAsignatura) : null
+  }
   if (datos.articulo != null) payload.articulo = Number(datos.articulo)
   if (datos.reglamento) payload.reglamento = datos.reglamento
   if (datos.incidencia !== undefined) payload.incidencia = String(datos.incidencia).trim()
@@ -220,11 +227,15 @@ export async function descargarArchivoReporte(id, { inline = false } = {}) {
   return apiDescargar(`${RECURSO}${id}/archivo`, { params: { inline } })
 }
 
+/** Descarga el PDF del reporte generado por el backend. */
+export async function descargarPdfReporte(id) {
+  return apiDescargar(`${RECURSO}${id}/pdf`)
+}
+
 /** Desvincula el adjunto del reporte (no borra el archivo físico). */
 export async function quitarArchivoReporte(id) {
   return apiFetch(`${RECURSO}${id}/archivo`, { method: 'DELETE' })
 }
 
-// Exportación: el backend anunció un generador PDF de reportes similar al de
-// gestión académica. Cuando publique el endpoint, se conectará aquí y se
-// habilitará el botón "Exportar PDF" de la ficha del reporte.
+// El PDF del reporte se obtiene con descargarPdfReporte(); el backend registra
+// la auditoría y devuelve el archivo con filename "reporte-{id}.pdf".

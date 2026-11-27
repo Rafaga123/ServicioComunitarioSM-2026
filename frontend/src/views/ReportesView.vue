@@ -10,6 +10,7 @@ import {
   actualizarReporte,
   crearReporte,
   descargarArchivoReporte,
+  descargarPdfReporte,
   eliminarReporte,
   etiquetaCategoria,
   etiquetaGravedad,
@@ -50,6 +51,7 @@ const reporteFicha = ref(null)
 const estudianteFicha = ref(null)
 const cargandoFicha = ref(false)
 const errorFicha = ref('')
+const exportandoPdf = ref(false)
 
 const reporteEdicion = ref(null)
 const cargandoEdicion = ref(false)
@@ -206,18 +208,43 @@ function claseGravedad(gravedad) {
     : 'bg-[#d9f1e2] text-[#285d3b]'
 }
 
+function guardarDescarga({ blob, nombre }, nombrePorDefecto) {
+  const url = URL.createObjectURL(blob)
+  const enlace = document.createElement('a')
+
+  enlace.href = url
+  enlace.download = nombre || nombrePorDefecto
+  document.body.appendChild(enlace)
+  enlace.click()
+  enlace.remove()
+  // Revocar de inmediato puede cancelar la descarga en algunos navegadores.
+  setTimeout(() => URL.revokeObjectURL(url), 10000)
+}
+
 async function descargarAdjunto(reporte) {
   try {
-    const { blob, nombre } = await descargarArchivoReporte(reporte.id)
-    const url = URL.createObjectURL(blob)
-    const enlace = document.createElement('a')
-
-    enlace.href = url
-    enlace.download = nombre || `reporte-${reporte.id}`
-    enlace.click()
-    URL.revokeObjectURL(url)
+    guardarDescarga(
+      await descargarArchivoReporte(reporte.id),
+      `reporte-${reporte.id}`,
+    )
   } catch (e) {
     error.value = e?.message || 'No se pudo descargar el adjunto.'
+  }
+}
+
+async function descargarPdf(reporte) {
+  if (exportandoPdf.value) return
+  exportandoPdf.value = true
+  errorFicha.value = ''
+  try {
+    guardarDescarga(
+      await descargarPdfReporte(reporte.id),
+      `reporte-${reporte.id}.pdf`,
+    )
+  } catch (e) {
+    errorFicha.value = e?.message || 'No se pudo generar el PDF del reporte.'
+  } finally {
+    exportandoPdf.value = false
   }
 }
 
@@ -353,12 +380,13 @@ async function eliminarReporteConfirmado() {
                 <th scope="col" :class="claseEncabezado">Tipo</th>
                 <th scope="col" :class="claseEncabezado">Gravedad</th>
                 <th scope="col" :class="claseEncabezado">Docente</th>
+                <th scope="col" :class="claseEncabezado">Asignatura</th>
                 <th scope="col" :class="claseEncabezado"><span class="sr-only">Acciones</span></th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="cargando">
-                <td colspan="7" class="border-b border-[#e1e3e7] px-6 py-6 text-center whitespace-normal text-[#777d87]">
+                <td colspan="8" class="border-b border-[#e1e3e7] px-6 py-6 text-center whitespace-normal text-[#777d87]">
                   Cargando reportes…
                 </td>
               </tr>
@@ -387,6 +415,7 @@ async function eliminarReporteConfirmado() {
                     </span>
                   </td>
                   <td :class="claseCelda">{{ reporte.docente || '—' }}</td>
+                  <td :class="claseCelda">{{ reporte.asignatura || '—' }}</td>
                   <td :class="claseCelda">
                     <div class="flex flex-wrap items-center gap-2">
                       <button
@@ -409,7 +438,7 @@ async function eliminarReporteConfirmado() {
                 <tr v-if="!reportesFiltrados.length">
                   <td
                     class="border-b border-[#e1e3e7] px-6 py-6 text-center whitespace-normal text-[#777d87]"
-                    colspan="7"
+                    colspan="8"
                   >
                     No hay reportes que coincidan con los filtros.
                   </td>
@@ -483,10 +512,12 @@ async function eliminarReporteConfirmado() {
       :estudiante="estudianteFicha"
       :cargando="cargandoFicha"
       :error="errorFicha"
+      :exportando-pdf="exportandoPdf"
       @cerrar="cerrarFicha"
       @editar="irEditar"
       @eliminar="idEliminando = $event"
       @descargar="descargarAdjunto"
+      @exportar-pdf="descargarPdf"
     />
 
     <div

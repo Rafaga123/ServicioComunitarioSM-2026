@@ -9,9 +9,10 @@ const props = defineProps({
   estudiante: { type: Object, default: null },
   cargando: { type: Boolean, default: false },
   error: { type: String, default: '' },
+  exportandoPdf: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['cerrar', 'editar', 'eliminar', 'descargar'])
+const emit = defineEmits(['cerrar', 'editar', 'eliminar', 'descargar', 'exportarPdf'])
 
 const botonCerrar = ref(null)
 
@@ -172,6 +173,10 @@ const tamanoAdjunto = computed(() => {
               <dd class="mt-1 text-sm text-[#1b2a2f]">{{ reporte.docente || 'No aplica' }}</dd>
             </div>
             <div>
+              <dt class="text-xs font-semibold text-[#777d87]">Asignatura</dt>
+              <dd class="mt-1 text-sm text-[#1b2a2f]">{{ reporte.asignatura || 'No aplica' }}</dd>
+            </div>
+            <div>
               <dt class="text-xs font-semibold text-[#777d87]">Registrado por</dt>
               <dd class="mt-1 text-sm text-[#1b2a2f]">{{ reporte.usuario || '—' }}</dd>
             </div>
@@ -230,11 +235,13 @@ const tamanoAdjunto = computed(() => {
       <footer class="flex flex-wrap justify-end gap-2 border-t border-[#e3e8ee] px-6 py-4">
         <button
           type="button"
-          class="min-h-10 rounded-lg border border-[#c8cbd1] bg-white px-4 text-sm font-semibold text-[#7b818b]"
-          disabled
-          title="El backend publicará próximamente un generador PDF de reportes, como el de gestión académica."
+          class="min-h-10 rounded-lg border border-[#304bbc] bg-white px-4 text-sm font-bold text-[#304bbc]"
+          :class="exportandoPdf ? 'cursor-not-allowed opacity-60' : 'hover:bg-[#eef1fa]'"
+          :disabled="exportandoPdf"
+          title="Descargar el PDF del reporte"
+          @click="emit('exportarPdf', reporte)"
         >
-          Exportar PDF
+          {{ exportandoPdf ? 'Generando…' : 'Exportar PDF' }}
         </button>
         <button
           type="button"

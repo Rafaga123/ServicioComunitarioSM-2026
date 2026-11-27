@@ -15,6 +15,7 @@ import {
   eliminarPase,
   subirArchivoPase,
   descargarArchivoPase,
+  descargarPdfPase,
   quitarArchivoPase,
 } from '@/services/pases'
 import { ACEPTAR_ARCHIVOS, validarArchivoAdjunto } from '@/utils/archivos'
@@ -794,7 +795,12 @@ const confirmarBaja = async () => {
 }
 
 // ═════════════ SECCIÓN 6: Adjunto del pase ═════════════
-const archivo = reactive({ subiendo: false, quitando: false, error: '' })
+const archivo = reactive({
+  subiendo: false,
+  quitando: false,
+  exportandoPdf: false,
+  error: '',
+})
 
 const seleccionarArchivo = async (event) => {
   const entrada = event.target
@@ -833,6 +839,29 @@ const descargarAdjunto = async () => {
     URL.revokeObjectURL(url)
   } catch (e) {
     archivo.error = e?.message || 'No se pudo descargar el adjunto.'
+  }
+}
+
+const descargarPdf = async () => {
+  if (!detalle.pase || archivo.exportandoPdf) return
+  archivo.error = ''
+  archivo.exportandoPdf = true
+  try {
+    const { blob, nombre } = await descargarPdfPase(detalle.pase.id)
+    const url = URL.createObjectURL(blob)
+    const enlace = document.createElement('a')
+
+    enlace.href = url
+    enlace.download = nombre || `pase-${detalle.pase.id}.pdf`
+    document.body.appendChild(enlace)
+    enlace.click()
+    enlace.remove()
+    // Revocar de inmediato puede cancelar la descarga en algunos navegadores.
+    setTimeout(() => URL.revokeObjectURL(url), 10000)
+  } catch (e) {
+    archivo.error = e?.message || 'No se pudo generar el PDF del pase.'
+  } finally {
+    archivo.exportandoPdf = false
   }
 }
 
@@ -1412,7 +1441,16 @@ onBeforeUnmount(() => {
           </section>
         </div>
 
-        <footer class="flex justify-end border-t border-[#e3e8ee] bg-[#f6f9fe] px-6 py-4">
+        <footer class="flex flex-wrap justify-end gap-2 border-t border-[#e3e8ee] bg-[#f6f9fe] px-6 py-4">
+          <button
+            type="button"
+            :class="btnS"
+            class="!h-10 !px-4"
+            :disabled="archivo.exportandoPdf"
+            @click="descargarPdf"
+          >
+            {{ archivo.exportandoPdf ? 'Generando…' : 'Exportar PDF' }}
+          </button>
           <button type="button" :class="btnP" @click="cerrarDetalle">Cerrar</button>
         </footer>
       </div>

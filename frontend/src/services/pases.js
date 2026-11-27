@@ -4,6 +4,7 @@
 //   GET    /pases/?offset=&size=&id_estudiante=&id_seccion=&tipo=&anio=&mes=
 //          &periodo_lectivo=&nivel=          -> { items, total, offset, size }
 //   GET    /pases/{id}                      -> PeticionPase
+//   GET    /pases/{id}/pdf                  -> application/pdf (Content-Disposition)
 //   POST   /pases/                          -> 201 PeticionPase
 //   PUT    /pases/{id}                      -> PeticionPase
 //   DELETE /pases/{id}                      -> 204
@@ -255,6 +256,11 @@ export async function subirArchivoPase(id, archivo) {
 /** Descarga el adjunto del pase como Blob, junto con su nombre original. */
 export async function descargarArchivoPase(id) {
   return apiDescargar(`${RECURSO}${id}/archivo`)
+}
+
+/** Descarga el PDF del pase generado por el backend. */
+export async function descargarPdfPase(id) {
+  return apiDescargar(`${RECURSO}${id}/pdf`)
 }
 
 /** Desvincula el adjunto del pase (no borra el archivo físico). */
