@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 # ruff: noqa: F401  # db registra los modelos en SQLModel.
+from app.core.cache import SinCacheMiddleware
 from app.models import db
 from app.models.session import engine, inicializar_base_datos
 from app.routers import (
@@ -77,6 +78,8 @@ app.add_middleware(
   allow_methods=["*"],
   allow_headers=["*"],
 )
+# Se agrega después de CORS para envolver también las respuestas de preflight.
+app.add_middleware(SinCacheMiddleware)
 
 
 @app.get("/")
