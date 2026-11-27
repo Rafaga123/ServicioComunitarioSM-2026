@@ -472,6 +472,7 @@ class CrearReporte(SQLModel):
   """Datos para registrar un reporte disciplinario."""
   id_estudiante: int
   id_docente: int | None = None
+  id_asignatura: int | None = None
 
   articulo: int = Field(ge=1)
   reglamento: en.Reglamentos
@@ -491,6 +492,7 @@ class CrearReporte(SQLModel):
 class ActualizarReporte(SQLModel):
   """Campos editables de un reporte."""
   id_docente: int | None = None
+  id_asignatura: int | None = None
 
   articulo: int | None = Field(default=None, ge=1)
   reglamento: en.Reglamentos | None = None
@@ -513,6 +515,7 @@ class PeticionReporte(SQLModel):
   id_estudiante: int
   id_usuario: int
   id_docente: int | None = None
+  id_asignatura: int | None = None
 
   articulo: int
   reglamento: en.Reglamentos
@@ -536,6 +539,7 @@ class PeticionReporte(SQLModel):
   nivel: en.NivelEducativo | None = None
   usuario: str | None = None
   docente: str | None = None
+  asignatura: str | None = None
 
 
 class SolicitudCierreAnio(SQLModel):

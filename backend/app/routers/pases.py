@@ -14,6 +14,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from sqlalchemy import func
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from app.core.paginacion import (
@@ -273,6 +274,14 @@ def listar_pases(
     consulta = consulta.where(Pases.periodo_lectivo == periodo_lectivo)
 
   consulta = consulta.order_by(Pases.fecha.desc())
+  consulta = consulta.options(
+    selectinload(Pases.estudiante)
+    .selectinload(Estudiantes.seccion)
+    .selectinload(Secciones.grado),
+    selectinload(Pases.usuario),
+    selectinload(Pases.docente),
+    selectinload(Pases.asignatura),
+  )
 
   items, total = paginar(session, consulta, paginacion)
 

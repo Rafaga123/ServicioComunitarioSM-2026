@@ -42,14 +42,18 @@ GRADOS_PROMOVIDOS_MAX = 11  # 5to Año, último grado del liceo; egresa
 
 
 def _validar_periodo_lectivo(
-  session: Session, periodo_lectivo: int
+  session: Session, periodo_lectivo: int, *, bloquear: bool = False
 ) -> PeriodosLectivos:
-  periodo = session.exec(
-    select(PeriodosLectivos).where(
-      PeriodosLectivos.anio == periodo_lectivo,
-      PeriodosLectivos.fecha_eliminacion.is_(None),
-    )
-  ).first()
+  """Devuelve el periodo; con `bloquear`, lo fija y refresca antes de usarlo."""
+  consulta = select(PeriodosLectivos).where(
+    PeriodosLectivos.anio == periodo_lectivo,
+    PeriodosLectivos.fecha_eliminacion.is_(None),
+  )
+  if bloquear:
+    # Serializa los cierres: la segunda petición espera al commit de la primera
+    # y vuelve a leer el estado ya actualizado en lugar de uno en caché.
+    consulta = consulta.with_for_update().execution_options(populate_existing=True)
+  periodo = session.exec(consulta).first()
   if not periodo:
     raise HTTPException(404, "Periodo lectivo no encontrado")
   return periodo
@@ -326,6 +330,13 @@ def cerrar_anio(
     raise HTTPException(
       status_code=400,
       detail="El periodo siguiente debe ser mayor al actual",
+    )
+
+  pa = _validar_periodo_lectivo(session, periodo_actual, bloquear=True)
+  if not pa.activo or pa.cerrado:
+    raise HTTPException(
+      status_code=409,
+      detail="El periodo ya fue cerrado por otra solicitud",
     )
 
   # Está dentro de STORAGE_ROOT para que `shutil.move` sea un rename; el UUID
