@@ -892,10 +892,10 @@ Reglas de conteo:
 
 Devuelve `200` con `{ periodo_cerrado, periodo_activado, documentos_generados, estudiantes_promovidos, egresados, secciones_creadas, asignaturas_creadas }`.
 
-- El período actual debe estar activo y abierto; el siguiente debe ser mayor y no tener secciones creadas. El cierre toma `FOR UPDATE` sobre el período actual y revalida su estado: si otra petición lo cerró primero, devuelve `409 "El periodo ya fue cerrado por otra solicitud"` en vez de repetir el traspaso.
-- Genera PDFs de nóminas y representantes para todas las secciones, de horarios solo para las de LICEO y un listado general de docentes por nivel. Se preparan en staging y se mueven solo si toda la operación tiene éxito; si falla, se revierten.
+- El período actual debe existir (`404` si no), estar activo y abierto; el siguiente debe ser mayor y no tener secciones creadas. Si falta un grado destino en el catálogo se devuelve `400`. El cierre toma `FOR UPDATE` sobre el período actual y revalida su estado: si otra petición lo cerró primero, devuelve `409 "El periodo ya fue cerrado por otra solicitud"` en vez de repetir el traspaso. Estos códigos, junto con el `500` de sección destino ausente, están declarados en OpenAPI.
+- Genera PDFs de nóminas y representantes para todas las secciones, de horarios solo para las de LICEO y un listado general de docentes por nivel. Se preparan en staging y se mueven solo si toda la operación tiene éxito; si falla, se revierten. `documentos_generados` cuenta solo los PDFs movidos: con reutilización activa, los documentos cuya firma ya existe se reutilizan y no se cuentan ni se registran de nuevo.
 - Traspasa estudiantes al siguiente grado (6to Grado → 1er Año) y marca el egreso en 5to Año mediante `fecha_egreso` (solo lectura en la API normal). Los egresados no se traspasan dos veces: se excluyen del traspaso y de los conteos de la nómina vigente.
-- Replica las combinaciones grado+letra existentes sin docentes titulares y copia los nombres de asignaturas de liceo sin docentes.
+- Replica las combinaciones grado+letra existentes **y las de grado+1 hacia las que se promueve** (`secciones_creadas` incluye ambas), sin docentes titulares, y copia los nombres de asignaturas de liceo sin docentes.
 
 ### 6.15 Listados (`/api/listados`)
 

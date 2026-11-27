@@ -1,8 +1,8 @@
 # Handoff: API completa del backend para el Frontend
 
-> Actualizado el 24-11-2026 (`backend-dev`, Fases 1–6 completadas: 47 paths / 84 operaciones; aún sin push)
+> Actualizado el 27-11-2026 (`backend-dev`, Fases 1–6 completadas: 47 paths / 84 operaciones; ajustes locales sin push)
 > Base: `backend/` (FastAPI). URL base: `import.meta.env.VITE_API_URL ?? "http://localhost:8000/api"`
-> Auth: `Authorization: Bearer <JWT>` (Bearer en header, CORS: `allow_origins=["*"]`, `allow_credentials=False`). Toda respuesta lleva `Cache-Control: private, no-store`: no guardar respuestas de la API en cachés compartidas ni reutilizar PDFs descargados sin volver a pedirlos al backend.
+> Auth: `Authorization: Bearer <JWT>` (Bearer en header, CORS: `allow_origins=["*"]`, `allow_credentials=False`, `expose_headers=["Retry-After"]`). Toda respuesta lleva `Cache-Control: private, no-store`: no guardar respuestas de la API en cachés compartidas ni reutilizar PDFs descargados sin volver a pedirlos al backend.
 > Fechas de entrada: ISO **sin zona horaria**; el backend las normaliza a Caracas (America/Caracas) por su cuenta.
 
 ---
@@ -21,7 +21,7 @@
 - Claims del token: `sub` (string con el id del usuario), `rol`, `nivel` (nulo si no hay), `jti` (UUID de la emisión), `ver` (versión de tokens del usuario), `exp` (epoch seconds).
 - `401` posibles: `"La sesión ha expirado. Inicia sesión nuevamente."`, `"No se pudieron validar las credenciales (token inválido)"`, `"La sesión fue cerrada. Inicia sesión nuevamente."` y `"La clave o los permisos del usuario cambiaron. Inicia sesión nuevamente."`. En los cuatro casos: limpiar sesión y redirigir al login.
 - Los JWT emitidos antes de la revocación no incluyen `jti` ni `ver`: dejan de valer al desplegar. Hay que forzar el login de todos los usuarios.
-- Login con demasiados intentos → `429` con `detail` en español y header `Retry-After` (segundos). Mostrar ese tiempo al usuario. El límite por IP incluye los logins correctos (default `20` por minuto por equipo).
+- Login con demasiados intentos → `429` con `detail` en español y header `Retry-After` (segundos). Mostrar ese tiempo al usuario. El límite por IP incluye los logins correctos (default `20` por minuto por equipo). La cabecera está expuesta en CORS, así que se puede leer también si el frontend apunta directo al backend; con el proxy de Vite funciona sin este ajuste.
 - `Content-Type` de todos los POST: `application/json` (excepto login `x-www-form-urlencoded` y uploads multipart).
 - Login correcto: auditoría `modulo: "USUARIOS"`, `accion: "INICIO DE SESIÓN"`.
 - Cierre de sesión: auditoría `modulo: "USUARIOS"`, `accion: "CIERRE DE SESIÓN"`.
@@ -292,17 +292,16 @@ PeticionCierreAnio = {
 }
 ```
 
-Validaciones (400):
-- El periodo actual debe estar **activo** y no estar cerrado.
-- `periodo_siguiente` debe ser > `periodo_actual`.
-- Si el periodo siguiente no existe: se crea (activo, sin secciones). Si ya existe cerrado: 400. Si ya tiene secciones: 400.
-
-`409`: si dos administradores cierran el mismo periodo a la vez, el segundo recibe `El periodo ya fue cerrado por otra solicitud`. No reintentar el cierre; recargar `/api/gestion/periodos`.
+Errores (los códigos de negocio están declarados en OpenAPI; `422` es la validación automática del body):
+- `400`: el periodo actual debe estar **activo** y no cerrado; `periodo_siguiente` debe ser > `periodo_actual`; si el periodo siguiente ya existe cerrado o con secciones se rechaza; si falta un grado destino en el catálogo se devuelve `No existe el grado destino X en el catálogo de grados`.
+- `404`: `Periodo lectivo no encontrado` si no existe `periodo_actual`. Si no existe `periodo_siguiente`, se crea automáticamente (activo, sin secciones).
+- `409`: si dos administradores cierran el mismo periodo a la vez, el segundo recibe `El periodo ya fue cerrado por otra solicitud`. No reintentar el cierre; recargar `GET /api/gestion/periodos`.
+- `500`: `No se encontró la sección destino para promover un estudiante` si el catálogo de grados/secciones está inconsistente.
 
 Efectos (orden):
-1. Genera y guarda PDFs por **sección activa** del periodo actual: nóminas y representantes para todas las secciones; horarios solo para las de LICEO. También genera el listado general de docentes por nivel. Los PDFs se preparan en staging y se mueven al destino solo si toda la operación tiene éxito; si falla, se revierten. Se registran en `DocumentosGenerados` (`GET /api/listados/documentos`).
+1. Genera y guarda PDFs por **sección activa** del periodo actual: nóminas y representantes para todas las secciones; horarios solo para las de LICEO. También genera el listado general de docentes por nivel. Los PDFs se preparan en staging y se mueven al destino solo si toda la operación tiene éxito; si falla, se revierten. Se registran en `DocumentosGenerados` (`GET /api/listados/documentos`). `documentos_generados` cuenta solo los PDFs movidos: con `REUTILIZAR_DOCUMENTOS_IGUALES=True`, los documentos cuya firma ya existe se reutilizan y no se cuentan ni se registran de nuevo.
 2. Traspaso de estudiantes activos: 6to Grado → 1er Año; grados intermedios → siguiente grado; 5to Año → egreso (`fecha_egreso`).
-3. Crea en el periodo siguiente **solo las combinaciones grado+letra que existían**, sin docentes titulares; copia los nombres de asignaturas de liceo del periodo actual, sin docentes.
+3. Crea en el periodo siguiente las combinaciones grado+letra que existían **y las de grado+1 hacia las que se promueve** (`secciones_creadas` incluye ambas), sin docentes titulares; copia los nombres de asignaturas de liceo del periodo actual, sin docentes.
 4. Cierra el periodo actual (`cerrado=true`) y desactiva otro activo; activa el periodo siguiente.
 
 Recomendación: mostrar un summary post-cierre con los 7 campos.

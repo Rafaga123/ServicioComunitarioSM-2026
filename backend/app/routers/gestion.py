@@ -414,7 +414,26 @@ def obtener_resumen_gestion(
   )
 
 
-@router.post("/cerrar-anio", response_model=PeticionCierreAnio)
+@router.post(
+  "/cerrar-anio",
+  response_model=PeticionCierreAnio,
+  responses={
+    status.HTTP_400_BAD_REQUEST: {
+      "description": (
+        "El periodo actual no está activo o ya está cerrado; el periodo "
+        "siguiente debe ser mayor, no estar cerrado y no tener secciones; "
+        "o no existe el grado destino en el catálogo."
+      )
+    },
+    status.HTTP_404_NOT_FOUND: {"description": "Periodo lectivo no encontrado"},
+    status.HTTP_409_CONFLICT: {
+      "description": "El periodo ya fue cerrado por otra solicitud"
+    },
+    status.HTTP_500_INTERNAL_SERVER_ERROR: {
+      "description": "No se encontró la sección destino para promover un estudiante"
+    },
+  },
+)
 def cerrar_anio(
   peticion: SolicitudCierreAnio,
   session: Session = Depends(get_session),
