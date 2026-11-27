@@ -4,7 +4,7 @@ import { sesion, etiquetaNivel, cargarPerfil, ROLES } from '@/services/auth'
 import { listarTodosPases } from '@/services/pases'
 import { listarAuditorias } from '@/services/auditorias'
 import { listarUsuarios } from '@/services/usuarios'
-import { listarReportes, listarTodosReportes } from '@/services/reportes'
+import { listarTodosReportes } from '@/services/reportes'
 
 const RolesUsuario = computed(() => sesion.usuario?.rol ?? 'SECRETARIA')
 const nombreUsuario = computed(() => sesion.usuario?.nombre || '')
@@ -62,10 +62,11 @@ const cargarDatos = async () => {
             const [aud, usuarios, reps] = await Promise.all([
                 listarAuditorias({ size: 5 }),
                 listarUsuarios({ size: 1 }),
-                listarReportes({ size: 1 }),
+                listarTodosReportes(),
             ])
             auditorias.value = aud.items
             totalUsuarios.value = usuarios.total
+            reportes.value = reps.items
             totalReportes.value = reps.total
         } else if (rol === ROLES.COORDINADOR) {
             const reps = await listarTodosReportes()
@@ -135,6 +136,23 @@ const retardosPorDia = computed(() => {
 
 const hayRetardosSemana = computed(() => retardosPorDia.value.some((d) => d.cantidad > 0))
 
+// Gráfico del dashboard: reportes por categoría (Conductual / Académica).
+const reportesPorCategoria = computed(() => {
+    const conteos = [
+        { clave: 'CONDUCTUAL', etiqueta: 'Conductual', valor: 0 },
+        { clave: 'ACADEMICO', etiqueta: 'Académica', valor: 0 },
+    ]
+    reportes.value.forEach((r) => {
+        const encontrado = conteos.find((c) => c.clave === r.categoria)
+        if (encontrado) encontrado.valor += 1
+    })
+    const maximo = Math.max(1, ...conteos.map((c) => c.valor))
+    return conteos.map((c) => ({
+        ...c,
+        porcentaje: Math.round((c.valor / maximo) * 100),
+    }))
+})
+
 // ───────────── Tarjetas superiores según el rol ─────────────
 const statsSecretaria = computed(() => [
     { titulo: 'Retardos de Hoy', valor: retardosHoy.value.length },
@@ -168,10 +186,6 @@ const valorStat = (valor) => (cargando.value ? '…' : valor)
 // ───────────── Presentación ─────────────
 const nivelLabel = (nivel) => (nivel ? etiquetaNivel(nivel) : '—')
 const horaDe = (valor) => String(valor || '').slice(11, 16) || '—'
-const fechaHoraDe = (valor) => {
-    const texto = String(valor || '')
-    return texto ? `${texto.slice(0, 10)} ${texto.slice(11, 16)}` : '—'
-}
 const categoriaLabel = (categoria) =>
     ({ CONDUCTUAL: 'Conductual', ACADEMICO: 'Académica' })[categoria] || categoria || '—'
 
@@ -207,7 +221,7 @@ const obtenerClaseGravedad = (gravedad) => {
                 Ver Auditorías
                 </router-link>
                 <router-link :to="{ name: 'usuarios' }" class="rounded-xl bg-[#2c4a7a] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(44,74,122,0.25)] transition hover:bg-[#233d68]">
-                + Añadir Usuario
+                Gestionar usuarios
                 </router-link>
             </template>
 
@@ -397,25 +411,26 @@ const obtenerClaseGravedad = (gravedad) => {
             </template>
             </div>
 
-            <!-- Resumen de Últimas Auditorías (administrador)-->
-            <div v-if="RolesUsuario === 'ADMINISTRADOR'" class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm flex flex-col justify-between">
-            <div>
-                <div class="mb-4 flex items-center justify-between">
-                <h2 class="text-lg font-bold text-[#1b2a47]">Resumen de Auditorías</h2>
-                <router-link :to="{ name: 'auditorias' }" class="text-xs font-bold text-[#2c4a7a] hover:underline">Ver historial completo</router-link>
-                </div>
-                <p v-if="cargando" class="py-8 text-center text-sm text-gray-500">Cargando auditorías…</p>
-                <p v-else-if="!auditorias.length" class="py-8 text-center text-sm text-gray-500">Todavía no hay auditorías registradas.</p>
-                <div v-else class="space-y-3">
-                <div v-for="aud in auditorias" :key="aud.id" class="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
-                    <div>
-                    <span class="text-xs font-bold text-[#2c4a7a] uppercase">{{ aud.modulo || '—' }}</span>
-                    <p class="text-sm font-medium text-[#1b2a47]">{{ aud.descripcion || aud.accion || 'Sin detalle' }}</p>
+            <!-- Gráfica de reportes (administrador) -->
+            <div v-if="RolesUsuario === 'ADMINISTRADOR'" class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 class="text-lg font-bold text-[#1b2a47] mb-4">Reportes por Categoría</h2>
+            <p v-if="cargando" class="py-16 text-center text-sm text-gray-500">Cargando reportes…</p>
+            <p v-else-if="!reportes.length" class="py-16 text-center text-sm text-gray-500">Todavía no hay reportes registrados.</p>
+            <template v-else>
+                <div class="h-44 flex items-end justify-around gap-2 bg-gray-50 rounded-xl p-4 border border-dashed border-gray-200">
+                    <div v-for="(item, index) in reportesPorCategoria" :key="index" class="flex flex-col items-center gap-1 h-full justify-end">
+                    <span class="text-[10px] font-bold text-gray-500">{{ item.valor }}</span>
+                    <div
+                        class="w-10 bg-[#2c4a7a] rounded-t-lg transition-all duration-500 hover:bg-[#1b2a47]"
+                        :style="{ height: item.porcentaje + '%' }"
+                        :title="`Categoría: ${item.etiqueta} | Cantidad: ${item.valor}`">
                     </div>
-                    <span class="text-xs font-medium text-gray-500">{{ fechaHoraDe(aud.fechaCreacion) }}</span>
+                    </div>
                 </div>
+                <div class="flex justify-around text-xs font-semibold text-gray-500 mt-3">
+                    <span v-for="(item, index) in reportesPorCategoria" :key="index">{{ item.etiqueta }}</span>
                 </div>
-            </div>
+            </template>
             </div>
 
             <!-- Bloque para coordinador -->
