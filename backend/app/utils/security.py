@@ -85,7 +85,7 @@ def validar_token(
     status_code=status.HTTP_401_UNAUTHORIZED,
     detail="La sesión fue cerrada. Inicia sesión nuevamente.",
     headers={
-      "WWW-Authenticate": 'Bearer error="invalid_token", error_description="sesión cerrada"'
+      "WWW-Authenticate": 'Bearer error="invalid_token", error_description="sesion cerrada"'
     },
   )
   excepcion_version = HTTPException(
