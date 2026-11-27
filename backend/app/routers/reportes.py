@@ -13,6 +13,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from sqlalchemy import func
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from app.core.paginacion import (
@@ -231,6 +232,14 @@ def listar_reportes(
     consulta = consulta.where(Reportes.nivel_gravedad == nivel_gravedad)
 
   consulta = consulta.order_by(Reportes.fecha.desc())
+  consulta = consulta.options(
+    selectinload(Reportes.estudiante)
+    .selectinload(Estudiantes.seccion)
+    .selectinload(Secciones.grado),
+    selectinload(Reportes.usuario),
+    selectinload(Reportes.docente),
+    selectinload(Reportes.asignatura),
+  )
 
   items, total = paginar(session, consulta, paginacion)
 

@@ -1,6 +1,7 @@
 """Gestiona asignaturas, su vinculación con docentes y los horarios asociados."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from app.core.paginacion import (
@@ -97,6 +98,29 @@ def _obtener_docentes_vinculados(
   return [_dto_docente(d) for d in session.exec(consulta).all()]
 
 
+def _mapa_docentes_vinculados(
+  session: Session, ids_asignatura: list[int]
+) -> dict[int, list[PeticionDocente]]:
+  """Obtiene en una sola consulta los docentes activos de varias asignaturas."""
+  if not ids_asignatura:
+    return {}
+
+  consulta = (
+    select(AsignaturasDocentes.id_asignatura, Docentes)
+    .join(Docentes, Docentes.id == AsignaturasDocentes.id_docente)
+    .where(
+      AsignaturasDocentes.id_asignatura.in_(ids_asignatura),
+      AsignaturasDocentes.fecha_eliminacion.is_(None),
+      Docentes.fecha_eliminacion.is_(None),
+    )
+    .order_by(AsignaturasDocentes.id_asignatura, Docentes.id)
+  )
+  mapa: dict[int, list[PeticionDocente]] = {id_: [] for id_ in ids_asignatura}
+  for id_asignatura, docente in session.exec(consulta).all():
+    mapa[id_asignatura].append(_dto_docente(docente))
+  return mapa
+
+
 def _validar_grado_liceo(session: Session, id_grado: int) -> Grados:
   grado = session.get(Grados, id_grado)
 
@@ -168,7 +192,11 @@ def _validar_duplicado_asignatura(
     )
 
 
-def _asignatura_dto(asignatura: Asignaturas, session: Session) -> PeticionAsignatura:
+def _asignatura_dto(
+  asignatura: Asignaturas,
+  session: Session,
+  docentes: list[PeticionDocente] | None = None,
+) -> PeticionAsignatura:
   grado = asignatura.grado
   return PeticionAsignatura(
     id=asignatura.id,
@@ -178,7 +206,11 @@ def _asignatura_dto(asignatura: Asignaturas, session: Session) -> PeticionAsigna
     grado_numero=grado.numero if grado else None,
     grado_nombre=grado.nombre if grado else None,
     nivel=grado.nivel if grado else None,
-    docentes=_obtener_docentes_vinculados(session, asignatura.id),
+    docentes=(
+      _obtener_docentes_vinculados(session, asignatura.id)
+      if docentes is None
+      else docentes
+    ),
   )
 
 
@@ -204,10 +236,16 @@ def listar_asignaturas(
   if periodo_lectivo is not None:
     consulta = consulta.where(Asignaturas.periodo_lectivo == periodo_lectivo)
 
+  consulta = consulta.options(selectinload(Asignaturas.grado))
   items, total = paginar(session, consulta, paginacion)
 
+  por_asignatura = _mapa_docentes_vinculados(
+    session, [a.id for a in items if a.id is not None]
+  )
   return construir_pagina(
-    [_asignatura_dto(a, session) for a in items], total, paginacion
+    [_asignatura_dto(a, session, por_asignatura.get(a.id, [])) for a in items],
+    total,
+    paginacion,
   )
 
 

@@ -1,6 +1,7 @@
 """Gestiona estudiantes, su ubicación académica y el autocompletado por cédula."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from app.core.paginacion import (
@@ -69,6 +70,14 @@ def _obtener_representante_activo(
     )
 
   return representante
+
+
+def _con_relaciones_listado(consulta):
+  """Carga en lote sección, grado y representante de la página."""
+  return consulta.options(
+    selectinload(Estudiantes.seccion).selectinload(Secciones.grado),
+    selectinload(Estudiantes.representante),
+  )
 
 
 def _estudiante_dto(estudiante: Estudiantes) -> PeticionEstudiante:
@@ -177,6 +186,7 @@ def listar_estudiantes(
   if periodo_lectivo is not None:
     consulta = consulta.where(Secciones.periodo_lectivo == periodo_lectivo)
 
+  consulta = _con_relaciones_listado(consulta)
   items, total = paginar(session, consulta, paginacion)
 
   return construir_pagina([_estudiante_dto(e) for e in items], total, paginacion)
@@ -210,6 +220,7 @@ def buscar_estudiantes(
   if periodo_lectivo is not None:
     consulta = consulta.where(Secciones.periodo_lectivo == periodo_lectivo)
 
+  consulta = _con_relaciones_listado(consulta)
   items, total = paginar(session, consulta, paginacion)
 
   return construir_pagina([_estudiante_dto(e) for e in items], total, paginacion)
