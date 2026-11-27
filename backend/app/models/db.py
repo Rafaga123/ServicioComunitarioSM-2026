@@ -44,6 +44,11 @@ class Usuarios(EsquemaBase, table=True):
   # siempre deben pertenecer a ESCUELA o LICEO.
   nivel: en.NivelEducativo | None = Field(default=None)
 
+  # Contador de versión del JWT. Cada cambio de clave, baja o transferencia
+  # de administrador lo incrementa y revoca todos los tokens emitidos
+  # con un claim `ver` anterior.
+  version_tokens: int = Field(default=0, nullable=False)
+
   pases: list["Pases"] = Relationship(back_populates="usuario")
   reportes: list["Reportes"] = Relationship(back_populates="usuario")
   auditorias: list["Auditorias"] = Relationship(back_populates="usuario")
@@ -410,6 +415,21 @@ class DocumentosGenerados(EsquemaBase, table=True):
   seccion: Secciones | None = Relationship()
   usuario: Usuarios | None = Relationship()
 
+# Tabla de control: JWT revocados por logout o cierre por inactividad.
+# No es dato de negocio: se limpia con DELETE físico una vez vencido el token
+# y transcurrida la retención configurada.
+class TokensRevocados(EsquemaBase, table=True):
+  __tablename__ = "tokens_revocados"
+  __table_args__ = (
+    Index("uq_tokens_revocados_jti", "jti", unique=True),
+    Index("ix_tokens_revocados_expira_en", "expira_en"),
+  )
+
+  id: int | None = Field(default=None, primary_key=True)
+  jti: str = Field(max_length=36)
+  usuario_id: int | None = Field(default=None, foreign_key="usuarios.id")
+  expira_en: NaiveDatetime
+  motivo: str | None = Field(default=None, max_length=50)
 
 # Firma canónica de los datos que produjeron un PDF. Permite reutilizar el
 # documento cuando el listado no cambió y versionar cuando sí cambió.

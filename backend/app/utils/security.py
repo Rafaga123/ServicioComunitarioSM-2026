@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import bcrypt
 import jwt
@@ -11,6 +12,7 @@ from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, SECRET_KEY
 from app.models.db import Usuarios
 from app.models.enums import NivelEducativo, RolesUsuario
 from app.models.session import get_session
+from app.utils.tokens_revocados import esta_revocado
 
 
 # Obtiene el texto simple de la clave y lo encripta en hash
@@ -35,30 +37,38 @@ def verificar_clave(clave: str, clave_hash: str) -> bool:
 
 
 # Crea y firma el JWT
-def crear_token_acceso(data: dict) -> str:
-  """Crea y firma  el JWT"""
+def crear_token_acceso(data: dict, version_tokens: int) -> str:
+  """Crea y firma el JWT con identificador único y versión del usuario."""
 
   to_encode = data.copy()
 
-  expire = datetime.now(UTC) + timedelta(
-    minutes=ACCESS_TOKEN_EXPIRE_MINUTES
-  )  # Tiempo de expiracion del token
+  expire = datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
-  to_encode.update({"exp": expire})  # Actualizacion del tiempo de expiracion
+  to_encode.update(
+    {
+      "exp": expire,
+      "jti": str(uuid4()),
+      "ver": version_tokens,
+    }
+  )
 
-  token_codificado = jwt.encode(
-    to_encode, SECRET_KEY, algorithm=ALGORITHM
-  )  # Firma del token codificado
-
-  return token_codificado
+  return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
+def validar_token(
+  token: str,
+  session: Session,
+  *,
+  exigir_no_revocado: bool = True,
+) -> tuple[Usuarios, dict]:
+  """Valida firma, expiración, usuario, versión y denylist.
 
-def obtener_usuario_actual(
-  token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)
-) -> Usuarios:
+  `exigir_no_revocado=False` se usa solo en logout: así un segundo cierre
+  con el mismo token sigue devolviendo 204 en vez de 401.
+  """
+
   excepcion_credenciales = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
     detail="No se pudieron validar las credenciales (token inválido)",
@@ -71,13 +81,29 @@ def obtener_usuario_actual(
       "WWW-Authenticate": 'Bearer error="invalid_token", error_description="token expirado"'
     },
   )
+  excepcion_revocado = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="La sesión fue cerrada. Inicia sesión nuevamente.",
+    headers={
+      "WWW-Authenticate": 'Bearer error="invalid_token", error_description="sesion cerrada"'
+    },
+  )
+  excepcion_version = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="La clave o los permisos del usuario cambiaron. Inicia sesión nuevamente.",
+    headers={
+      "WWW-Authenticate": 'Bearer error="invalid_token", error_description="token obsoleto"'
+    },
+  )
 
   try:
     payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
 
     usuario_id = payload.get("sub")
+    jti = payload.get("jti")
+    ver = payload.get("ver")
 
-    if usuario_id is None:
+    if usuario_id is None or jti is None or ver is None:
       raise excepcion_credenciales
 
     usuario = session.get(Usuarios, int(usuario_id))
@@ -90,7 +116,28 @@ def obtener_usuario_actual(
   if usuario is None or usuario.fecha_eliminacion is not None:
     raise excepcion_credenciales
 
+  if ver != usuario.version_tokens:
+    raise excepcion_version
+
+  if exigir_no_revocado and esta_revocado(session, jti):
+    raise excepcion_revocado
+
+  return usuario, payload
+
+
+def obtener_usuario_actual(
+  token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)
+) -> Usuarios:
+  usuario, _ = validar_token(token, session)
   return usuario
+
+
+def obtener_sesion_actual(
+  token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)
+) -> tuple[Usuarios, dict]:
+  """Igual que obtener_usuario_actual pero permite logout idempotente."""
+
+  return validar_token(token, session, exigir_no_revocado=False)
 
 
 # Dependencia reutilizable para restringir endpoints según el rol del usuario
