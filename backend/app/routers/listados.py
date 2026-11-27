@@ -186,6 +186,17 @@ def generar_listado(
   if firma is not None:
     existente = servicio_firmas.documento_reutilizable(session, firma)
     if existente is not None:
+      registrar_auditoria(
+        session,
+        usuario_actual.id,
+        ModuloAuditoria.documentos,
+        "REUTILIZAR",
+        f"Reutilizó el documento {existente.nombre_archivo} ({tipo.value}) "
+        "porque los datos no cambiaron.",
+      )
+      # `documento_reutilizable` toma un bloqueo de transacción: hay que
+      # confirmar para liberarlo aunque no se haya creado un PDF nuevo.
+      session.commit()
       return _dto(existente)
 
   if tipo == TipoDocumento.horarios:

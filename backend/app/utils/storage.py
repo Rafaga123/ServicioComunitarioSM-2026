@@ -22,16 +22,18 @@ from app.utils.fechas import ahora_caracas
 from app.utils.periodos import etiqueta_periodo
 from app.utils.texto import texto_legible
 
-# MIME permitidos para adjuntos de pases y reportes (solo imágenes).
-MIME_PERMITIDOS = {
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/webp",
+# Extensiones permitidas y su MIME canónico. El MIME se deriva del contenido,
+# nunca del `Content-Type` declarado por el cliente.
+EXTENSION_MIME = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".pdf": "application/pdf",
 }
 
-# Subfijos permitidos (incluye el punto).
-EXTENSIONES_PERMITIDAS = {".jpg", ".jpeg", ".png", ".webp"}
+MIME_PERMITIDOS = set(EXTENSION_MIME.values())
+EXTENSIONES_PERMITIDAS = set(EXTENSION_MIME)
 
 # Slugs de los grados según el catálogo de `Grados` (1..11).
 GRADO_SLUGS = {
@@ -98,28 +100,51 @@ def ruta_relativa_imagen(
   ).as_posix()
 
 
+def _detectar_formato(contenido: bytes) -> tuple[str, str] | None:
+  """Devuelve `(extension, mime)` según la firma binaria del contenido.
+
+  Solo reconoce los formatos permitidos. El cliente puede mentir en el nombre
+  y en el `Content-Type`; los bytes son la única fuente de verdad.
+  """
+  if contenido.startswith(b"\xff\xd8\xff"):
+    return "jpg", "image/jpeg"
+  if contenido.startswith(b"\x89PNG\r\n\x1a\n"):
+    return "png", "image/png"
+  if len(contenido) >= 12 and contenido[:4] == b"RIFF" and contenido[8:12] == b"WEBP":
+    return "webp", "image/webp"
+  if contenido.startswith(b"%PDF-"):
+    return "pdf", "application/pdf"
+  return None
+
+
 def validar_upload(archivo: UploadFile) -> tuple[str, str, str, bytes]:
   """Valida un adjunto subido y devuelve (nombre_base, ext, mime, contenido).
 
-  El `nombre_base` es seguro y legible (sin `_`, con `año`). El nombre físico
-  se genera aparte para evitar colisiones y exponer el nombre original.
-  Rechaza tamaños, MIME o extensiones fuera del allowlist.
+  Acepta JPG/JPEG, PNG, WebP y PDF de hasta `ARCHIVOS_MAX_BYTES`. La extensión
+  del nombre y la firma binaria deben coincidir; el MIME devuelto se calcula a
+  partir de los bytes y es el que se guarda en la metadata.
   """
   nombre = archivo.filename or "archivo"
   extension = f".{nombre.rsplit('.', 1)[1].lower()}" if "." in nombre else ""
   if extension not in EXTENSIONES_PERMITIDAS:
-    raise ValueError("Extensión no permitida; se aceptan jpg, jpeg, png y webp")
+    raise ValueError(
+      "Extensión no permitida; se aceptan jpg, jpeg, png, webp y pdf"
+    )
 
   contenido = archivo.file.read()
   if len(contenido) > ARCHIVOS_MAX_BYTES:
     raise ValueError("El archivo supera el tamaño máximo permitido")
 
-  mime = archivo.content_type or ""
-  if mime not in MIME_PERMITIDOS:
-    raise ValueError("Tipo de archivo no permitido; solo imágenes")
+  formato = _detectar_formato(contenido)
+  if formato is None:
+    raise ValueError("El contenido no es una imagen JPG/PNG/WebP ni un PDF")
+
+  extension_detectada, mime = formato
+  if EXTENSION_MIME[f".{extension_detectada}"] != EXTENSION_MIME[extension]:
+    raise ValueError("La extensión no coincide con el contenido del archivo")
 
   nombre_legible = texto_legible(_sanitizar_nombre(nombre))
-  return nombre_legible, extension.lstrip("."), mime, contenido
+  return nombre_legible, extension_detectada, mime, contenido
 
 
 def nombre_unico(ruta_relativa: str, nombre_archivo: str) -> str:

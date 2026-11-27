@@ -50,6 +50,7 @@ def _validar_acceso_representante(
     .where(
       Estudiantes.id_representante == representante.id,
       Estudiantes.fecha_eliminacion.is_(None),
+      Estudiantes.fecha_egreso.is_(None),
       Secciones.fecha_eliminacion.is_(None),
       Grados.fecha_eliminacion.is_(None),
       Grados.nivel == usuario.nivel,
@@ -141,6 +142,7 @@ def listar_representantes(
       .join(Grados, Secciones.id_grado == Grados.id)
       .where(
         Estudiantes.fecha_eliminacion.is_(None),
+        Estudiantes.fecha_egreso.is_(None),
         Secciones.fecha_eliminacion.is_(None),
         Grados.fecha_eliminacion.is_(None),
         Grados.nivel == nivel,

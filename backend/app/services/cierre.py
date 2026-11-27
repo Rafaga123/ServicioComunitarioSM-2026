@@ -108,6 +108,7 @@ def _estudiantes_activos_periodo(
     .join(Secciones, Estudiantes.id_seccion == Secciones.id)
     .where(
       Estudiantes.fecha_eliminacion.is_(None),
+      Estudiantes.fecha_egreso.is_(None),
       Secciones.fecha_eliminacion.is_(None),
       Secciones.periodo_lectivo == periodo_lectivo,
     )

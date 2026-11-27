@@ -35,6 +35,18 @@ def filtro_activos(consulta, modelo):
   return consulta.where(modelo.fecha_eliminacion.is_(None))
 
 
+def filtro_vigentes(consulta, modelo):
+  """Restringe a registros no eliminados y, si aplica, no egresados.
+
+  `Estudiantes` es el único modelo con `fecha_egreso`: un graduado conserva
+  su ficha histórica pero deja de ser parte de la nómina vigente.
+  """
+  consulta = filtro_activos(consulta, modelo)
+  if hasattr(modelo, "fecha_egreso"):
+    consulta = consulta.where(modelo.fecha_egreso.is_(None))
+  return consulta
+
+
 def filtro_texto(consulta, termino: str, *campos):
   """Devuelve la consulta filtrada por texto en los campos indicados."""
   termino = termino.strip()

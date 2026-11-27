@@ -2,7 +2,7 @@
 
 API REST para la gestión académica y disciplinaria de una escuela y un liceo. Está construida con **FastAPI + SQLModel + PostgreSQL** y separa la información por nivel educativo (`ESCUELA` / `LICEO`).
 
-> **Estado actual:** Fases 1–6 completadas en `backend-dev`. El backend expone **14 routers**, **47 rutas** y **84 operaciones** documentadas en OpenAPI. No se agregaron rutas: la revocación de JWT y el límite de login se implementaron dentro de `/auth/login`, `/auth/logout` y el CRUD de usuarios. El contrato detallado para el frontend está en [`ENTREGA_FRONTEND.md`](ENTREGA_FRONTEND.md).
+> **Estado actual:** Fases 1–6 completadas en `backend-dev`. El backend expone **15 routers**, **47 rutas** y **84 operaciones** documentadas en OpenAPI. No se agregaron rutas: la revocación de JWT y el límite de login se implementaron dentro de `/auth/login`, `/auth/logout` y el CRUD de usuarios. El contrato detallado para el frontend está en [`ENTREGA_FRONTEND.md`](ENTREGA_FRONTEND.md).
 >
 > **Importante:** no hay migraciones (Alembic). `create_all()` **no altera** tablas existentes, pero en el arranque se ejecutan dos migraciones no destructivas: `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS version_tokens INTEGER NOT NULL DEFAULT 0` y `ALTER TYPE tipodocumento ADD VALUE IF NOT EXISTS 'docentes'`. Para el resto de cambios de esquema se usa `python -m scripts.cargar_datos_prueba --recrear-tablas`, que hace `drop_all()` antes de cargar y por eso es destructivo. La tabla nueva `tokens_revocados` sí la crea `create_all()` automáticamente.
 
@@ -384,7 +384,7 @@ Los `422` usan el formato estándar de FastAPI:
 | Gestión (resumen) | Cualquier autenticado (filtrado por nivel) | — |
 | Auditorías | Solo administrador | — |
 
-> **Ojo con Horarios:** `GET /api/horarios/registros/` y `GET /api/horarios/registros/{id}` son de **lectura para cualquier autenticado**, filtrados por nivel; `POST`, `PUT` y `DELETE` siguen siendo **solo del administrador**. La ruta `GET /api/horarios/` es distinta: es la consulta de “qué clase tiene este estudiante en esta fecha” y también está disponible para cualquier usuario autenticado. Como los horarios solo existen para LICEO, una cuenta de ESCUELA recibe la lista vacía.
+> **Ojo con Horarios:** `GET /api/horarios/registros/` y `GET /api/horarios/registros/{id}` son de **lectura para cualquier autenticado**, filtrados por nivel; `POST`, `PUT` y `DELETE` siguen siendo **solo del administrador**. La ruta `GET /api/horarios/` es distinta: es la consulta de “qué clase tiene este estudiante en esta fecha” y también está disponible para cualquier usuario autenticado. Como los horarios solo existen para LICEO, una cuenta de ESCUELA recibe la lista vacía. En la consulta se aceptan ambos años del periodo (`2026` cubre `2026` y `2027`); un estudiante egresado devuelve `encontrado=false`.
 
 ### 5.2 Resumen de reglas de nivel
 
@@ -489,6 +489,7 @@ Reglas:
 - `id_seccion` es obligatorio y debe estar activo.
 - `id_representante` es opcional; si se envía, debe estar activo.
 - La cédula es única entre estudiantes activos.
+- Los estudiantes con `fecha_egreso` (egresados en el cierre de año) quedan fuera de listados, búsquedas, resumen, listados PDF, representantes, pases, reportes y consulta de horarios. Su ficha histórica sigue disponible con `GET /api/estudiantes/{id}`.
 - `fecha_nacimiento` se normaliza a hora de Caracas.
 - La respuesta incluye datos de apoyo: `nivel`, `id_grado`, `grado_numero`, `grado_nombre`, `seccion_letra`, `periodo_lectivo` y `representante`.
 - El estudiante pertenece a un solo nivel a través de su sección.
@@ -891,7 +892,7 @@ Devuelve `200` con `{ periodo_cerrado, periodo_activado, documentos_generados, e
 
 - El período actual debe estar activo y abierto; el siguiente debe ser mayor y no tener secciones creadas.
 - Genera PDFs de nóminas y representantes para todas las secciones, de horarios solo para las de LICEO y un listado general de docentes por nivel. Se preparan en staging y se mueven solo si toda la operación tiene éxito; si falla, se revierten.
-- Traspasa estudiantes al siguiente grado (6to Grado → 1er Año) y marca el egreso en 5to Año mediante `fecha_egreso` (solo lectura en la API normal).
+- Traspasa estudiantes al siguiente grado (6to Grado → 1er Año) y marca el egreso en 5to Año mediante `fecha_egreso` (solo lectura en la API normal). Los egresados no se traspasan dos veces: se excluyen del traspaso y de los conteos de la nómina vigente.
 - Replica las combinaciones grado+letra existentes sin docentes titulares y copia los nombres de asignaturas de liceo sin docentes.
 
 ### 6.15 Listados (`/api/listados`)
@@ -929,6 +930,7 @@ La respuesta ya trae `Content-Disposition: attachment`; `ruta_relativa` es inter
 - Los PDF usan hoja carta, margen izquierdo de 4 cm y 3 cm en los demás lados.
 - La ruta incluye el periodo lectivo: `2026-2027/listados/nominas/ESCUELA/1er_grado/U/nomina_2026-2027_1er_grado_U.pdf`. Los generales usan `generales/`: `2026-2027/listados/nominas/ESCUELA/generales/nomina_2026-2027_ESCUELA_general.pdf` o `.../nomina_2026-2027_1er_grado.pdf`. Si el nombre ya existe, se agrega `_v2`, `_v3`, ….
 - Duplicados: con `REUTILIZAR_DOCUMENTOS_IGUALES=True` se calcula una firma SHA-256 de tipo, periodo, nivel, grado/sección, filas, encabezados, anchos y título. Si la firma coincide y el archivo sigue en disco, la misma petición devuelve el documento existente con `201` y no crea otro PDF; si los datos cambiaron, se genera una versión nueva. La comprobación usa `pg_advisory_xact_lock(hashtext(firma))` para evitar duplicados concurrentes. Las firmas viven en la tabla `documentos_firmas`, creada con `create_all()`. Con el flag en `False` (default) siempre se genera un PDF nuevo.
+- La reutilización se audita como `DOCUMENTOS / REUTILIZAR` en la misma transacción y confirma para liberar el bloqueo. El nivel se valida **antes** de reutilizar y otra vez en la descarga, así que un operador no puede obtener un PDF de otro nivel pidiendo el `id` del documento reutilizado. La firma se calcula a partir de los datos armados para el listado: se evita el renderizado y el disco, pero no las consultas de construcción.
 - Las nóminas generales se ordenan por grado, sección y apellidos. Los representantes generales se ordenan por apellido del representante.
 - Título: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/1er Grado "U"`. En general por grado: `.../1er Grado general`. Metadatos: `ESCUELA • 1er Grado U • 2026-2027`.
 - Los representantes de ESCUELA del export original solo tienen teléfono; en la columna `Representante` se muestra `-`. Los de LICEO conservan su nombre real.
@@ -948,7 +950,7 @@ Cada operación de escritura registra automáticamente una auditoría con:
 
 - `usuario_id`
 - `modulo` (`USUARIOS`, `ESTUDIANTES`, `SECCIONES`, `PASES`, `REPORTES`, etc.)
-- `accion` (`CREAR`, `ACTUALIZAR`, `ELIMINAR`, `CAMBIAR CLAVE`, `TRANSFERIR ADMIN`, `SUBIR ARCHIVO`, `INICIO DE SESIÓN`, `CIERRE DE SESIÓN`, etc.)
+- `accion` (`CREAR`, `ACTUALIZAR`, `ELIMINAR`, `CAMBIAR CLAVE`, `TRANSFERIR ADMIN`, `SUBIR ARCHIVO`, `GENERAR`, `REUTILIZAR`, `DESCARGAR ARCHIVO`, `INICIO DE SESIÓN`, `CIERRE DE SESIÓN`, etc.)
 - `descripcion`
 - `fecha_creacion`
 
@@ -1018,9 +1020,10 @@ python -m scripts.normalizar_textos_auditoria
 
 ### 7.7 Auditoría
 
-- Las operaciones de escritura registran auditoría en la misma transacción.
+- Las operaciones de escritura registran auditoría en la misma transacción, incluida la reutilización de PDFs.
 - `GET /api/auditorias/` es exclusivo del administrador.
 - Los filtros de auditoría son por nombre de usuario, módulo, acción y fecha.
+- Todas las respuestas HTTP llevan `Cache-Control: private, no-store` (middleware global): las respuestas dependen del rol/nivel del token y las descargas escriben auditoría. Nunca se usa `public`.
 
 ### 7.8 Períodos lectivos
 
@@ -1037,7 +1040,8 @@ python -m scripts.normalizar_textos_auditoria
 
 ### 7.10 Adjuntos de pases y reportes
 
-- Solo imágenes JPG/JPEG/PNG/WebP, máximo 5 MB.
+- Imágenes JPG/JPEG/PNG/WebP y documentos PDF, máximo 5 MB.
+- La validación usa la **firma binaria**: el MIME se deriva del contenido y debe coincidir con la extensión; el `Content-Type` declarado por el cliente no se confía. Un archivo renombrado con extensión permitida pero contenido distinto se rechaza con `400`.
 - La subida es multipart con el campo `archivo`; `archivo_url` es solo de lectura.
 - El nombre visible `archivo_nombre` se formatea (`_` → espacio, `ano`/`anio` → `año`); el archivo físico conserva su nombre UUID por seguridad.
 - Al desvincular con `DELETE /{id}/archivo` se limpia la metadata, pero el archivo físico permanece en `STORAGE_ROOT`.
@@ -1211,7 +1215,7 @@ El contrato detallado, con bodies, filtros y reglas por entidad, está en
 - **El límite de login es en memoria por proceso.** No sobrevive a reinicios ni es compartido entre workers; en despliegues con balanceador, moverlo a Redis o al gateway. El contador por IP incluye los logins correctos (default `20` por minuto).
 - **No hay endpoint de restauración** de registros dados de baja.
 - **No hay Docker/compose** ni instalador `.exe` todavía.
-- La subida de archivos admite solo imágenes; no hay vista previa ni borrado físico de adjuntos.
+- La subida de archivos admite imágenes y PDF validados por firma binaria; no hay vista previa ni borrado físico de adjuntos.
 - El frontend aún no está conectado; este README describe solo el backend.
 - La carpeta `backend/scripts/` contiene scripts auxiliares (`generar_sql.py`, `excel.py`, `sembrar_horarios.py`, `crear_admin.py`, `cargar_datos_prueba.py`, `normalizar_textos_auditoria.py`, `regenerar_horarios_pdf.py`) que no forman parte del contrato de la API. Los datos sensibles de nóminas están solo en `backend/scripts/nominas/`, ignorada por Git.
 

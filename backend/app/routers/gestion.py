@@ -51,6 +51,7 @@ def _contar_estudiantes(
     .join(Grados, Secciones.id_grado == Grados.id)
     .where(
       Estudiantes.fecha_eliminacion.is_(None),
+      Estudiantes.fecha_egreso.is_(None),
       Secciones.fecha_eliminacion.is_(None),
       Grados.fecha_eliminacion.is_(None),
     )
@@ -154,6 +155,7 @@ def _contar_pases(
     .where(
       Pases.fecha_eliminacion.is_(None),
       Estudiantes.fecha_eliminacion.is_(None),
+      Estudiantes.fecha_egreso.is_(None),
       Secciones.fecha_eliminacion.is_(None),
       Grados.fecha_eliminacion.is_(None),
     )
@@ -180,6 +182,7 @@ def _contar_reportes(
     .where(
       Reportes.fecha_eliminacion.is_(None),
       Estudiantes.fecha_eliminacion.is_(None),
+      Estudiantes.fecha_egreso.is_(None),
       Secciones.fecha_eliminacion.is_(None),
       Grados.fecha_eliminacion.is_(None),
     )
@@ -208,6 +211,7 @@ def _contar_representantes(
     .where(
       Representantes.fecha_eliminacion.is_(None),
       Estudiantes.fecha_eliminacion.is_(None),
+      Estudiantes.fecha_egreso.is_(None),
       Secciones.fecha_eliminacion.is_(None),
       Grados.fecha_eliminacion.is_(None),
     )
