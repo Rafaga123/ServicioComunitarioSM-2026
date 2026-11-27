@@ -108,6 +108,7 @@ def _validar_docente_asignatura(
   id_docente: int | None,
   id_asignatura: int | None,
 ) -> None:
+  """Valida el nivel del docente, el grado de la asignatura y su vínculo."""
   nivel = _nivel_estudiante(estudiante)
 
   if id_docente is not None:

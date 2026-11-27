@@ -8,8 +8,8 @@ con SQLite sigan funcionando.
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
-# Índices de claves foráneas que `create_all()` no crea. Los nombres son
-# estables para que `IF NOT EXISTS` sea suficiente en arranques repetidos.
+# Índices de apoyo (principalmente claves foráneas) que `create_all()` no crea.
+# Los nombres son estables para que `IF NOT EXISTS` baste en arranques repetidos.
 DDL_INDICES = (
   "CREATE INDEX IF NOT EXISTS ix_asignaturas_docentes_id_docente "
   "ON asignaturas_docentes (id_docente)",
@@ -48,6 +48,7 @@ DDL_INDICES = (
 
 
 def _es_postgres(engine: Engine) -> bool:
+  """Indica si el engine usa PostgreSQL."""
   return engine.dialect.name == "postgresql"
 
 
@@ -62,6 +63,7 @@ def preparar_extensiones(engine: Engine) -> None:
 
 
 def _columnas(engine: Engine, tabla: str) -> set[str]:
+  """Devuelve los nombres de las columnas existentes en una tabla."""
   return {columna["name"] for columna in inspect(engine).get_columns(tabla)}
 
 
@@ -72,6 +74,7 @@ def _agregar_columna(
   ddl_postgres: str,
   ddl_sqlite: str,
 ) -> None:
+  """Agrega la columna solo si la tabla todavía no la tiene."""
   if columna in _columnas(engine, tabla):
     return
 
