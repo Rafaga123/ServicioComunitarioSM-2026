@@ -92,15 +92,20 @@ def registrar_usuario(
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
   """Registra una cuenta de usuario."""
-  statement = select(Usuarios).where(Usuarios.nombre == usuario_in.nombre)
+  _validar_combinacion_rol_nivel(usuario_in.rol, usuario_in.nivel)
+
+  # El nombre solo es único entre cuentas activas: una baja lógica libera el
+  # nombre para poder dar de alta de nuevo al mismo usuario.
+  statement = filtro_activos(
+    select(Usuarios).where(Usuarios.nombre == usuario_in.nombre),
+    Usuarios,
+  )
 
   if session.exec(statement).first():
     raise HTTPException(
       status_code=status.HTTP_400_BAD_REQUEST,
       detail="Ya existe un usuario con ese nombre",
     )
-
-  _validar_combinacion_rol_nivel(usuario_in.rol, usuario_in.nivel)
 
   nuevo_usuario = Usuarios(
     nombre=usuario_in.nombre,
@@ -200,9 +205,13 @@ def actualizar_usuario(
     datos_actualizar["rol"] = RolesUsuario(datos_actualizar["rol"].value)
 
   if "nombre" in datos_actualizar and datos_actualizar["nombre"] != usuario_db.nombre:
-    statement = select(Usuarios).where(
-      Usuarios.nombre == datos_actualizar["nombre"],
-      Usuarios.id != usuario_id,
+    # Igual que en el alta: las cuentas dadas de baja no reservan el nombre.
+    statement = filtro_activos(
+      select(Usuarios).where(
+        Usuarios.nombre == datos_actualizar["nombre"],
+        Usuarios.id != usuario_id,
+      ),
+      Usuarios,
     )
 
     if session.exec(statement).first():
