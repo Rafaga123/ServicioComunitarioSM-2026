@@ -16,6 +16,7 @@ def registrar_auditoria(
   accion: str,
   descripcion: str,
 ) -> None:
+  """Registra una acción en la auditoría."""
   modulo_valor = modulo.value if isinstance(modulo, ModuloAuditoria) else str(modulo)
   nueva_auditoria = Auditorias(
     usuario_id=usuario_id,

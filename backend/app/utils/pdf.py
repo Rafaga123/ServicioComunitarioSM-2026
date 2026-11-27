@@ -50,6 +50,7 @@ def _tamano_ajustado(
 def _membrete(titulo: str):
   """Devuelve el callback que dibuja logo + membrete en todas las páginas."""
   def dibujar(canvas, doc) -> None:
+    """Dibuja el membrete y el título en cada página del PDF."""
     if not LOGO_PATH.is_file():
       raise FileNotFoundError(f"No se encontró el logo institucional: {LOGO_PATH}")
     canvas.saveState()

@@ -105,6 +105,7 @@ def registrar_estudiante(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
+  """Inscribe un estudiante en una sección."""
   statement = select(Estudiantes).where(
     Estudiantes.cedula_estudiantil == estudiante_in.cedula_estudiantil
   )
@@ -160,6 +161,7 @@ def listar_estudiantes(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve una página de estudiantes activos."""
   consulta = filtro_activos(select(Estudiantes), Estudiantes)
   consulta = consulta.join(Secciones, Estudiantes.id_seccion == Secciones.id)
   consulta = consulta.join(Grados, Secciones.id_grado == Grados.id)
@@ -189,6 +191,7 @@ def buscar_estudiantes(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve los estudiantes que coinciden con la búsqueda."""
   consulta = filtro_activos(select(Estudiantes), Estudiantes)
   consulta = consulta.join(Secciones, Estudiantes.id_seccion == Secciones.id)
   consulta = consulta.join(Grados, Secciones.id_grado == Grados.id)
@@ -218,6 +221,7 @@ def obtener_estudiante(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve un estudiante activo por su identificador."""
   estudiante = _obtener_estudiante_activo(session, estudiante_id)
   validar_acceso_nivel(usuario_actual, estudiante.seccion.grado.nivel)
 
@@ -231,6 +235,7 @@ def actualizar_estudiante(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
+  """Actualiza un estudiante activo."""
   estudiante_db = _obtener_estudiante_activo(session, estudiante_id)
 
   if "id_seccion" in estudiante_in.model_fields_set:
@@ -289,6 +294,7 @@ def eliminar_estudiante(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ) -> None:
+  """Marca un estudiante como eliminado."""
   estudiante_db = _obtener_estudiante_activo(session, estudiante_id)
 
   marcar_eliminado(session, estudiante_db)

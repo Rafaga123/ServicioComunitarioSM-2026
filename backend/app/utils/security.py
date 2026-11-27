@@ -127,6 +127,7 @@ def validar_token(
 def obtener_usuario_actual(
   token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)
 ) -> Usuarios:
+  """Devuelve el usuario autenticado a partir del token."""
   usuario, _ = validar_token(token, session)
   return usuario
 
@@ -139,11 +140,12 @@ def obtener_sesion_actual(
   return validar_token(token, session, exigir_no_revocado=False)
 
 
-# Dependencia reutilizable para restringir endpoints según el rol del usuario
 def requerir_roles(*roles: RolesUsuario):
+  """Devuelve una dependencia que exige uno de los roles indicados."""
   def dependencia(
     usuario_actual: Usuarios = Depends(obtener_usuario_actual),
   ) -> Usuarios:
+    """Comprueba el rol del usuario antes de continuar."""
     if usuario_actual.rol not in roles:
       raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
@@ -155,21 +157,18 @@ def requerir_roles(*roles: RolesUsuario):
   return dependencia
 
 
-# Nivel que debe aplicarse como filtro en las consultas.
-# El administrador no se limita a un nivel (None = ambos).
 def nivel_efectivo(usuario: Usuarios) -> NivelEducativo | None:
+  """Devuelve el nivel de filtro del usuario; None para el administrador."""
   if usuario.rol == RolesUsuario.administrador:
     return None
 
   return usuario.nivel
 
 
-# Resuelve el nivel para filtrar consultas.
-# El administrador puede pedir cualquier nivel o ninguno; los operadores
-# quedan restringidos a su propio nivel aunque pidan otro por query string.
 def resolver_nivel(
   usuario: Usuarios, nivel_solicitado: NivelEducativo | None
 ) -> NivelEducativo | None:
+  """Devuelve el nivel solicitado por el administrador o el propio del operador."""
   if usuario.rol == RolesUsuario.administrador:
     return nivel_solicitado
 
@@ -185,10 +184,10 @@ def resolver_nivel(
   return usuario.nivel
 
 
-# Solo el administrador gestiona catálogos y operaciones estructurales
 def requerir_admin(
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ) -> Usuarios:
+  """Exige que el usuario autenticado sea administrador."""
   if usuario_actual.rol != RolesUsuario.administrador:
     raise HTTPException(
       status_code=status.HTTP_403_FORBIDDEN,
@@ -198,10 +197,10 @@ def requerir_admin(
   return usuario_actual
 
 
-# Coordinador y secretaria operan únicamente dentro de su nivel
 def requerir_operador(
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ) -> Usuarios:
+  """Exige un operador con nivel educativo asignado."""
   if usuario_actual.rol not in (
     RolesUsuario.coordinador,
     RolesUsuario.secretaria,
@@ -220,9 +219,8 @@ def requerir_operador(
   return usuario_actual
 
 
-# Verifica que un operador solo acceda a registros de su nivel.
-# El administrador siempre tiene acceso.
 def validar_acceso_nivel(usuario: Usuarios, nivel: NivelEducativo | None) -> None:
+  """Comprueba que el usuario pueda acceder al nivel indicado."""
   if usuario.rol == RolesUsuario.administrador:
     return
 

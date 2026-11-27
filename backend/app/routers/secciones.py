@@ -197,6 +197,7 @@ def listar_secciones(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve una página de secciones activas."""
   consulta = filtro_activos(select(Secciones), Secciones)
   consulta = consulta.join(Grados, Secciones.id_grado == Grados.id)
 
@@ -222,6 +223,7 @@ def obtener_seccion(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve una sección activa por su identificador."""
   seccion = _obtener_seccion_activa(session, seccion_id)
   return _seccion_dto(seccion, usuario_actual)
 
@@ -232,6 +234,7 @@ def registrar_seccion(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Registra una sección de un grado."""
   grado = _obtener_grado_activo(session, seccion_in.id_grado)
   validar_acceso_nivel(usuario_actual, grado.nivel)
   _validar_titular_escuela(
@@ -273,6 +276,7 @@ def actualizar_seccion(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Actualiza una sección activa."""
   seccion_db = _obtener_seccion_activa(session, seccion_id)
   grado = seccion_db.grado
   validar_acceso_nivel(usuario_actual, grado.nivel)
@@ -325,6 +329,7 @@ def eliminar_seccion(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ) -> None:
+  """Marca una sección como eliminada si no tiene dependencias."""
   seccion_db = _obtener_seccion_activa(session, seccion_id)
   if _tiene_dependencias(session, seccion_db):
     raise HTTPException(

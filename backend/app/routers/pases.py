@@ -244,6 +244,7 @@ def listar_pases(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_personal),
 ):
+  """Devuelve una página de pases activos."""
   consulta = filtro_activos(select(Pases), Pases)
   consulta = consulta.join(Estudiantes, Pases.id_estudiante == Estudiantes.id)
   consulta = consulta.join(Secciones, Estudiantes.id_seccion == Secciones.id)
@@ -279,6 +280,7 @@ def obtener_pase(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_personal),
 ):
+  """Devuelve un pase activo por su identificador."""
   pase = _obtener_pase_activo(session, pase_id)
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(pase.estudiante))
 
@@ -291,6 +293,7 @@ def registrar_pase(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_personal),
 ):
+  """Registra un pase disciplinario."""
   estudiante = _obtener_estudiante_activo(session, pase_in.id_estudiante)
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(estudiante))
   _validar_docente_asignatura(
@@ -345,6 +348,7 @@ def actualizar_pase(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_personal),
 ):
+  """Actualiza un pase activo."""
   pase_db = _obtener_pase_activo(session, pase_id)
   estudiante = pase_db.estudiante
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(estudiante))
@@ -406,6 +410,7 @@ def eliminar_pase(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_personal),
 ) -> None:
+  """Marca un pase como eliminado."""
   pase_db = _obtener_pase_activo(session, pase_id)
   estudiante = pase_db.estudiante
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(estudiante))
@@ -440,6 +445,7 @@ def subir_pase_archivo(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_personal),
 ):
+  """Guarda el archivo adjunto de un pase."""
   pase = _obtener_pase_activo(session, pase_id)
   estudiante = pase.estudiante
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(estudiante))
@@ -491,6 +497,7 @@ def descargar_pase_archivo(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_personal),
 ):
+  """Devuelve el archivo adjunto de un pase."""
   pase = _obtener_pase_activo(session, pase_id)
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(pase.estudiante))
 
@@ -523,6 +530,7 @@ def quitar_pase_archivo(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_personal),
 ) -> None:
+  """Elimina el archivo adjunto de un pase."""
   pase = _obtener_pase_activo(session, pase_id)
   estudiante = pase.estudiante
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(estudiante))

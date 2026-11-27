@@ -191,6 +191,7 @@ def listar_asignaturas(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve una página de asignaturas activas."""
   consulta = filtro_activos(select(Asignaturas), Asignaturas)
   consulta = consulta.join(Grados, Asignaturas.id_grado == Grados.id)
 
@@ -216,6 +217,7 @@ def obtener_asignatura(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve una asignatura activa por su identificador."""
   asignatura = _obtener_asignatura_activa(session, asignatura_id)
   validar_acceso_nivel(usuario_actual, asignatura.grado.nivel)
   return _asignatura_dto(asignatura, session)
@@ -229,6 +231,7 @@ def registrar_asignatura(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Registra una asignatura de liceo."""
   grado = _validar_grado_liceo(session, asignatura_in.id_grado)
   if asignatura_in.periodo_lectivo is not None:
     periodo = _validar_periodo(session, asignatura_in.periodo_lectivo)
@@ -268,6 +271,7 @@ def actualizar_asignatura(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Actualiza una asignatura activa."""
   asignatura_db = _obtener_asignatura_activa(session, asignatura_id)
   datos_actualizar = asignatura_in.model_dump(exclude_unset=True, exclude_none=True)
 
@@ -341,6 +345,7 @@ def eliminar_asignatura(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ) -> None:
+  """Marca una asignatura como eliminada."""
   asignatura_db = _obtener_asignatura_activa(session, asignatura_id)
 
   if session.exec(
@@ -384,6 +389,7 @@ def listar_docentes_asignatura(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve los docentes vinculados a una asignatura."""
   asignatura = _obtener_asignatura_activa(session, asignatura_id)
   validar_acceso_nivel(usuario_actual, asignatura.grado.nivel)
   return _obtener_docentes_vinculados(session, asignatura_id)
@@ -396,6 +402,7 @@ def vincular_docente(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Vincula un docente a una asignatura."""
   asignatura = _obtener_asignatura_activa(session, asignatura_id)
   docente = _obtener_docente_activo(session, docente_id)
 
@@ -451,6 +458,7 @@ def desvincular_docente(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ) -> None:
+  """Desvincula un docente de una asignatura."""
   asignatura = _obtener_asignatura_activa(session, asignatura_id)
   docente = _obtener_docente_activo(session, docente_id)
   link = session.exec(

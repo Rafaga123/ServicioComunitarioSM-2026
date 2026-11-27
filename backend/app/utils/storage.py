@@ -140,16 +140,19 @@ def ruta_con_nombre(ruta_relativa: str, nombre_archivo: str) -> str:
 
 
 def guardar_archivo(ruta_relativa: str, contenido: bytes) -> None:
+  """Escribe el contenido en la ruta indicada, creando las carpetas."""
   destino = ruta_absoluta(ruta_relativa)
   destino.parent.mkdir(parents=True, exist_ok=True)
   destino.write_bytes(contenido)
 
 
 def leer_archivo(ruta_relativa: str) -> bytes:
+  """Devuelve el contenido del archivo de la ruta indicada."""
   return ruta_absoluta(ruta_relativa).read_bytes()
 
 
 def existe_archivo(ruta_relativa: str) -> bool:
+  """Indica si la ruta corresponde a un archivo existente."""
   try:
     return ruta_absoluta(ruta_relativa).is_file()
   except ValueError:
@@ -157,6 +160,7 @@ def existe_archivo(ruta_relativa: str) -> bool:
 
 
 def hash_contenido(contenido: bytes) -> str:
+  """Devuelve el SHA-256 del contenido."""
   import hashlib
 
   return hashlib.sha256(contenido).hexdigest()

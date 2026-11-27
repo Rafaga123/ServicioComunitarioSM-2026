@@ -32,6 +32,7 @@ from app.utils.ip import obtener_ip_local
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+  """Inicializa la base de datos y muestra las URLs de acceso."""
   ip_local = obtener_ip_local()
   print("=" * 50)
   print("🚀 API Encendida y lista para la acción")
@@ -80,11 +81,13 @@ app.add_middleware(
 
 @app.get("/")
 def get_root():
+  """Devuelve el estado básico del servicio."""
   return {"status": "Ok"}
 
 
 @app.get("/health", tags=["Salud"])
 def health_check():
+  """Comprueba la conexión con la base de datos."""
   try:
     with engine.connect() as conexion:
       conexion.execute(text("SELECT 1"))

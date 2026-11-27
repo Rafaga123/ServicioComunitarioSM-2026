@@ -95,6 +95,7 @@ class CrearSeccion(SQLModel):
   @field_validator("letra")
   @classmethod
   def validar_letra(cls, valor: str) -> str:
+    """Devuelve la letra normalizada en mayúsculas."""
     return _normalizar_letra(valor)
 
 
@@ -107,6 +108,7 @@ class ActualizarSeccion(SQLModel):
   @field_validator("letra")
   @classmethod
   def validar_letra(cls, valor: str | None) -> str | None:
+    """Devuelve la letra opcional normalizada en mayúsculas."""
     return _normalizar_letra(valor) if valor is not None else None
 
 
@@ -203,6 +205,7 @@ class CrearEstudiante(SQLModel):
   @field_validator("fecha_nacimiento")
   @classmethod
   def normalizar_fecha_nacimiento(cls, valor: datetime) -> datetime:
+    """Convierte la fecha de nacimiento a hora de Caracas."""
     return _normalizar_fecha_caracas(valor)
 
 
@@ -223,6 +226,7 @@ class ActualizarEstudiante(SQLModel):
   @field_validator("fecha_nacimiento")
   @classmethod
   def normalizar_fecha_nacimiento(cls, valor: datetime | None) -> datetime | None:
+    """Convierte la fecha de nacimiento opcional a hora de Caracas."""
     return _normalizar_fecha_caracas(valor) if valor is not None else None
 
 
@@ -298,6 +302,7 @@ class CrearBloqueHorario(SQLModel):
 
   @model_validator(mode="after")
   def validar_tramo(self):
+    """Valida que el tramo horario sea coherente."""
     validar_bloque_horario(self.tipo, self.numero, self.hora_inicio, self.hora_fin)
     return self
 
@@ -394,6 +399,7 @@ class CrearPase(SQLModel):
   @field_validator("fecha")
   @classmethod
   def normalizar_fecha(cls, valor: datetime) -> datetime:
+    """Convierte la fecha a hora de Caracas."""
     return _normalizar_fecha_caracas(valor)
 
 
@@ -409,6 +415,7 @@ class ActualizacionPase(SQLModel):
   @field_validator("fecha")
   @classmethod
   def normalizar_fecha(cls, valor: datetime | None) -> datetime | None:
+    """Convierte la fecha opcional a hora de Caracas."""
     return _normalizar_fecha_caracas(valor) if valor is not None else None
 
 
@@ -477,6 +484,7 @@ class CrearReporte(SQLModel):
   @field_validator("fecha")
   @classmethod
   def normalizar_fecha(cls, valor: datetime) -> datetime:
+    """Convierte la fecha a hora de Caracas."""
     return _normalizar_fecha_caracas(valor)
 
 
@@ -495,6 +503,7 @@ class ActualizarReporte(SQLModel):
   @field_validator("fecha")
   @classmethod
   def normalizar_fecha(cls, valor: datetime | None) -> datetime | None:
+    """Convierte la fecha opcional a hora de Caracas."""
     return _normalizar_fecha_caracas(valor) if valor is not None else None
 
 

@@ -13,6 +13,7 @@ engine = create_engine(sql_url, echo=DEBUG)
 
 
 def create_db_tables():
+  """Crea las tablas y aplica las migraciones automáticas permitidas."""
   with engine.begin() as conn:
     # Instala las extensiones requeridas en la base de datos.
     conn.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent;"))
@@ -43,5 +44,6 @@ def inicializar_base_datos() -> tuple[int, int]:
 
 
 def get_session():
+  """Entrega una sesión de base de datos por petición."""
   with Session(engine) as session:
     yield session

@@ -7,5 +7,6 @@ from app.utils.fechas import ahora_caracas
 
 
 def marcar_eliminado(session: Session, registro: EsquemaBase) -> None:
+  """Marca el registro como eliminado con la fecha actual."""
   registro.fecha_eliminacion = ahora_caracas()
   session.add(registro)

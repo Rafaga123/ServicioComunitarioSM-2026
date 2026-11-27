@@ -31,6 +31,7 @@ def listar_auditorias(
   sesion: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
+  """Devuelve una página de auditorías con los filtros indicados."""
   # El join evita una consulta adicional por fila desde el frontend.
   consulta = select(Auditorias, Usuarios.nombre).join(
     Usuarios, col(Auditorias.usuario_id) == col(Usuarios.id),)
@@ -62,6 +63,7 @@ def obtener_auditoria(
   sesion: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_roles(RolesUsuario.administrador)),
 ):
+  """Devuelve una auditoría por su identificador."""
   auditoria = sesion.get(Auditorias, auditoria_id)
 
 

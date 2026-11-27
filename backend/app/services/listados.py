@@ -113,8 +113,8 @@ def _nombre_representante(representante: Representantes | None) -> str:
   return nombre_completo(representante) or "-"
 
 
-# Consultas por sección.
 def _filas_nominas_seccion(session: Session, seccion: Secciones) -> list[list[str]]:
+  """Devuelve las filas de la nómina de una sección."""
   estudiantes = session.exec(
     select(Estudiantes)
     .where(
@@ -248,13 +248,13 @@ def _datos_horarios(
   return cabecera, filas, docentes
 
 
-# Consultas generales por nivel y periodo, sin sección.
 def _filas_nominas_general(
   session: Session,
   periodo: int,
   nivel: NivelEducativo,
   grado: Grados | None = None,
 ) -> list[list[str]]:
+  """Devuelve las filas de la nómina general de un nivel y periodo."""
   consulta = (
     select(Estudiantes)
     .join(Secciones, Estudiantes.id_seccion == Secciones.id)

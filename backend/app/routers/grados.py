@@ -41,6 +41,7 @@ def listar_grados(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve los grados activos del catálogo."""
   consulta = filtro_activos(select(Grados), Grados)
 
   nivel = resolver_nivel(usuario_actual, nivel)
@@ -58,6 +59,7 @@ def obtener_grado(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve un grado activo por su identificador."""
   grado = _obtener_grado_activo(session, grado_id)
   validar_acceso_nivel(usuario_actual, grado.nivel)
 

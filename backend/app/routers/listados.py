@@ -258,6 +258,7 @@ def listar_documentos(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve una página de documentos generados."""
   consulta = select(DocumentosGenerados).where(
     DocumentosGenerados.fecha_eliminacion.is_(None)
   )
@@ -285,6 +286,7 @@ def descargar_documento(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve el archivo PDF de un documento generado."""
   documento = session.get(DocumentosGenerados, documento_id)
   if not documento or documento.fecha_eliminacion is not None:
     raise HTTPException(404, "Documento no encontrado")

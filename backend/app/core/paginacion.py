@@ -40,10 +40,12 @@ class RespuestaPaginada(BaseModel, Generic[T]):
 
 
 def filtro_activos(consulta, modelo):
+  """Devuelve la consulta restringida a registros no eliminados."""
   return consulta.where(modelo.fecha_eliminacion.is_(None))
 
 
 def filtro_texto(consulta, termino: str, *campos):
+  """Devuelve la consulta filtrada por texto en los campos indicados."""
   termino = termino.strip()
 
   if not termino or not campos:
@@ -55,9 +57,8 @@ def filtro_texto(consulta, termino: str, *campos):
   return consulta.where(or_(*condiciones))
 
 
-# Ejecuta una consulta paginada y devuelve (items de la página, total de registros).
-# La consulta recibida debe incluir sus filtros y su orden, pero NO offset/limit.
 def paginar(session: Session, consulta, paginacion: Paginacion) -> tuple[list, int]:
+  """Devuelve los items de la página y el total de registros."""
   # Para el conteo se quita el orden: no cambia el total y evita ordenar
   # una subconsulta que solo se usa para contar filas.
   consulta_sin_orden = consulta.order_by(None)
@@ -70,11 +71,10 @@ def paginar(session: Session, consulta, paginacion: Paginacion) -> tuple[list, i
   return list(items), total
 
 
-# Arma el envelope final combinando los items (ya mapeados al schema de
-# respuesta) con el total y los parámetros de paginación utilizados.
 def construir_pagina(
   items: list[T], total: int, paginacion: Paginacion
 ) -> RespuestaPaginada[T]:
+  """Devuelve el envelope con items, total y parámetros de paginación."""
   return RespuestaPaginada[T](
     items=items,
     total=total,

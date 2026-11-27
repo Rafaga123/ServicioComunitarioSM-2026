@@ -315,6 +315,7 @@ def cerrar_anio(
   periodo_actual: int,
   periodo_siguiente: int,
 ) -> PeticionCierreAnio:
+  """Cierra el año lectivo, genera los PDFs y traspasa los estudiantes."""
   pa = _validar_periodo_lectivo(session, periodo_actual)
   if not pa.activo:
     raise HTTPException(status_code=400, detail="El periodo actual no está activo")
@@ -332,6 +333,7 @@ def cerrar_anio(
   def anadir_documento(
     resultado: tuple[DocumentosGenerados, str | None] | None,
   ) -> None:
+    """Acumula el documento generado cuando el resultado no es None."""
     if resultado is not None:
       documentos.append(resultado)
 

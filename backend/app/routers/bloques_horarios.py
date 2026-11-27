@@ -117,6 +117,7 @@ def listar_bloques(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve una página de bloques horarios activos."""
   consulta = filtro_activos(select(BloquesHorarios), BloquesHorarios)
   if tipo is not None:
     consulta = consulta.where(BloquesHorarios.tipo == tipo)
@@ -132,6 +133,7 @@ def obtener_bloque(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve un bloque horario activo por su identificador."""
   return _bloque_dto(_obtener_bloque_activo(session, bloque_id))
 
 
@@ -143,6 +145,7 @@ def registrar_bloque(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Registra un bloque horario sin solapes."""
   _validar_orden_unico(session, bloque_in.orden)
   _validar_rango(bloque_in.hora_inicio, bloque_in.hora_fin)
   _validar_sin_solapado(session, bloque_in.hora_inicio, bloque_in.hora_fin)
@@ -178,6 +181,7 @@ def actualizar_bloque(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Actualiza un bloque horario activo."""
   bloque_db = _obtener_bloque_activo(session, bloque_id)
   datos_actualizar = bloque_in.model_dump(exclude_unset=True)
   datos_actualizar = {
@@ -235,6 +239,7 @@ def eliminar_bloque(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ) -> None:
+  """Marca un bloque horario como eliminado."""
   bloque_db = _obtener_bloque_activo(session, bloque_id)
 
   if session.exec(

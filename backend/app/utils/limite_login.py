@@ -111,6 +111,7 @@ def verificar_limite(ip: str, usuario: str) -> None:
 
 
 def registrar_fallo(ip: str, usuario: str) -> None:
+    """Registra un intento fallido por usuario y por IP."""
     ahora = monotonic()
 
     with _bloqueo:

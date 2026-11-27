@@ -71,6 +71,7 @@ def listar_usuarios(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Devuelve una página de usuarios activos."""
   consulta = filtro_activos(select(Usuarios), Usuarios)
 
   nivel = resolver_nivel(usuario_actual, nivel)
@@ -90,6 +91,7 @@ def registrar_usuario(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Registra una cuenta de usuario."""
   statement = select(Usuarios).where(Usuarios.nombre == usuario_in.nombre)
 
   if session.exec(statement).first():
@@ -133,6 +135,7 @@ def cambiar_clave(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ) -> None:
+  """Cambia la clave del usuario autenticado y cierra sus sesiones."""
   if not verificar_clave(clave_in.clave_actual, usuario_actual.clave):
     raise HTTPException(
       status_code=status.HTTP_400_BAD_REQUEST,
@@ -163,6 +166,7 @@ def obtener_usuario(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Devuelve un usuario activo por su identificador."""
   return _obtener_usuario_activo(session, usuario_id)
 
 
@@ -173,6 +177,7 @@ def actualizar_usuario(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Actualiza un usuario y revoca sus sesiones si cambia la autenticación."""
   usuario_db = _obtener_usuario_activo(session, usuario_id)
 
   if usuario_db.rol == RolesUsuario.administrador:
@@ -261,6 +266,7 @@ def eliminar_usuario(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ) -> None:
+  """Da de baja un usuario y revoca sus sesiones."""
   usuario_db = _obtener_usuario_activo(session, usuario_id)
 
   if usuario_db.rol == RolesUsuario.administrador:
@@ -292,6 +298,7 @@ def transferir_admin(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Transfiere el rol de administrador a otro usuario."""
   nuevo_admin = _obtener_usuario_activo(session, usuario_id)
 
   if nuevo_admin.rol == RolesUsuario.administrador:

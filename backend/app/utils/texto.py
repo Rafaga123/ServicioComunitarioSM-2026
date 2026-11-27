@@ -12,6 +12,7 @@ def texto_legible(valor: object) -> str:
   texto = str(valor or "").replace("_", " ")
 
   def reemplazar_año(conincidencia: re.Match[str]) -> str:
+    """Devuelve el texto con tilde y capitalización acordes a la palabra."""
     palabra = conincidencia.group(0)
     if palabra.isupper():
       return "AÑO"

@@ -277,6 +277,7 @@ def listar_horarios(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve una página de horarios activos."""
   consulta = filtro_activos(select(Horarios), Horarios)
   consulta = consulta.join(Secciones, Horarios.id_seccion == Secciones.id)
   consulta = consulta.join(Grados, Secciones.id_grado == Grados.id)
@@ -316,6 +317,7 @@ def obtener_horario(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve un horario activo por su identificador."""
   horario = _obtener_activo(session, Horarios, horario_id, "Horario no encontrado")
   validar_acceso_nivel(usuario_actual, horario.seccion.grado.nivel)
 
@@ -332,6 +334,7 @@ def registrar_horario(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Registra un horario sin colisiones de sección ni docente."""
   _validar_periodo(session, horario_in.periodo_lectivo)
   seccion, bloque, asignatura, docente = _validar_horario(
     session,
@@ -380,6 +383,7 @@ def actualizar_horario(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Actualiza un horario activo."""
   horario_db = _obtener_activo(session, Horarios, horario_id, "Horario no encontrado")
   datos_actualizar = horario_in.model_dump(exclude_unset=True, exclude_none=True)
 
@@ -440,6 +444,7 @@ def eliminar_horario(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ) -> None:
+  """Marca un horario como eliminado."""
   horario_db = _obtener_activo(session, Horarios, horario_id, "Horario no encontrado")
 
   marcar_eliminado(session, horario_db)
@@ -468,6 +473,7 @@ def consultar_horario_estudiante(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve el horario de la sección de un estudiante."""
   estudiante = _obtener_activo(
     session, Estudiantes, id_estudiante, "Estudiante no encontrado"
   )
