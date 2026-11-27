@@ -745,6 +745,7 @@ Acceso: `ADMINISTRADOR`, `COORDINADOR` y `SECRETARIA`. Los operadores quedan lim
 | --- | --- | --- |
 | GET | `/api/pases/` | Lista pases activos. Filtros: `id_estudiante`, `id_seccion`, `tipo`, `anio`, `mes`, `nivel` |
 | GET | `/api/pases/{pase_id}` | Detalle. `403` si es de otro nivel |
+| GET | `/api/pases/{pase_id}/pdf` | Genera un PDF básico del pase (`application/pdf`). `404` si no existe, `403` si es de otro nivel |
 | POST | `/api/pases/` | Crea pase. Devuelve `201` |
 | PUT | `/api/pases/{pase_id}` | Actualiza. Revalida la cuota y el autorizador |
 | DELETE | `/api/pases/{pase_id}` | Baja lógica. Devuelve `204` |
@@ -753,6 +754,8 @@ Acceso: `ADMINISTRADOR`, `COORDINADOR` y `SECRETARIA`. Los operadores quedan lim
 | DELETE | `/api/pases/{pase_id}/archivo` | Desvincula el adjunto; el archivo físico se conserva |
 
 `archivo_url` **no se acepta** en POST/PUT: los adjuntos solo se gestionan con estos tres endpoints.
+
+El PDF de `GET /api/pases/{pase_id}/pdf` usa el membrete y los estilos de los listados, con una tabla campo/detalle **provisional**; la ruta y el tipo MIME no cambiarán cuando se ajuste el formato definitivo. Cada generación registra auditoría `PASES` / `GENERAR`.
 
 Crear pase:
 
@@ -788,6 +791,7 @@ Acceso: `ADMINISTRADOR`, `COORDINADOR` y `SECRETARIA`. Los operadores quedan lim
 | --- | --- | --- |
 | GET | `/api/reportes/` | Lista reportes activos. Filtros: `id_estudiante`, `id_seccion`, `id_docente`, `anio`, `mes`, `categoria`, `nivel_gravedad`, `nivel` |
 | GET | `/api/reportes/{reporte_id}` | Detalle. `403` si es de otro nivel |
+| GET | `/api/reportes/{reporte_id}/pdf` | Genera un PDF básico del reporte (`application/pdf`). `404` si no existe, `403` si es de otro nivel |
 | POST | `/api/reportes/` | Crea reporte. Devuelve `201` |
 | PUT | `/api/reportes/{reporte_id}` | Actualiza |
 | DELETE | `/api/reportes/{reporte_id}` | Baja lógica. Devuelve `204` |
@@ -796,6 +800,8 @@ Acceso: `ADMINISTRADOR`, `COORDINADOR` y `SECRETARIA`. Los operadores quedan lim
 | DELETE | `/api/reportes/{reporte_id}/archivo` | Desvincula el adjunto; el archivo físico se conserva |
 
 Igual que en pases, `archivo_url` **no se acepta** en POST/PUT.
+
+El PDF de `GET /api/reportes/{reporte_id}/pdf` usa el mismo formato campo/detalle provisional que el de pases (membrete y estilos de los listados). Cada generación registra auditoría `REPORTES` / `GENERAR`.
 
 Crear reporte:
 
@@ -882,6 +888,8 @@ Reglas de conteo:
 
 #### Cierre de año
 
+> **Fuera de alcance en esta entrega**: el endpoint está implementado y probado, pero el frontend no expone ruta ni menú y no debe ejecutarse sobre la BD institucional.
+
 | Método | Ruta | Acceso | Descripción |
 | --- | --- | --- | --- |
 | POST | `/api/gestion/cerrar-anio` | Admin | Cierra el período actual, traspasa estudiantes y crea la estructura del siguiente |
@@ -892,10 +900,10 @@ Reglas de conteo:
 
 Devuelve `200` con `{ periodo_cerrado, periodo_activado, documentos_generados, estudiantes_promovidos, egresados, secciones_creadas, asignaturas_creadas }`.
 
-- El período actual debe estar activo y abierto; el siguiente debe ser mayor y no tener secciones creadas. El cierre toma `FOR UPDATE` sobre el período actual y revalida su estado: si otra petición lo cerró primero, devuelve `409 "El periodo ya fue cerrado por otra solicitud"` en vez de repetir el traspaso.
-- Genera PDFs de nóminas y representantes para todas las secciones, de horarios solo para las de LICEO y un listado general de docentes por nivel. Se preparan en staging y se mueven solo si toda la operación tiene éxito; si falla, se revierten.
+- El período actual debe existir (`404` si no), estar activo y abierto; el siguiente debe ser mayor y no tener secciones creadas. Si falta un grado destino en el catálogo se devuelve `400`. El cierre toma `FOR UPDATE` sobre el período actual y revalida su estado: si otra petición lo cerró primero, devuelve `409 "El periodo ya fue cerrado por otra solicitud"` en vez de repetir el traspaso. Estos códigos, junto con el `500` de sección destino ausente, están declarados en OpenAPI.
+- Genera PDFs de nóminas y representantes para todas las secciones, de horarios solo para las de LICEO y un listado general de docentes por nivel. Se preparan en staging y se mueven solo si toda la operación tiene éxito; si falla, se revierten. `documentos_generados` cuenta solo los PDFs movidos: con reutilización activa, los documentos cuya firma ya existe se reutilizan y no se cuentan ni se registran de nuevo.
 - Traspasa estudiantes al siguiente grado (6to Grado → 1er Año) y marca el egreso en 5to Año mediante `fecha_egreso` (solo lectura en la API normal). Los egresados no se traspasan dos veces: se excluyen del traspaso y de los conteos de la nómina vigente.
-- Replica las combinaciones grado+letra existentes sin docentes titulares y copia los nombres de asignaturas de liceo sin docentes.
+- Replica las combinaciones grado+letra existentes **y las de grado+1 hacia las que se promueve** (`secciones_creadas` incluye ambas), sin docentes titulares, y copia los nombres de asignaturas de liceo sin docentes.
 
 ### 6.15 Listados (`/api/listados`)
 

@@ -1,5 +1,7 @@
 """Generación de PDFs de listados institucionales (ReportLab)."""
 
+from datetime import datetime
+from enum import Enum
 from functools import lru_cache
 from io import BytesIO
 from xml.sax.saxutils import escape
@@ -260,6 +262,43 @@ def construir_pdf(
     onLaterPages=membrete,
   )
   return buffer.getvalue()
+
+
+def construir_pdf_registro(
+  titulo: str,
+  campos: list[tuple[str, object]],
+  *,
+  nivel: str | None = None,
+  grado: str | None = None,
+  seccion: str | None = None,
+  periodo_lectivo: str | None = None,
+) -> bytes:
+  """Construye el PDF básico de un registro como tabla campo/detalle.
+
+  Reutiliza el membrete, los estilos y el logo de los listados. Es un formato
+  provisional: la ruta y los bytes PDF no cambiarán cuando se ajuste el diseño.
+  """
+  def texto(valor: object) -> str:
+    """Da un texto presentable a fechas, enums y valores vacíos."""
+    if valor is None or valor == "":
+      return "—"
+    if isinstance(valor, datetime):
+      return valor.strftime("%d/%m/%Y %H:%M")
+    if isinstance(valor, Enum):
+      return str(valor.value)
+    return str(valor)
+
+  filas = [[campo, texto(valor)] for campo, valor in campos]
+  return construir_pdf(
+    titulo,
+    ["Campo", "Detalle"],
+    filas,
+    col_anchos=[4.5, 10.0],
+    nivel=nivel,
+    grado=grado,
+    seccion=seccion,
+    periodo_lectivo=periodo_lectivo,
+  )
 
 
 def construir_pdf_horarios(

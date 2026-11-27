@@ -11,7 +11,7 @@ from fastapi import (
   UploadFile,
   status,
 )
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
@@ -48,6 +48,7 @@ from app.models.schemas import (
 from app.models.session import get_session
 from app.utils.auditoria import registrar_auditoria
 from app.utils.nombres import nombre_completo
+from app.utils.pdf import construir_pdf_registro
 from app.utils.periodos import periodo_lectivo_efectivo
 from app.utils.security import (
   requerir_roles,
@@ -259,6 +260,68 @@ def obtener_reporte(
   validar_acceso_nivel(usuario_actual, _nivel_estudiante(reporte.estudiante))
 
   return _reporte_dto(reporte)
+
+
+@router.get(
+  "/{reporte_id}/pdf",
+  responses={
+    status.HTTP_403_FORBIDDEN: {
+      "description": "No tienes acceso a registros de otro nivel educativo"
+    },
+    status.HTTP_404_NOT_FOUND: {"description": "Reporte no encontrado"},
+  },
+)
+def exportar_reporte_pdf(
+  reporte_id: int,
+  session: Session = Depends(get_session),
+  usuario_actual: Usuarios = Depends(requerir_personal),
+):
+  """Genera un PDF básico del reporte; el diseño definitivo se ajustará después."""
+  reporte = _obtener_reporte_activo(session, reporte_id)
+  validar_acceso_nivel(usuario_actual, _nivel_estudiante(reporte.estudiante))
+  dto = _reporte_dto(reporte)
+  seccion = reporte.estudiante.seccion
+
+  pdf = construir_pdf_registro(
+    f"Reporte de incidencia #{dto.id}",
+    [
+      ("N.º", dto.id),
+      ("Fecha y hora", dto.fecha),
+      ("Estudiante", dto.estudiante),
+      ("Cédula", dto.cedula_estudiantil),
+      ("Nivel", dto.nivel),
+      ("Grado y sección", f"{seccion.grado.nombre} {seccion.letra}"),
+      ("Período lectivo", dto.periodo_lectivo),
+      ("Categoría", dto.categoria),
+      ("Gravedad", dto.nivel_gravedad),
+      ("Reglamento", dto.reglamento),
+      ("Artículo", dto.articulo),
+      ("Docente", dto.docente),
+      ("Asignatura", dto.asignatura),
+      ("Incidencia", dto.incidencia),
+      ("Derecho a la defensa", dto.defensa),
+      ("Registrado por", dto.usuario),
+    ],
+    nivel=dto.nivel.value if dto.nivel else None,
+    grado=seccion.grado.nombre,
+    seccion=seccion.letra,
+    periodo_lectivo=str(dto.periodo_lectivo) if dto.periodo_lectivo else None,
+  )
+
+  registrar_auditoria(
+    session,
+    usuario_actual.id,
+    ModuloAuditoria.reportes,
+    "GENERAR",
+    f"Generó el PDF del reporte #{dto.id} de '{dto.estudiante}'.",
+  )
+  session.commit()
+
+  return Response(
+    content=pdf,
+    media_type="application/pdf",
+    headers={"Content-Disposition": f'attachment; filename="reporte-{dto.id}.pdf"'},
+  )
 
 
 @router.post("/", response_model=PeticionReporte, status_code=status.HTTP_201_CREATED)

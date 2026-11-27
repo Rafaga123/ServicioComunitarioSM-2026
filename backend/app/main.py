@@ -77,6 +77,9 @@ app.add_middleware(
   allow_credentials=False,
   allow_methods=["*"],
   allow_headers=["*"],
+  # `Retry-After` no es cabecera CORS-safelisted: sin exponerla el navegador
+  # la oculta cuando el frontend apunta directo al backend (Tailscale).
+  expose_headers=["Retry-After"],
 )
 # Se agrega después de CORS para envolver también las respuestas de preflight.
 app.add_middleware(SinCacheMiddleware)
