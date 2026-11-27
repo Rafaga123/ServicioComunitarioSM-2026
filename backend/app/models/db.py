@@ -43,13 +43,11 @@ class Usuarios(EsquemaBase, table=True):
   # El administrador opera sin nivel (None); coordinador y secretaria
   # siempre deben pertenecer a ESCUELA o LICEO.
   nivel: en.NivelEducativo | None = Field(default=None)
-  
+
   # Contador de versión del JWT. Cada cambio de clave, baja o transferencia
   # de administrador lo incrementa y revoca todos los tokens emitidos
   # con un claim `ver` anterior.
   version_tokens: int = Field(default=0, nullable=False)
-
-  pases: list["Pases"] = Relationship(back_populates="usuario")
 
   pases: list["Pases"] = Relationship(back_populates="usuario")
   reportes: list["Reportes"] = Relationship(back_populates="usuario")

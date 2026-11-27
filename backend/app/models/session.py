@@ -39,6 +39,7 @@ def inicializar_base_datos() -> tuple[int, int]:
     limpiar_tokens_revocados(session)
     return sembrar_datos(session)
 
+
 def get_session():
   with Session(engine) as session:
     yield session
