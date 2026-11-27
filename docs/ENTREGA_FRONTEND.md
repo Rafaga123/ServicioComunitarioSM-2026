@@ -2,7 +2,7 @@
 
 > Actualizado el 24-11-2026 (`backend-dev`, Fases 1–6 completadas: 47 paths / 84 operaciones; aún sin push)
 > Base: `backend/` (FastAPI). URL base: `import.meta.env.VITE_API_URL ?? "http://localhost:8000/api"`
-> Auth: `Authorization: Bearer <JWT>` (Bearer en header, CORS: `allow_origins=["*"]`, `allow_credentials=False`).
+> Auth: `Authorization: Bearer <JWT>` (Bearer en header, CORS: `allow_origins=["*"]`, `allow_credentials=False`). Toda respuesta lleva `Cache-Control: private, no-store`: no guardar respuestas de la API en cachés compartidas ni reutilizar PDFs descargados sin volver a pedirlos al backend.
 > Fechas de entrada: ISO **sin zona horaria**; el backend las normaliza a Caracas (America/Caracas) por su cuenta.
 
 ---
@@ -359,7 +359,7 @@ Recomendación de campos: `archivo_tamano` en bytes; `archivo_url` solo legible 
     - Horarios: `{ "id_seccion": 10 }` de LICEO.
   - `PeticionDocumentoGenerado = { id?, tipo, periodo_lectivo?, nivel?, id_grado?, id_seccion?, nombre_archivo, ruta_relativa, hash, tamano, mime, fecha_generacion, generado_por?, grado_numero?, grado_nombre? }`.
   - El frontend usa el `id` devuelto para descargar; no envía `nombre_archivo`, `ruta_relativa`, `hash` ni `tamano`, y no usa `ruta_relativa` como URL.
-  - Duplicados: si el servidor tiene `REUTILIZAR_DOCUMENTOS_IGUALES=True`, una petición repetida con los mismos datos devuelve el `id` del PDF ya generado (sigue siendo `201`, sin crear archivo). Si los datos cambiaron, devuelve un `id` nuevo con sufijo `_v2`, `_v3`, …. Con el flag en `False` (default), siempre se crea un documento nuevo. El frontend debe usar siempre el `id` de la respuesta, sin asumir que será distinto.
+  - Duplicados: si el servidor tiene `REUTILIZAR_DOCUMENTOS_IGUALES=True`, una petición repetida con los mismos datos devuelve el `id` del PDF ya generado (sigue siendo `201`, sin crear archivo) y registra auditoría `REUTILIZAR`. Si los datos cambiaron, devuelve un `id` nuevo con sufijo `_v2`, `_v3`, …. Con el flag en `False` (default), siempre se crea un documento nuevo. El frontend debe usar siempre el `id` de la respuesta, sin asumir que será distinto.
 - `GET /api/listados/documentos` (autenticado, según nivel) → paginado de `PeticionDocumentoGenerado`; filtros `tipo`, `periodo_lectivo`, `nivel`, `id_grado`, `id_seccion`. El operador solo ve su nivel; el admin ve ambos. Un operador que fuerce otro `?nivel=` recibe `403`.
 - `GET /api/listados/documentos/paquete?tipo&periodo_lectivo` (admin) → `application/zip`, `Content-Disposition: attachment; filename="listados.zip"` con todos los PDFs de ese tipo+periodo.
 - `GET /api/listados/documentos/{documento_id}/archivo` → `FileResponse` PDF (`attachment`). El frontend debe llamarlo con el `id`; `404` si no existe, está dado de baja, la ruta es inválida o el archivo no está en disco. El nivel se valida también para documentos antiguos con `nivel` nulo.

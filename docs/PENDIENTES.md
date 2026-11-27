@@ -29,7 +29,8 @@ Estado al **2026-11-26**, rama `backend-dev`, Tareas 1, 2 y 3
       `REUTILIZAR_DOCUMENTOS_IGUALES` (default `False`).
 
 - [ ] **Activar `REUTILIZAR_DOCUMENTOS_IGUALES=True`** en el entorno cuando se
-      apruebe el cambio de comportamiento (hoy queda desactivado).
+      apruebe el cambio de comportamiento (default `False`). La reutilización
+      ya registra auditoría `REUTILIZAR` y valida nivel antes de devolver el PDF.
 
 - [ ] **Pruebas `TestClient`** de la matriz de validación y de las rutas relativas.
 

@@ -930,6 +930,7 @@ La respuesta ya trae `Content-Disposition: attachment`; `ruta_relativa` es inter
 - Los PDF usan hoja carta, margen izquierdo de 4 cm y 3 cm en los demás lados.
 - La ruta incluye el periodo lectivo: `2026-2027/listados/nominas/ESCUELA/1er_grado/U/nomina_2026-2027_1er_grado_U.pdf`. Los generales usan `generales/`: `2026-2027/listados/nominas/ESCUELA/generales/nomina_2026-2027_ESCUELA_general.pdf` o `.../nomina_2026-2027_1er_grado.pdf`. Si el nombre ya existe, se agrega `_v2`, `_v3`, ….
 - Duplicados: con `REUTILIZAR_DOCUMENTOS_IGUALES=True` se calcula una firma SHA-256 de tipo, periodo, nivel, grado/sección, filas, encabezados, anchos y título. Si la firma coincide y el archivo sigue en disco, la misma petición devuelve el documento existente con `201` y no crea otro PDF; si los datos cambiaron, se genera una versión nueva. La comprobación usa `pg_advisory_xact_lock(hashtext(firma))` para evitar duplicados concurrentes. Las firmas viven en la tabla `documentos_firmas`, creada con `create_all()`. Con el flag en `False` (default) siempre se genera un PDF nuevo.
+- La reutilización se audita como `DOCUMENTOS / REUTILIZAR` en la misma transacción y confirma para liberar el bloqueo. El nivel se valida **antes** de reutilizar y otra vez en la descarga, así que un operador no puede obtener un PDF de otro nivel pidiendo el `id` del documento reutilizado. La firma se calcula a partir de los datos armados para el listado: se evita el renderizado y el disco, pero no las consultas de construcción.
 - Las nóminas generales se ordenan por grado, sección y apellidos. Los representantes generales se ordenan por apellido del representante.
 - Título: `UNIDAD EDUCATIVA PRIVADA SANTA MARTA — Listado de estudiantes 2026-2027/1er Grado "U"`. En general por grado: `.../1er Grado general`. Metadatos: `ESCUELA • 1er Grado U • 2026-2027`.
 - Los representantes de ESCUELA del export original solo tienen teléfono; en la columna `Representante` se muestra `-`. Los de LICEO conservan su nombre real.
@@ -949,7 +950,7 @@ Cada operación de escritura registra automáticamente una auditoría con:
 
 - `usuario_id`
 - `modulo` (`USUARIOS`, `ESTUDIANTES`, `SECCIONES`, `PASES`, `REPORTES`, etc.)
-- `accion` (`CREAR`, `ACTUALIZAR`, `ELIMINAR`, `CAMBIAR CLAVE`, `TRANSFERIR ADMIN`, `SUBIR ARCHIVO`, `INICIO DE SESIÓN`, `CIERRE DE SESIÓN`, etc.)
+- `accion` (`CREAR`, `ACTUALIZAR`, `ELIMINAR`, `CAMBIAR CLAVE`, `TRANSFERIR ADMIN`, `SUBIR ARCHIVO`, `GENERAR`, `REUTILIZAR`, `DESCARGAR ARCHIVO`, `INICIO DE SESIÓN`, `CIERRE DE SESIÓN`, etc.)
 - `descripcion`
 - `fecha_creacion`
 
@@ -1019,9 +1020,10 @@ python -m scripts.normalizar_textos_auditoria
 
 ### 7.7 Auditoría
 
-- Las operaciones de escritura registran auditoría en la misma transacción.
+- Las operaciones de escritura registran auditoría en la misma transacción, incluida la reutilización de PDFs.
 - `GET /api/auditorias/` es exclusivo del administrador.
 - Los filtros de auditoría son por nombre de usuario, módulo, acción y fecha.
+- Todas las respuestas HTTP llevan `Cache-Control: private, no-store` (middleware global): las respuestas dependen del rol/nivel del token y las descargas escriben auditoría. Nunca se usa `public`.
 
 ### 7.8 Períodos lectivos
 
