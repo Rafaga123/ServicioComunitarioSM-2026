@@ -1,3 +1,5 @@
+"""Aplica el límite de intentos de login por usuario y por IP en memoria."""
+
 from collections import deque
 from threading import Lock
 from time import monotonic
@@ -20,7 +22,7 @@ _INTERVALO_PODA_SEGUNDOS = 3600
 
 
 def ip_cliente(request: Request) -> str:
-    """IP del cliente. No confiamos en X-Forwarded-For por defecto."""
+    """Devuelve la IP del cliente; ignora `X-Forwarded-For` por defecto."""
 
     return request.client.host if request.client else "desconocida"
 
@@ -30,6 +32,7 @@ def _clave_usuario(ip: str, usuario: str) -> tuple[str, str]:
 
 
 def _clave_ip(ip: str) -> tuple[str, str]:
+    # El `*` separa la ventana global de IP de las ventanas por (IP, usuario).
     return (ip, "*")
 
 
@@ -72,7 +75,7 @@ def _segundos_restantes(clave: tuple[str, str], ahora: float) -> int:
 
 
 def verificar_limite(ip: str, usuario: str) -> None:
-    """Se llama ANTES de buscar el usuario y antes de bcrypt."""
+    """Comprueba el límite por usuario y por IP antes de verificar la clave."""
 
     ahora = monotonic()
 
@@ -109,6 +112,7 @@ def verificar_limite(ip: str, usuario: str) -> None:
 
 
 def registrar_fallo(ip: str, usuario: str) -> None:
+    """Registra un intento fallido por usuario y por IP."""
     ahora = monotonic()
 
     with _bloqueo:
@@ -122,5 +126,7 @@ def registrar_exito(ip: str, usuario: str) -> None:
     ahora = monotonic()
 
     with _bloqueo:
+        # El éxito también cuenta para el techo de la IP; solo se borra la
+        # ventana del usuario.
         _limpiar(_clave_ip(ip), ahora).append(ahora)
         _ventanas.pop(_clave_usuario(ip, usuario), None)

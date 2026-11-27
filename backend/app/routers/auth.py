@@ -1,3 +1,5 @@
+"""Autentica usuarios, emite JWT y registra el cierre de sesión."""
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
@@ -29,6 +31,7 @@ router = APIRouter(prefix="/auth", tags=["Validaciones"])
 # "usuario inexistente" y "clave incorrecta" tarden lo mismo y no filtren
 # qué cuentas están registradas.
 _CLAVE_FANTASMA = "usuario-inexistente-no-usar-1234"
+# Sin lock: dos hilos que computean el mismo bcrypt fantasma dan el mismo valor.
 _HASH_FANTASMA: str | None = None
 
 
@@ -39,13 +42,13 @@ def _hash_para_usuario_inexistente() -> str:
   return _HASH_FANTASMA
 
 
-# Endpoint para iniciar sesión
 @router.post("/login")
 def iniciar_sesion(
   request: Request,
   form_data: OAuth2PasswordRequestForm = Depends(),
   session: Session = Depends(get_session),
 ):
+  """Autentica al usuario y devuelve un token de acceso."""
   ip = ip_cliente(request)
   usuario = form_data.username
 
@@ -98,6 +101,7 @@ def iniciar_sesion(
 
 @router.get("/me", response_model=PeticionUsuario)
 def perfil_usuario_actual(usuario_actual: Usuarios = Depends(obtener_usuario_actual)):
+  """Devuelve los datos del usuario autenticado."""
   return usuario_actual
 
 

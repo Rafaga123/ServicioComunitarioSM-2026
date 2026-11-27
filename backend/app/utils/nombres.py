@@ -1,7 +1,10 @@
+"""Compone nombres completos a partir de los campos personales."""
+
 from typing import Protocol
 
 
 class ConNombreCompleto(Protocol):
+  """Protocolo de objetos que exponen los cuatro campos del nombre completo."""
   primer_nombre: str
   segundo_nombre: str
   primer_apellido: str

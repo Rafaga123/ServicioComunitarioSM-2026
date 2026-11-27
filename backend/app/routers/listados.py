@@ -169,7 +169,7 @@ def generar_listado(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
-  """Genera y guarda un PDF de listados: por sección o general por nivel."""
+  """Genera y guarda un PDF por sección, por grado o general por nivel."""
   periodo, nivel, seccion, grado = _resolver_filtros(session, usuario_actual, peticion)
   if tipo == TipoDocumento.horarios:
     if seccion is None:
@@ -258,6 +258,7 @@ def listar_documentos(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve una página de documentos generados."""
   consulta = select(DocumentosGenerados).where(
     DocumentosGenerados.fecha_eliminacion.is_(None)
   )
@@ -285,6 +286,7 @@ def descargar_documento(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve el archivo PDF de un documento generado."""
   documento = session.get(DocumentosGenerados, documento_id)
   if not documento or documento.fecha_eliminacion is not None:
     raise HTTPException(404, "Documento no encontrado")
@@ -336,7 +338,7 @@ def descargar_paquete(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
-  """ZIP con todos los PDFs de un tipo y periodo lectivo."""
+  """Devuelve un ZIP con los PDFs activos de un tipo y periodo lectivo."""
   documentos = session.exec(
     select(DocumentosGenerados).where(
       DocumentosGenerados.tipo == tipo,

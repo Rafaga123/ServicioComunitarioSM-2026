@@ -1,3 +1,5 @@
+"""Gestiona cuentas, claves, roles y revocación de sesiones."""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
@@ -69,6 +71,7 @@ def listar_usuarios(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Devuelve una página de usuarios activos."""
   consulta = filtro_activos(select(Usuarios), Usuarios)
 
   nivel = resolver_nivel(usuario_actual, nivel)
@@ -88,6 +91,7 @@ def registrar_usuario(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Registra una cuenta de usuario."""
   statement = select(Usuarios).where(Usuarios.nombre == usuario_in.nombre)
 
   if session.exec(statement).first():
@@ -131,6 +135,7 @@ def cambiar_clave(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ) -> None:
+  """Cambia la clave del usuario autenticado y cierra sus sesiones."""
   if not verificar_clave(clave_in.clave_actual, usuario_actual.clave):
     raise HTTPException(
       status_code=status.HTTP_400_BAD_REQUEST,
@@ -161,6 +166,7 @@ def obtener_usuario(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Devuelve un usuario activo por su identificador."""
   return _obtener_usuario_activo(session, usuario_id)
 
 
@@ -171,6 +177,7 @@ def actualizar_usuario(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Actualiza un usuario y revoca sus sesiones si cambia la autenticación."""
   usuario_db = _obtener_usuario_activo(session, usuario_id)
 
   if usuario_db.rol == RolesUsuario.administrador:
@@ -181,8 +188,7 @@ def actualizar_usuario(
 
   datos_actualizar = usuario_in.model_dump(exclude_unset=True, exclude_none=True)
 
-  # La clave se hashea y se trata aparte: nunca se asigna tal cual como
-  # los demás campos con el bucle genérico de setattr.
+  # Se procesa aparte: un reset explícito también sube `version_tokens`.
   clave_nueva = datos_actualizar.pop("clave", None)
 
   _validar_combinacion_rol_nivel(
@@ -211,10 +217,14 @@ def actualizar_usuario(
     if getattr(usuario_db, campo) != valor
   }
 
-  # Reset de clave por el admin: sube la versión y revoca TODAS las sesiones
-  # anteriores de ese usuario, sin importar cuántas estuvieran abiertas.
+  # Se hashea aunque repita la actual: el reset explícito también revoca.
   if clave_nueva is not None:
     cambios["clave"] = obtener_hash_clave(clave_nueva)
+
+  # Clave, rol y nivel afectan a la autenticación: sube la versión y revoca
+  # TODAS las sesiones abiertas del usuario. El nombre solo cambia la etiqueta
+  # visible y no cierra sesiones.
+  if any(campo in cambios for campo in ("clave", "rol", "nivel")):
     cambios["version_tokens"] = usuario_db.version_tokens + 1
 
   if not cambios:
@@ -232,6 +242,8 @@ def actualizar_usuario(
   )
   if clave_nueva is not None:
     descripcion += " Se restableció su clave y se cerraron sus sesiones."
+  elif "version_tokens" in cambios:
+    descripcion += " Se cerraron sus sesiones por el cambio de rol o nivel."
 
   registrar_auditoria(
     session,
@@ -253,6 +265,7 @@ def eliminar_usuario(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ) -> None:
+  """Da de baja un usuario y revoca sus sesiones."""
   usuario_db = _obtener_usuario_activo(session, usuario_id)
 
   if usuario_db.rol == RolesUsuario.administrador:
@@ -284,6 +297,7 @@ def transferir_admin(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Transfiere el rol de administrador a otro usuario."""
   nuevo_admin = _obtener_usuario_activo(session, usuario_id)
 
   if nuevo_admin.rol == RolesUsuario.administrador:

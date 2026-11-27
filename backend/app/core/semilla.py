@@ -1,3 +1,5 @@
+"""Carga el catálogo fijo de grados y bloques horarios institucionales."""
+
 from datetime import time
 
 from sqlmodel import Session, select

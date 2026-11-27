@@ -25,7 +25,7 @@ def firma_documento(
   nivel: NivelEducativo | None,
   documento: DocumentoListado,
 ) -> str:
-  """SHA-256 canónico de los datos que determinan el contenido del PDF."""
+  """Devuelve el SHA-256 canónico de los datos que determinan el PDF."""
   payload = {
     "tipo": tipo.value,
     "periodo": periodo,
@@ -43,6 +43,7 @@ def firma_documento(
       list(registro) for registro in (documento.horario_docentes or [])
     ],
   }
+  # `sort_keys` y separadores compactos hacen determinista la firma.
   canonico = json.dumps(
     payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
   )

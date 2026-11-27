@@ -25,10 +25,12 @@ from app.utils.nombres import nombre_completo
 from app.utils.periodos import etiqueta_periodo
 from app.utils.storage import GRADO_SLUGS
 
+# Claves 1..5 de `isoweekday()`, el mismo dominio que `dia_semana` en horarios.
 DIAS_SEMANA = {1: "Lunes", 2: "Martes", 3: "Miércoles", 4: "Jueves", 5: "Viernes"}
 
-# Etiquetas solicitadas para la malla impresa del liceo (se respetan tal cual,
-# aunque difieran de la hora almacenada en `bloques_horarios`).
+# Etiquetas solicitadas para la malla impresa del liceo. Los tramos 6 y 8
+# difieren de `bloques_horarios` (Receso 2 = 10:00-10:10, Bloque 6 = 10:50-11:30)
+# porque la malla entregada usa esas etiquetas.
 HORAS_MALLA_LICEO = {
   1: "7:00-7:40",
   2: "7:40-8:20",
@@ -52,6 +54,7 @@ TITULOS_DOCUMENTO = {
 
 @dataclass
 class DocumentoListado:
+  """Estructura intermedia con filas, encabezados y metadata para renderizar un listado."""
   seccion_id: int | None
   grado_id: int | None
   grado: Grados | None
@@ -106,16 +109,14 @@ def _titulo(
 
 
 def _nombre_representante(representante: Representantes | None) -> str:
-  """Nombre del representante, o '-' cuando solo se conoce su teléfono."""
+  """Devuelve el nombre del representante o '-' si no hay nombre usable."""
   if representante is None:
     return "-"
   return nombre_completo(representante) or "-"
 
 
-# =====
-# Consultas por sección
-# =====
 def _filas_nominas_seccion(session: Session, seccion: Secciones) -> list[list[str]]:
+  """Devuelve las filas de la nómina de una sección."""
   estudiantes = session.exec(
     select(Estudiantes)
     .where(
@@ -249,15 +250,13 @@ def _datos_horarios(
   return cabecera, filas, docentes
 
 
-# =====
-# Consultas general (por nivel y periodo, sin sección)
-# =====
 def _filas_nominas_general(
   session: Session,
   periodo: int,
   nivel: NivelEducativo,
   grado: Grados | None = None,
 ) -> list[list[str]]:
+  """Devuelve las filas de la nómina general de un nivel y periodo."""
   consulta = (
     select(Estudiantes)
     .join(Secciones, Estudiantes.id_seccion == Secciones.id)

@@ -83,7 +83,7 @@ def ruta_relativa_imagen(
   registro_id: int,
   extension: str,
 ) -> str:
-  """Construye la ruta relativa estándar de un adjunto de pase o reporte."""
+  """Construye la ruta de un adjunto con nombre `{registro_id}_{uuid8}.{ext}`."""
   extension = extension.lstrip(".").lower() or "jpg"
   slug_grado = GRADO_SLUGS.get(grado_numero, f"grado_{grado_numero}")
   nombre_archivo = f"{registro_id}_{uuid.uuid4().hex[:8]}.{extension}"
@@ -101,8 +101,8 @@ def ruta_relativa_imagen(
 def validar_upload(archivo: UploadFile) -> tuple[str, str, str, bytes]:
   """Valida un adjunto subido y devuelve (nombre_base, ext, mime, contenido).
 
-  El `nombre_base` es seguro y legible (sin `_`, con `año`). La ruta física
-  sigue siendo un UUID para evitar colisiones y exposición del nombre original.
+  El `nombre_base` es seguro y legible (sin `_`, con `año`). El nombre físico
+  se genera aparte para evitar colisiones y exponer el nombre original.
   Rechaza tamaños, MIME o extensiones fuera del allowlist.
   """
   nombre = archivo.filename or "archivo"
@@ -123,7 +123,7 @@ def validar_upload(archivo: UploadFile) -> tuple[str, str, str, bytes]:
 
 
 def nombre_unico(ruta_relativa: str, nombre_archivo: str) -> str:
-  """Añade sufijo `_v{n}` si el archivo ya existe; lo devuelve igual si no."""
+  """Devuelve el nombre con sufijo `_v2`, `_v3`, … si el archivo ya existe."""
   destino = ruta_absoluta(ruta_relativa)
   if not destino.exists():
     return nombre_archivo
@@ -140,16 +140,19 @@ def ruta_con_nombre(ruta_relativa: str, nombre_archivo: str) -> str:
 
 
 def guardar_archivo(ruta_relativa: str, contenido: bytes) -> None:
+  """Escribe el contenido en la ruta indicada, creando las carpetas."""
   destino = ruta_absoluta(ruta_relativa)
   destino.parent.mkdir(parents=True, exist_ok=True)
   destino.write_bytes(contenido)
 
 
 def leer_archivo(ruta_relativa: str) -> bytes:
+  """Devuelve el contenido del archivo de la ruta indicada."""
   return ruta_absoluta(ruta_relativa).read_bytes()
 
 
 def existe_archivo(ruta_relativa: str) -> bool:
+  """Indica si la ruta corresponde a un archivo existente."""
   try:
     return ruta_absoluta(ruta_relativa).is_file()
   except ValueError:
@@ -157,6 +160,7 @@ def existe_archivo(ruta_relativa: str) -> bool:
 
 
 def hash_contenido(contenido: bytes) -> str:
+  """Devuelve el SHA-256 del contenido."""
   import hashlib
 
   return hashlib.sha256(contenido).hexdigest()

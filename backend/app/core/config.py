@@ -1,9 +1,11 @@
+"""Lee y valida la configuración de entorno, JWT, almacenamiento y límites de acceso."""
+
 import os
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Cargar variables de entorno del archivo .env
+# Carga las variables de entorno del archivo .env.
 load_dotenv()
 
 # Configuración de la Base de Datos

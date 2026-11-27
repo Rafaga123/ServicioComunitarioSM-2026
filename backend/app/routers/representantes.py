@@ -1,3 +1,5 @@
+"""Gestiona representantes y su vinculación con estudiantes."""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
@@ -95,6 +97,7 @@ def registrar_representante(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Registra un representante."""
   nuevo_rep = Representantes(
     primer_nombre=rep_in.primer_nombre,
     segundo_nombre=rep_in.segundo_nombre,
@@ -127,6 +130,7 @@ def listar_representantes(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve una página de representantes activos."""
   nivel = resolver_nivel(usuario_actual, nivel)
   consulta = filtro_activos(select(Representantes), Representantes)
 
@@ -155,6 +159,7 @@ def obtener_representante(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(obtener_usuario_actual),
 ):
+  """Devuelve un representante activo por su identificador."""
   representante = _obtener_representante_activo(session, representante_id)
   _validar_acceso_representante(session, usuario_actual, representante)
 
@@ -168,6 +173,7 @@ def actualizar_representante(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Actualiza un representante activo."""
   representante_db = _obtener_representante_activo(session, representante_id)
   datos_actualizar = rep_in.model_dump(exclude_unset=True, exclude_none=True)
 
@@ -207,6 +213,7 @@ def eliminar_representante(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ) -> None:
+  """Marca un representante como eliminado."""
   representante_db = _obtener_representante_activo(session, representante_id)
 
   consulta = select(Estudiantes).where(
@@ -243,6 +250,7 @@ def vincular_estudiante_representante(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ):
+  """Vincula un estudiante a un representante."""
   representante = _obtener_representante_activo(session, representante_id)
   estudiante = _obtener_estudiante_activo(session, estudiante_id)
 
@@ -287,6 +295,7 @@ def desvincular_estudiante_representante(
   session: Session = Depends(get_session),
   usuario_actual: Usuarios = Depends(requerir_admin),
 ) -> None:
+  """Desvincula un estudiante de su representante."""
   estudiante = _obtener_estudiante_activo(session, estudiante_id)
 
   if estudiante.id_representante != representante_id:
