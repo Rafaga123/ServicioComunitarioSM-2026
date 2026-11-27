@@ -4,12 +4,20 @@
 const API_URL = (import.meta.env.VITE_API_URL ?? '/api').replace(/\/+$/, '')
 
 export class ApiError extends Error {
-  constructor(message, status = 0, data = null) {
+  constructor(message, status = 0, data = null, retryAfter = null) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.data = data
+    // Segundos indicados por el backend en una respuesta 429 (login).
+    this.retryAfter = retryAfter
   }
+}
+
+const retryAfterDe = (response) => {
+  if (response?.status !== 429) return null
+  const segundos = Number.parseInt(response.headers?.get?.('Retry-After') ?? '', 10)
+  return Number.isFinite(segundos) && segundos > 0 ? segundos : null
 }
 
 // FastAPI devuelve los errores de validación como { detail: [...] }.
@@ -129,7 +137,12 @@ export async function apiFetch(
 
   if (!response.ok) {
     if (response.status === 401) cerrarSesion()
-    throw new ApiError(extraerMensaje(data, response.status), response.status, data)
+    throw new ApiError(
+      extraerMensaje(data, response.status),
+      response.status,
+      data,
+      retryAfterDe(response),
+    )
   }
 
   return data
@@ -196,7 +209,12 @@ export async function apiDescargar(path, { params, timeout = 60000 } = {}) {
       }
     }
     if (response.status === 401) cerrarSesion()
-    throw new ApiError(extraerMensaje(data, response.status), response.status, data)
+    throw new ApiError(
+      extraerMensaje(data, response.status),
+      response.status,
+      data,
+      retryAfterDe(response),
+    )
   }
 
   const blob = await response.blob()

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, markRaw, onMounted } from "vue";
+import { computed, markRaw, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   ArrowRightOnRectangleIcon,
@@ -69,9 +69,18 @@ onMounted(() => {
   if (sesion.token && !sesion.usuario?.nombre) cargarPerfil();
 });
 
-const logout = () => {
-  cerrarSesion();
-  router.push({ name: "Login" });
+const cerrandoSesion = ref(false);
+
+const logout = async () => {
+  if (cerrandoSesion.value) return;
+  cerrandoSesion.value = true;
+  try {
+    // El backend revoca el token y registra la auditoría antes de salir.
+    await cerrarSesion();
+    await router.push({ name: "Login" });
+  } finally {
+    cerrandoSesion.value = false;
+  }
 };
 </script>
 
@@ -153,11 +162,12 @@ const logout = () => {
         </div>
         <button
           type="button"
-          class="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-500/20 hover:text-red-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300"
+          :disabled="cerrandoSesion"
+          class="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-500/20 hover:text-red-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300 disabled:cursor-not-allowed disabled:opacity-60"
           @click="logout"
         >
           <ArrowRightOnRectangleIcon class="h-5 w-5" aria-hidden="true" />
-          Cerrar sesión
+          {{ cerrandoSesion ? 'Cerrando…' : 'Cerrar sesión' }}
         </button>
       </div>
     </div>

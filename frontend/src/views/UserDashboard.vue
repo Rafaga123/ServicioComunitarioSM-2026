@@ -230,7 +230,7 @@ const obtenerClaseGravedad = (gravedad) => {
                 <router-link :to="{ name: 'reportes' }" class="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-[#1b2a47] shadow-sm transition hover:bg-gray-50">
                 Historial de Reportes
                 </router-link>
-                <router-link :to="{ name: 'reportes' }" class="rounded-xl bg-[#2c4a7a] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(44,74,122,0.25)] transition hover:bg-[#233d68]">
+                <router-link :to="{ name: 'reportes', query: { vista: 'nuevo' } }" class="rounded-xl bg-[#2c4a7a] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(44,74,122,0.25)] transition hover:bg-[#233d68]">
                 Generar Reporte
                 </router-link>
             </template>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, onUnmounted, ref } from 'vue'
 // Las imágenes se importan para que Vite resuelva bien la ruta (src/assets/)
 import fondo from '../assets/fachada.jpg'
 import logo from '../assets/logo santa marta.png'
@@ -19,8 +19,45 @@ const showPassword = ref(false)
 const loading = ref(false)
 const error = ref('')
 
+// El login usa fetch directo (no apiFetch), así que el Retry-After del 429
+// se aplica aquí: el botón queda inactivo hasta que termine el bloqueo.
+const segundosBloqueo = ref(0)
+let temporizadorBloqueo = null
+let finBloqueo = 0
+const textoBoton = computed(() =>
+  loading.value
+    ? 'Ingresando…'
+    : segundosBloqueo.value > 0
+      ? `Espera ${segundosBloqueo.value} s`
+      : 'Ingresar',
+)
+
+const detenerBloqueo = () => {
+  if (temporizadorBloqueo) {
+    clearInterval(temporizadorBloqueo)
+    temporizadorBloqueo = null
+  }
+}
+
+const aplicarBloqueo = (retryAfter) => {
+  const segundos = Number.parseInt(retryAfter, 10)
+  if (!Number.isFinite(segundos) || segundos <= 0) return
+
+  detenerBloqueo()
+  segundosBloqueo.value = segundos
+  finBloqueo = Date.now() + segundos * 1000
+  temporizadorBloqueo = setInterval(() => {
+    const restante = Math.max(0, Math.ceil((finBloqueo - Date.now()) / 1000))
+    segundosBloqueo.value = restante
+    if (restante === 0) detenerBloqueo()
+  }, 250)
+}
+
+onUnmounted(detenerBloqueo)
+
 // 2. Función que intercepta el envío del formulario
 const handleLogin = async () => {
+  if (segundosBloqueo.value > 0) return
   error.value = ''
   loading.value = true
 
@@ -39,6 +76,15 @@ const handleLogin = async () => {
     })
 
     if(!response.ok){
+      if (response.status === 429) {
+        // El backend envía Retry-After en segundos; no reintentamos solos.
+        aplicarBloqueo(response.headers.get('Retry-After'))
+        error.value =
+          segundosBloqueo.value > 0
+            ? `Demasiados intentos. Intenta de nuevo en ${segundosBloqueo.value} s.`
+            : 'Demasiados intentos. Intenta de nuevo en unos segundos.'
+        return
+      }
       // 502/503/504 los devuelve el proxy cuando el backend no responde.
       throw new Error(
         response.status === 401
@@ -232,10 +278,10 @@ const handleLogin = async () => {
 
           <button
             type="submit"
-            :disabled="loading"
+            :disabled="loading || segundosBloqueo > 0"
             class="mt-1 h-13 rounded-xl bg-[#2c4a7a] text-[17px] font-bold text-white shadow-[0_8px_20px_rgba(44,74,122,0.35)] transition hover:bg-[#233d68] active:scale-[0.99] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-[#91a5c9] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {{ loading ? 'Ingresando…' : 'Ingresar' }}
+            {{ textoBoton }}
           </button>
 
           <p class="text-center text-[13.5px] leading-relaxed text-[#4a5876]">

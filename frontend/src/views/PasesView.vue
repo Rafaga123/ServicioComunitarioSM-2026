@@ -17,6 +17,7 @@ import {
   descargarArchivoPase,
   quitarArchivoPase,
 } from '@/services/pases'
+import { ACEPTAR_ARCHIVOS, validarArchivoAdjunto } from '@/utils/archivos'
 
 // ───────────── Helpers de fecha / formato ─────────────
 const pad = (n) => String(n).padStart(2, '0')
@@ -794,8 +795,6 @@ const confirmarBaja = async () => {
 
 // ═════════════ SECCIÓN 6: Adjunto del pase ═════════════
 const archivo = reactive({ subiendo: false, quitando: false, error: '' })
-const MIME_PERMITIDOS = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
-const TAMANO_MAXIMO = 5 * 1024 * 1024
 
 const seleccionarArchivo = async (event) => {
   const entrada = event.target
@@ -803,15 +802,8 @@ const seleccionarArchivo = async (event) => {
   entrada.value = ''
   if (!file || !detalle.pase) return
 
-  archivo.error = ''
-  if (!MIME_PERMITIDOS.includes(file.type)) {
-    archivo.error = 'Solo se permiten imágenes JPG, PNG o WEBP.'
-    return
-  }
-  if (file.size > TAMANO_MAXIMO) {
-    archivo.error = 'La imagen supera el tamaño máximo de 5 MB.'
-    return
-  }
+  archivo.error = validarArchivoAdjunto(file)
+  if (archivo.error) return
 
   archivo.subiendo = true
   try {
@@ -1378,11 +1370,11 @@ onBeforeUnmount(() => {
                       <input
                         type="file"
                         class="sr-only"
-                        accept="image/jpeg,image/png,image/webp"
+                        :accept="ACEPTAR_ARCHIVOS"
                         :disabled="archivo.subiendo"
                         @change="seleccionarArchivo"
                       />
-                      {{ archivo.subiendo ? 'Subiendo…' : 'Adjuntar imagen' }}
+                      {{ archivo.subiendo ? 'Subiendo…' : 'Adjuntar archivo' }}
                     </label>
                     <button
                       v-if="detalle.pase.archivoNombre"

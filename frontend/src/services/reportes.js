@@ -224,3 +224,7 @@ export async function descargarArchivoReporte(id, { inline = false } = {}) {
 export async function quitarArchivoReporte(id) {
   return apiFetch(`${RECURSO}${id}/archivo`, { method: 'DELETE' })
 }
+
+// Exportación: el backend anunció un generador PDF de reportes similar al de
+// gestión académica. Cuando publique el endpoint, se conectará aquí y se
+// habilitará el botón "Exportar PDF" de la ficha del reporte.

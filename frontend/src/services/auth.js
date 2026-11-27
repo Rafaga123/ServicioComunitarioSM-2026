@@ -24,11 +24,11 @@ export const NIVELES = {
 
 // Rutas habilitadas por rol. Es la única fuente de verdad: la usan el sidebar
 // y el guard del router, así que ocultar un enlace y bloquear la URL coinciden.
+// Pases y reportes son operación de Secretaría y Coordinación; el administrador
+// no debe verlos en el menú ni poder abrirlos directamente.
 const RUTAS_POR_ROL = {
   [ROLES.ADMINISTRADOR]: [
     'dashboard',
-    'pases',
-    'reportes',
     'gestion-academica',
     'usuarios',
     'auditorias',
@@ -113,11 +113,21 @@ export const iniciarSesion = (token) => {
   return sesion.usuario
 }
 
-export const cerrarSesion = () => {
-  localStorage.removeItem('token')
-  tokenCargado = null
-  sesion.token = null
-  sesion.usuario = null
+// Revoca el JWT en el backend (audita el cierre) y después limpia la sesión
+// local. No se reintenta: si el token venció o cambió la clave, el 401 ya
+// limpia la sesión desde api.js y aquí solo se garantiza el estado local.
+export const cerrarSesion = async () => {
+  const token = sesion.token ?? localStorage.getItem('token')
+  try {
+    if (token) await apiFetch('/auth/logout', { method: 'POST' })
+  } catch {
+    // La limpieza local se hace siempre, incluso si el logout falla.
+  } finally {
+    localStorage.removeItem('token')
+    tokenCargado = null
+    sesion.token = null
+    sesion.usuario = null
+  }
 }
 
 // /auth/me devuelve id, nombre, rol y nivel. El rol/nivel del servidor manda

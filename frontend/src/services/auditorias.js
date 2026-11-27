@@ -14,34 +14,45 @@ const RECURSO = '/auditorias/'
 // Límite que impone el backend en el parámetro `size` (Paginacion: le=100).
 export const MAXIMO_POR_PAGINA = 100
 
+// `texto_legible()` del backend guarda estos valores con espacios y tilde
+// (por ejemplo `BLOQUES HORARIOS`, `CIERRE AÑO`), no con guiones bajos.
 export const MODULOS_AUDITORIA = [
   'USUARIOS',
   'ESTUDIANTES',
-  'REPRESENTANTES',
-  'DOCENTES',
   'GRADOS',
   'SECCIONES',
+  'REPRESENTANTES',
+  'DOCENTES',
   'ASIGNATURAS',
-  'BLOQUES_HORARIOS',
+  'BLOQUES HORARIOS',
   'HORARIOS',
   'PASES',
   'REPORTES',
-  'PERIODOS_LECTIVOS',
   'AUDITORIAS',
+  'PERIODOS LECTIVOS',
   'DOCUMENTOS',
-  'CIERRE_ANIO',
+  'CIERRE AÑO',
 ]
 
-// `accion` es texto libre en el backend, no un enum. Esta lista alimenta las
-// sugerencias del filtro, pero el usuario puede escribir cualquier valor.
+// `accion` es texto libre en el backend, no un enum. Estas son las acciones
+// que realmente registra; el filtro usa `ilike`, así que deben ir legibles.
 export const ACCIONES_AUDITORIA = [
   'CREAR',
   'ACTUALIZAR',
   'ELIMINAR',
-  'CAMBIAR_CLAVE',
-  'TRANSFERIR_ADMIN',
-  'VINCULAR_DOCENTE',
-  'DESVINCULAR_DOCENTE',
+  'CAMBIAR CLAVE',
+  'TRANSFERIR ADMIN',
+  'VINCULAR DOCENTE',
+  'DESVINCULAR DOCENTE',
+  'VINCULAR ESTUDIANTE',
+  'DESVINCULAR ESTUDIANTE',
+  'GENERAR',
+  'REUTILIZAR',
+  'DESCARGAR ARCHIVO',
+  'SUBIR ARCHIVO',
+  'QUITAR ARCHIVO',
+  'INICIO DE SESIÓN',
+  'CIERRE DE SESIÓN',
 ]
 
 // PeticionAuditoria -> objeto de la vista
